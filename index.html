@@ -48,11 +48,36 @@
     --statusbar-bg: rgba(10, 20, 14, 0.50);
     --toast-bg: rgba(14, 26, 18, 0.75);
     --rsb-w: 56px;
+    /* Safe area helpers — read by JS for panel clamping */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Ensure all fixed dropdowns/modals clamp within the visible viewport */
+  #prefs-dropdown, #file-dropdown, #options-dropdown {
+    max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 80px);
+    overflow-y: auto;
+  }
+  /* Modals are centred — just ensure they don't overflow on tiny screens */
+  .modal-box, .export-box, .resize-box, .shortcuts-box {
+    max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px);
+    overflow-y: auto;
   }
 
   html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); background-image: radial-gradient(ellipse at 20% 50%, rgba(30,80,45,0.35) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(20,60,35,0.25) 0%, transparent 50%), radial-gradient(ellipse at 60% 80%, rgba(10,40,20,0.3) 0%, transparent 55%); font-family: 'DM Sans', sans-serif; color: var(--text); }
 
-  #app { display: flex; width: 100%; height: 100%; overflow: hidden; }
+  /* Safe area support for iPhone notch / Dynamic Island / Android cutouts */
+  #app {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    box-sizing: border-box;
+  }
 
   .logo {
     width: 36px;
@@ -115,7 +140,7 @@
     background: var(--canvas-bg);
     position: relative;
     overflow: hidden;
-    padding-top: 52px;
+    padding-top: calc(52px + env(safe-area-inset-top));
   }
 
   #canvas-bg {
@@ -199,14 +224,14 @@
     appearance: slider-vertical;
     writing-mode: vertical-lr;
     direction: rtl;
-    width: 3px;
+    width: 28px;         /* wider track = easier to grab */
     height: 80px;
-    border-radius: 2px;
+    border-radius: 6px;
     background: var(--surface3);
     outline: none;
     cursor: pointer;
     padding: 0;
-    touch-action: none;  /* let pointer events handle touch instead of scroll */
+    touch-action: none;
   }
   /* Wider invisible hit area for touch on vertical sliders */
   input[type=range].vertical::-webkit-slider-thumb {
@@ -226,14 +251,15 @@
   }
   input[type=range].vertical::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 12px; height: 12px;
+    width: 22px; height: 22px;   /* large thumb for touch */
     border-radius: 50%;
     background: var(--accent2);
-    box-shadow: none;
+    box-shadow: 0 0 0 4px rgba(110,238,160,0.18);
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform 0.1s, box-shadow 0.1s;
   }
-  input[type=range].vertical::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range].vertical:active::-webkit-slider-thumb { transform: scale(1.18); box-shadow: 0 0 0 7px rgba(110,238,160,0.22); }
+  input[type=range].vertical::-webkit-slider-thumb:hover { transform: scale(1.15); }
   .vslider-sep {
     width: 28px;
     height: 1px;
@@ -255,7 +281,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 14px 0 12px;
+    padding: calc(14px + env(safe-area-inset-top)) 0 calc(12px + env(safe-area-inset-bottom));
     gap: 0;
     z-index: 10;
     transition: left 0.2s, right 0.2s;
@@ -267,6 +293,8 @@
     border-left: none;
     border-right: 1px solid var(--glass-border);
     box-shadow: inset 1px 0 0 var(--glass-highlight);
+    padding-left: env(safe-area-inset-left);
+    padding-right: 0;
   }
   /* Tooltip direction flips when sidebar is on the left */
   #right-sidebar.left-hand #layers-trigger[data-tip]:hover::after,
@@ -812,7 +840,10 @@
     top: 8px;
     left: 50%;
     transform: translateX(-50%);
-    width: max-content;
+    max-width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 140px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     background: var(--topbar-bg);
     backdrop-filter: blur(28px) saturate(1.8);
     -webkit-backdrop-filter: blur(28px) saturate(1.8);
@@ -823,7 +854,10 @@
     padding: 5px;
     gap: 4px;
     z-index: 9;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
+  #topbar::-webkit-scrollbar { display: none; }
 
   .top-btn {
     height: 26px;
@@ -1152,7 +1186,7 @@
 
   #toast {
     position: fixed;
-    bottom: 40px;
+    bottom: calc(40px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%) translateY(20px);
     background: var(--toast-bg);
@@ -2738,6 +2772,17 @@
             <button class="pref-toggle" id="pref-right-handed">OFF</button>
           </div>
           <div class="prefs-sep"></div>
+          <!-- UI Scale slider -->
+          <div class="prefs-row">
+            <div class="prefs-row-info">
+              <div class="prefs-row-title">UI Scale</div>
+              <div class="prefs-row-sub">Scale the entire interface</div>
+            </div>
+            <div class="pref-slider-wrap">
+              <input type="range" class="pref-slider" id="pref-ui-scale" min="70" max="130" value="100" step="5">
+              <span class="pref-slider-val" id="pref-ui-scale-val">100%</span>
+            </div>
+          </div>
           <!-- Touch to Draw toggle -->
           <div class="prefs-row">
             <div class="prefs-row-info">
@@ -4460,16 +4505,37 @@ function wetInit(layerCtx) {
 }
 
 function wetCommit() {
+  // Final synchronous flush — ensures last dabs are composited before we clear
+  _doWetFlush();
+  _wetFlushPending = false;
   wet.snapshot = null;
   wet.layerCtx = null;
 }
 
+// rAF-based flush: schedule at most one composite per animation frame
+// when stabilizer is OFF. This eliminates the per-dab putImageData cost
+// that causes lag, while still keeping visual output smooth.
+let _wetFlushPending = false;
 function wetFlushToLayer() {
   if (!wet.snapshot || !wet.layerCtx) return;
+  // When stabilizer is active the stabilizerTick loop already runs in rAF,
+  // so flush immediately there. When stab is OFF we batch via rAF.
+  if (pressureSettings.stabilizer > 0 || !state.drawing) {
+    _doWetFlush();
+  } else {
+    if (!_wetFlushPending) {
+      _wetFlushPending = true;
+      requestAnimationFrame(() => {
+        _wetFlushPending = false;
+        _doWetFlush();
+      });
+    }
+  }
+}
+function _doWetFlush() {
+  if (!wet.snapshot || !wet.layerCtx) return;
   const { px, py } = getPad();
-  // putImageData ignores ctx.translate — write to physical pad offset
   wet.layerCtx.putImageData(wet.snapshot, px, py);
-  // ctx.drawImage respects the translate, so (0,0) in doc-space is correct
   const brush = getActiveBrush();
   wet.layerCtx.globalAlpha = brush.opacity / 100;
   wet.layerCtx.drawImage(wet.canvas, 0, 0);
@@ -5411,11 +5477,44 @@ canvasContainer.style.touchAction = 'none';
 function _positionDropdownBelow(btn, dd) {
   const rect = btn.getBoundingClientRect();
   const ddW  = dd.offsetWidth || parseInt(dd.style.width) || 240;
-  let left = rect.left;
-  left = Math.max(8, Math.min(window.innerWidth - ddW - 8, left));
+  const safeLeft  = 8;
+  const safeRight = window.innerWidth - 8;
+  let left = Math.max(safeLeft, Math.min(safeRight - ddW, rect.left));
   const top = rect.bottom + 6;
+  // Clamp top so it doesn't hide under safe-area
+  const safeTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('padding-top') || '0') + 4;
   dd.style.left = left + 'px';
-  dd.style.top  = top + 'px';
+  dd.style.top  = Math.max(safeTop, top) + 'px';
+}
+
+// ── Universal panel clamper ──────────────────────────────────────────────────
+// Keeps any fixed/absolute panel fully within the visible safe-area viewport.
+// Call after setting panel.style.left/top, or pass preferred coords directly.
+function clampPanel(panel, prefLeft, prefTop) {
+  const vw  = window.innerWidth;
+  const vh  = window.innerHeight;
+  const pad = 8;
+  // Measure panel (make it briefly visible off-screen if needed)
+  const wasHidden = panel.style.visibility === 'hidden' || !panel.classList.contains('open');
+  if (wasHidden) { panel.style.visibility = 'hidden'; panel.style.display = 'flex'; }
+  const pw = panel.offsetWidth  || 280;
+  const ph = panel.offsetHeight || 300;
+  if (wasHidden) { panel.style.display = ''; panel.style.visibility = ''; }
+
+  let left = prefLeft !== undefined ? prefLeft : parseFloat(panel.style.left) || 0;
+  let top  = prefTop  !== undefined ? prefTop  : parseFloat(panel.style.top)  || 0;
+
+  // Clamp horizontally — prefer left side, but never go off right edge
+  left = Math.max(pad, Math.min(vw - pw - pad, left));
+  // Clamp vertically — never above top, never below bottom
+  top  = Math.max(pad, Math.min(vh - ph - pad, top));
+
+  panel.style.left = left + 'px';
+  panel.style.top  = top  + 'px';
+
+  // Also constrain max-height so the panel scrolls rather than overflows
+  const availH = vh - top - pad;
+  if (ph > availH) panel.style.maxHeight = availH + 'px';
 }
 
 function closeAllTopMenus() {
@@ -5536,6 +5635,31 @@ document.addEventListener('click', e => {
     rhBtn.classList.toggle('active', val);
   }
   rhBtn.addEventListener('click', () => { applyHandedness(!rightHanded); positionPanels(); });
+
+  // ── INTERFACE: UI Scale ──
+  const uiScalePref = document.getElementById('pref-ui-scale');
+  const uiScaleVal  = document.getElementById('pref-ui-scale-val');
+  function applyUIScale(pct) {
+    document.documentElement.style.fontSize = (pct / 100) + 'rem';
+    // Scale the sidebar width and tool-button sizes proportionally
+    document.documentElement.style.setProperty('--ui-scale', pct / 100);
+    // Apply zoom to the #app wrapper so everything scales
+    const scale = pct / 100;
+    const app = document.getElementById('app');
+    if (app) {
+      app.style.transformOrigin = 'top left';
+      app.style.transform = scale !== 1 ? `scale(${scale})` : '';
+      app.style.width = scale !== 1 ? (100 / scale) + '%' : '';
+      app.style.height = scale !== 1 ? (100 / scale) + 'vh' : '';
+    }
+    if (uiScaleVal) uiScaleVal.textContent = pct + '%';
+  }
+  if (uiScalePref) {
+    uiScalePref.addEventListener('input', () => {
+      applyUIScale(parseInt(uiScalePref.value));
+    });
+    applyUIScale(parseInt(uiScalePref.value));
+  }
 
   // ── INTERFACE: Sidebar slider size ──
   const sliderSizePref  = document.getElementById('pref-slider-size');
@@ -5830,11 +5954,18 @@ function applyCanvasCursor() {
     const rect = el.closest('#right-sidebar').getBoundingClientRect();
     popout.textContent = text;
     popout.style.display = 'block';
-    // Position to the left of the sidebar
+    // Position to the left of the sidebar (or right in left-hand mode)
     const pr = popout.getBoundingClientRect();
     const sliderRect = el.getBoundingClientRect();
-    popout.style.top  = (sliderRect.top + sliderRect.height / 2 - pr.height / 2) + 'px';
-    popout.style.left = (rect.left - pr.width - 10) + 'px';
+    const sidebar = document.getElementById('right-sidebar');
+    const leftHand = sidebar && sidebar.classList.contains('left-hand');
+    let popLeft = leftHand ? rect.right + 10 : rect.left - pr.width - 10;
+    let popTop  = sliderRect.top + sliderRect.height / 2 - pr.height / 2;
+    // Clamp within viewport
+    popLeft = Math.max(8, Math.min(window.innerWidth  - pr.width  - 8, popLeft));
+    popTop  = Math.max(8, Math.min(window.innerHeight - pr.height - 8, popTop));
+    popout.style.top  = popTop  + 'px';
+    popout.style.left = popLeft + 'px';
   }
 
   function hidePopout() {
@@ -6937,19 +7068,23 @@ function positionPanels() {
   const pickerW     = 240;
   const layersW     = 260;
 
-  const pickerLeft = leftHand
-    ? sidebarRect.right + GAP
-    : sidebarRect.left - pickerW - GAP;
-  const layersLeft = leftHand
-    ? sidebarRect.right + GAP
-    : sidebarRect.left - layersW - GAP;
+  // Clamp panel left so panels never go off-screen on narrow phones
+  const safeLeft  = 8;
+  const safeRight = window.innerWidth - 8;
+
+  const pickerLeft = Math.max(safeLeft, Math.min(safeRight - pickerW,
+    leftHand ? sidebarRect.right + GAP : sidebarRect.left - pickerW - GAP));
+  const layersLeft = Math.max(safeLeft, Math.min(safeRight - layersW,
+    leftHand ? sidebarRect.right + GAP : sidebarRect.left - layersW - GAP));
 
   // Top clearance = below topbar AND below any visible sub-toolbars
   const topbarEl   = document.getElementById('topbar');
   const topbarBottom = topbarEl ? topbarEl.getBoundingClientRect().bottom : 52;
   const subBottom    = getSubToolbarBottom();
   const MIN_TOP    = Math.max(topbarBottom, subBottom) + GAP;
-  const MAX_BOT    = window.innerHeight - BOTTOM_PAD;
+  // Account for bottom safe area inset (iPhone home bar)
+  const safeBottomPx = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom') || '0') || 0;
+  const MAX_BOT    = window.innerHeight - BOTTOM_PAD - safeBottomPx;
 
   // Stack panels from MIN_TOP downward — color picker first, then layers
   let cursor = MIN_TOP;
@@ -7232,24 +7367,20 @@ function openPopout(popout, anchorBtn) {
   const sidebar = document.getElementById('right-sidebar');
   const leftHand = sidebar.classList.contains('left-hand');
 
-  // Temporarily make visible off-screen to measure real width
+  // Temporarily make visible off-screen to measure real width/height
   popout.style.visibility = 'hidden';
   popout.style.display = 'flex';
   const popoutW = popout.offsetWidth;
+  const popoutH = popout.scrollHeight || 300;
   popout.style.display = '';
   popout.style.visibility = '';
 
-  const left = leftHand
-    ? rect.right + 8
-    : rect.left - popoutW - 8;
+  // Prefer opening to the left of sidebar (or right in left-hand mode)
+  let left = leftHand ? rect.right + 8 : rect.left - popoutW - 8;
+  const top = rect.top;
 
-  // Clamp vertically so popout doesn't overflow the viewport bottom
-  const popoutH = popout.scrollHeight || 300;
-  const top = Math.min(rect.top, window.innerHeight - popoutH - 12);
-
-  popout.style.left = left + 'px';
-  popout.style.top  = Math.max(8, top) + 'px';
   popout.classList.add('open');
+  clampPanel(popout, left, top);
 }
 
 // ── Brush preset popout (dynamic) ──────────────────────────────────────────
@@ -8343,11 +8474,10 @@ document.getElementById('btn-add-fx').addEventListener('click', e => {
   fxPickerDropdown.classList.add('open');
   const menuH = fxPickerDropdown.offsetHeight;
   fxPickerDropdown.style.visibility = '';
-  // Position above the button, right-aligned to it
-  const left = Math.max(8, btnRect.right - 190);
-  const top  = Math.max(8, btnRect.top - menuH - 6);
-  fxPickerDropdown.style.left = left + 'px';
-  fxPickerDropdown.style.top  = top  + 'px';
+  // Prefer above the button; fall back to below if not enough room
+  const prefLeft = btnRect.right - 190;
+  const prefTop  = btnRect.top - menuH - 6 < 8 ? btnRect.bottom + 6 : btnRect.top - menuH - 6;
+  clampPanel(fxPickerDropdown, prefLeft, prefTop);
 });
 document.addEventListener('click', () => fxPickerDropdown.classList.remove('open'));
 
@@ -9758,13 +9888,14 @@ function toast(msg) {
     const btnRect  = prefsBtn.getBoundingClientRect();
     panel.style.visibility = 'hidden';
     panel.classList.add('open');
+    const panelW = 300;
     const panelH = panel.offsetHeight;
     panel.style.visibility = '';
+    // Prefer right of button; fall back to left if not enough room
     let left = btnRect.right + 8;
-    if (left + 300 > window.innerWidth) left = btnRect.left - 300 - 8;
+    if (left + panelW > window.innerWidth - 8) left = btnRect.left - panelW - 8;
     const top = Math.min(btnRect.top, window.innerHeight - panelH - 8);
-    panel.style.left = left + 'px';
-    panel.style.top  = Math.max(8, top) + 'px';
+    clampPanel(panel, left, top);
     syncSwatches();
   }
 
@@ -9824,19 +9955,16 @@ function toast(msg) {
     // Show briefly to measure height
     ctxMenu.style.visibility = 'hidden';
     ctxMenu.classList.add('open');
-    const menuH = ctxMenu.offsetHeight;
     ctxMenu.style.visibility = '';
 
     const left = leftHand
       ? panelRect.right + GAP
       : panelRect.left - menuW - GAP;
 
-    // Vertically align to the anchor row, clamped to viewport
+    // Vertically align to the anchor row
+    const menuH = ctxMenu.offsetHeight;
     let top = anchorRect.top + anchorRect.height / 2 - menuH / 2;
-    top = Math.max(8, Math.min(window.innerHeight - menuH - 8, top));
-
-    ctxMenu.style.left = left + 'px';
-    ctxMenu.style.top  = top  + 'px';
+    clampPanel(ctxMenu, left, top);
   };
 
   // Close on outside click
@@ -9951,11 +10079,9 @@ function toast(msg) {
     dd.classList.add('open');
     btn.classList.add('active');
     const rect = btn.getBoundingClientRect();
-    const ddW  = 185;
-    let left = rect.left + rect.width / 2 - ddW / 2;
-    left = Math.max(8, Math.min(window.innerWidth - ddW - 8, left));
-    dd.style.left = left + 'px';
-    dd.style.top  = (rect.bottom + 8) + 'px';
+    const ddW  = dd.offsetWidth || 185;
+    const prefLeft = rect.left + rect.width / 2 - ddW / 2;
+    clampPanel(dd, prefLeft, rect.bottom + 8);
   }
 
   function closeDropdown() {
@@ -11670,7 +11796,8 @@ function toast(msg) {
     }, { passive: true });
   })();
 
-<script>
+})(); // end Touch & Gesture Enhancement Layer v1.0
+
 // ═══════════════════════════════════════════════════════════
 //  UrbanGlass PWA — Touch & Gesture Enhancement Layer v2.0
 //  Adds: pinch-to-zoom, two-finger pan, two-finger ROTATE,
@@ -11824,8 +11951,14 @@ function toast(msg) {
     const wrap = document.getElementById('canvas-wrap');
     if (!wrap) return;
 
-    wrap.addEventListener('pointerdown', e => {
-      // Skip if this is a slider (let slider touch handler run)
+    function isOverWrap(e) {
+      const rect = wrap.getBoundingClientRect();
+      return e.clientX >= rect.left && e.clientX <= rect.right &&
+             e.clientY >= rect.top  && e.clientY <= rect.bottom;
+    }
+
+    document.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
       if (e.target.matches('input[type=range]')) return;
 
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -11833,48 +11966,47 @@ function toast(msg) {
       if (activePointers.size === 2) {
         patchApplyTransform();
         beginGesture();
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      } else if (activePointers.size === 1 && !window._ugTouchDraw && e.pointerType === 'touch') {
-        // Touch-to-draw is OFF and this is a single touch finger — block drawing
+        const st = appSt();
+        if (st) st.drawing = false;
+        if (window.stabilizer && window.stabilizer.active) {
+          window.stabilizer.active = false;
+          if (window.stabilizer.rafId) { cancelAnimationFrame(window.stabilizer.rafId); window.stabilizer.rafId = null; }
+        }
+      } else if (activePointers.size === 1 && isOverWrap(e) && !window._ugTouchDraw) {
         e.stopImmediatePropagation();
         e.preventDefault();
       }
     }, { capture: true, passive: false });
 
-    wrap.addEventListener('pointermove', e => {
+    document.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'touch') return;
       if (e.target.matches('input[type=range]')) return;
       if (!activePointers.has(e.pointerId)) return;
+
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (gesture.active && activePointers.size >= 2) {
         e.stopImmediatePropagation();
         e.preventDefault();
         updateGesture();
-      } else if (!window._ugTouchDraw && e.pointerType === 'touch' && activePointers.size === 1) {
+      } else if (!gesture.active && !window._ugTouchDraw && activePointers.size === 1 && isOverWrap(e)) {
         e.stopImmediatePropagation();
         e.preventDefault();
       }
     }, { capture: true, passive: false });
 
-    wrap.addEventListener('pointerup', e => {
-      if (e.target.matches('input[type=range]')) return;
+    function endPointer(e) {
+      if (e.pointerType !== 'touch') return;
       activePointers.delete(e.pointerId);
       if (activePointers.size < 2 && gesture.active) {
         gesture.active = false;
         const st = appSt();
         if (st) st.drawing = false;
       }
-    }, { capture: true, passive: false });
+    }
 
-    wrap.addEventListener('pointercancel', e => {
-      activePointers.delete(e.pointerId);
-      if (activePointers.size < 2) {
-        gesture.active = false;
-        const st = appSt();
-        if (st) st.drawing = false;
-      }
-    }, { capture: true, passive: false });
+    document.addEventListener('pointerup',     endPointer, { capture: true, passive: true });
+    document.addEventListener('pointercancel', endPointer, { capture: true, passive: true });
   }
 
   if (document.readyState === 'loading') {
@@ -11909,11 +12041,14 @@ function toast(msg) {
     // Also wire up the Touch to Draw preference toggle
     const touchDrawBtn = document.getElementById('pref-touch-draw');
     if (touchDrawBtn) {
-      touchDrawBtn.addEventListener('click', () => {
+      // Sync button state with the actual window._ugTouchDraw value (set to true above)
+      touchDrawBtn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
+      touchDrawBtn.classList.toggle('active', !!window._ugTouchDraw);
+      touchDrawBtn.addEventListener('pointerup', (e) => {
+        e.stopPropagation();
         window._ugTouchDraw = !window._ugTouchDraw;
         touchDrawBtn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
         touchDrawBtn.classList.toggle('active', window._ugTouchDraw);
-        // Show toast
         if (typeof toast === 'function') {
           toast(window._ugTouchDraw ? 'Touch drawing enabled' : 'Touch drawing disabled — use stylus or gestures only');
         }
@@ -11953,15 +12088,12 @@ function toast(msg) {
     let startValue = 0;
 
     slider.addEventListener('pointerdown', e => {
-      // Don't interfere with gesture system if 2 fingers are down
-      if (activePointers.size >= 1) {
-        // We handle this ourselves — don't let gesture interceptor steal it
-      }
       dragging = true;
       slider.setPointerCapture(e.pointerId);
       startClientPos = isVertical ? e.clientY : e.clientX;
       startValue = parseFloat(slider.value);
-      e.stopPropagation(); // prevent gesture handler from firing
+      e.stopPropagation();   // prevent gesture handler from firing
+      e.preventDefault();    // prevent browser scroll/zoom interference
     }, { passive: false });
 
     slider.addEventListener('pointermove', e => {
