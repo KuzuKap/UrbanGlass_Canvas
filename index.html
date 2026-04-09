@@ -1185,6 +1185,7 @@
   #crop-toolbar button:hover { border-color: var(--border2); color: var(--text); }
   #crop-toolbar .apply { background: var(--accent); border-color: var(--accent); color: #fff; }
   #crop-toolbar .apply:hover { background: var(--accent2); border-color: var(--accent2); }
+  .crop-rotate-btn { width: 28px; padding: 0 !important; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
   #toast {
     position: fixed;
@@ -2298,6 +2299,12 @@
         </div>
         <div id="crop-toolbar">
           <span class="crop-info" id="crop-info">0 × 0</span>
+          <button class="crop-rotate-btn" id="crop-rotate-ccw" title="Rotate 90° counter-clockwise">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          </button>
+          <button class="crop-rotate-btn" id="crop-rotate-cw" title="Rotate 90° clockwise">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          </button>
           <button id="crop-cancel">Cancel</button>
           <button class="apply" id="crop-apply">Apply Crop</button>
         </div>
@@ -7780,6 +7787,68 @@ document.getElementById('crop-cancel').addEventListener('click', () => {
   exitCropMode();
   activateTool('brush');
 });
+
+// ── Crop rotate buttons ─────────────────────────────────────
+function rotateCropCanvas(dir) {
+  // dir: 1 = clockwise, -1 = counter-clockwise
+  saveHistory();
+  const oldW = state.canvasW, oldH = state.canvasH;
+  const newW = oldH, newH = oldW; // dimensions swap on 90° rotation
+
+  // Snapshot all layers at current doc size
+  const snaps = state.layers.map(l => {
+    if (!l.ctx) return null;
+    const s = document.createElement('canvas');
+    s.width = oldW; s.height = oldH;
+    const { px, py } = getPad();
+    s.getContext('2d').drawImage(l.canvas, px, py, oldW, oldH, 0, 0, oldW, oldH);
+    return s;
+  });
+
+  // Update state dimensions
+  state.canvasW = newW; state.canvasH = newH;
+  const { px: newPX, py: newPY } = getPad();
+
+  state.layers.forEach((l, i) => {
+    if (!l.ctx) return;
+    const snap = snaps[i];
+    l.canvas.width  = layerCanvasW();
+    l.canvas.height = layerCanvasH();
+    l.ctx = l.canvas.getContext('2d');
+    l.ctx.translate(newPX, newPY);
+    l.canvas.style.top  = (-newPY) + 'px';
+    l.canvas.style.left = (-newPX) + 'px';
+    if (snap) {
+      // Rotate the snapshot onto the resized canvas
+      l.ctx.save();
+      if (dir === 1) {
+        // Clockwise: translate to right edge, rotate +90°
+        l.ctx.translate(newW, 0);
+        l.ctx.rotate(Math.PI / 2);
+      } else {
+        // Counter-clockwise: translate to bottom edge, rotate -90°
+        l.ctx.translate(0, newH);
+        l.ctx.rotate(-Math.PI / 2);
+      }
+      l.ctx.drawImage(snap, 0, 0);
+      l.ctx.restore();
+    }
+  });
+
+  canvasContainer.style.width  = newW + 'px';
+  canvasContainer.style.height = newH + 'px';
+  fitCanvasToViewport();
+  renderLayersList();
+  updateStatusBar();
+  applyAllFxLayers();
+  // Re-enter crop mode so the selection resets to the new canvas dimensions
+  exitCropMode();
+  enterCropMode();
+  toast('Canvas rotated ' + (dir === 1 ? '90° clockwise' : '90° counter-clockwise'));
+}
+
+document.getElementById('crop-rotate-cw').addEventListener('click',  () => rotateCropCanvas(1));
+document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotateCropCanvas(-1));
 
 // Crop tool button is handled by the general .tool-btn[data-tool] listener above
 
