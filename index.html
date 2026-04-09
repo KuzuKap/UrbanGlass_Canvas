@@ -141,6 +141,7 @@
     position: relative;
     overflow: hidden;
     padding-top: calc(52px + env(safe-area-inset-top));
+    touch-action: none;  /* essential: prevent browser scroll/zoom intercepting touch */
   }
 
   #canvas-bg {
@@ -2799,8 +2800,8 @@
               <div class="prefs-row-sub">Height of brush &amp; opacity sliders</div>
             </div>
             <div class="pref-slider-wrap">
-              <input type="range" class="pref-slider" id="pref-slider-size" min="40" max="160" value="80">
-              <span class="pref-slider-val" id="pref-slider-size-val">80</span>
+              <input type="range" class="pref-slider" id="pref-slider-size" min="40" max="240" value="160">
+              <span class="pref-slider-val" id="pref-slider-size-val">160</span>
             </div>
           </div>
           <div class="prefs-sep"></div>
@@ -5346,6 +5347,9 @@ canvasContainer.addEventListener('pointerdown', e => {
   if (window._textToolActive) return;
   // Selection tool is handled by its own capture listener — skip here
   if (state.tool === 'select') return;
+  // Block touch drawing when touch-draw is disabled OR a gesture is in progress
+  if (e.pointerType === 'touch' && !window._ugTouchDraw) return;
+  if (e.pointerType === 'touch' && window._ugGestureActive) return;
   // Capture so pointermove fires even if cursor leaves element
   canvasContainer.setPointerCapture(e.pointerId);
 
@@ -11779,10 +11783,11 @@ function toast(msg) {
   }
 
   function beginGesture() {
+    gesture.active = true;
+    window._ugGestureActive = true;
     cancelDrawing();
     const pts = [...activePointers.values()];
     const st = appSt();
-    gesture.active        = true;
     gesture.startDist     = ptsDist(pts[0], pts[1]);
     gesture.startAngle    = ptsAngle(pts[0], pts[1]);
     gesture.startZoom     = st ? st.zoom : 1;
@@ -11864,6 +11869,7 @@ function toast(msg) {
       activePointers.delete(e.pointerId);
       if (activePointers.size < 2 && gesture.active) {
         gesture.active = false;
+        window._ugGestureActive = false;
         const st = appSt();
         if (st) st.drawing = false;
       }
@@ -11874,6 +11880,7 @@ function toast(msg) {
       activePointers.delete(e.pointerId);
       if (activePointers.size < 2 && gesture.active) {
         gesture.active = false;
+        window._ugGestureActive = false;
         const st = appSt();
         if (st) st.drawing = false;
       }
