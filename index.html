@@ -2789,7 +2789,7 @@
               <div class="prefs-row-title">Touch to Draw</div>
               <div class="prefs-row-sub">Disable to use touch only for gestures</div>
             </div>
-            <button class="pref-toggle active" id="pref-touch-draw">ON</button>
+            <button class="pref-toggle" id="pref-touch-draw">OFF</button>
           </div>
           <div class="prefs-sep"></div>
           <!-- Sidebar slider size -->
@@ -11695,14 +11695,10 @@ function toast(msg) {
   document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
   document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
 
-  // ── Global: Touch-to-Draw state ─────────────────────────
-  // Exposed as window._ugTouchDraw so the draw engine can check it.
-  window._ugTouchDraw = true;
+  // ── Global: Touch-to-Draw state — OFF by default ────────
+  window._ugTouchDraw = false;
 
   // ── Canvas rotation state ────────────────────────────────
-  // We store canvas rotation angle in degrees in state.canvasRotation
-  // and apply it on top of pan/zoom in applyTransform.
-  // We monkey-patch applyTransform after the app loads.
   let rotationPatched = false;
 
   function patchApplyTransform() {
@@ -11720,14 +11716,10 @@ function toast(msg) {
       if (cc) {
         cc.style.transform = `translate(${st.panX}px, ${st.panY}px) scale(${st.zoom}) rotate(${rot}deg)`;
       }
-      // Also update zoom indicator
       const zoomEl = document.getElementById('stat-zoom');
       if (zoomEl) zoomEl.textContent = Math.round(st.zoom * 100) + '%';
-      // Rotation indicator in status bar (if present)
       const rotEl = document.getElementById('stat-rot');
       if (rotEl) rotEl.textContent = Math.round(rot) + '°';
-
-      // Keep grid + crop overlays in sync
       if (typeof canvasPrefs !== 'undefined' && canvasPrefs.showGrid &&
           typeof updateGridOverlay === 'function') updateGridOverlay();
       if (typeof updateCropVisual === 'function' &&
@@ -11735,54 +11727,71 @@ function toast(msg) {
         updateCropVisual();
       }
     };
-
     console.log('[UG-PWA] applyTransform patched with rotation ✓');
   }
 
   // ── Pointer-based pinch zoom + pan + ROTATE ──────────────
+  // Strategy: intercept ALL touch pointerdown events at document capture phase,
+  // before canvasContainer ever sees them. Track how many fingers are down.
+  // • 1 finger + touch-draw ON  → let it through to the drawing engine
+  // • 1 finger + touch-draw OFF → swallow it (gestures/stylus only)
+  // • 2 fingers                 → activate gesture, swallow both fingers
+
   const activePointers = new Map(); // pointerId → {x, y}
   let gesture = {
-    active:         false,
-    startDist:      0,
-    startAngle:     0,   // angle between the two fingers at gesture start
-    startZoom:      1,
-    startRotation:  0,   // canvas rotation at gesture start (degrees)
-    startPanX:      0,
-    startPanY:      0,
-    midStartX:      0,
-    midStartY:      0,
+    active: false, startDist: 0, startAngle: 0,
+    startZoom: 1, startRotation: 0,
+    startPanX: 0, startPanY: 0, midStartX: 0, midStartY: 0,
   };
 
   function ptsDist(p1, p2) {
     const dx = p1.x - p2.x, dy = p1.y - p2.y;
     return Math.sqrt(dx*dx + dy*dy);
   }
-  function ptsMid(p1, p2) {
-    return { x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2 };
-  }
-  function ptsAngle(p1, p2) {
-    // Angle from p1 to p2 in degrees
-    return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
-  }
+  function ptsMid(p1, p2)   { return { x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2 }; }
+  function ptsAngle(p1, p2) { return Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI; }
 
   function appSt()    { return window.state; }
   function appApply() { if (typeof applyTransform === 'function') applyTransform(); }
 
+  function cancelDrawing() {
+    const st = appSt();
+    if (!st) return;
+    st.drawing = false;
+    // Cancel stabilizer
+    if (window.stabilizer && window.stabilizer.active) {
+      window.stabilizer.active = false;
+      if (window.stabilizer.rafId) {
+        cancelAnimationFrame(window.stabilizer.rafId);
+        window.stabilizer.rafId = null;
+      }
+    }
+    // Release any pointer captures on canvasContainer so it stops receiving events
+    const cc = document.getElementById('canvas-container');
+    if (cc) {
+      activePointers.forEach((_, pid) => {
+        try { cc.releasePointerCapture(pid); } catch(_) {}
+      });
+    }
+    // Commit any in-progress wet brush stroke without saving
+    if (typeof wetCommit === 'function') wetCommit();
+    lastStampX = null; lastStampY = null;
+  }
+
   function beginGesture() {
+    cancelDrawing();
     const pts = [...activePointers.values()];
     const st = appSt();
-    gesture.active       = true;
-    gesture.startDist    = ptsDist(pts[0], pts[1]);
-    gesture.startAngle   = ptsAngle(pts[0], pts[1]);
-    gesture.startZoom    = st ? st.zoom : 1;
+    gesture.active        = true;
+    gesture.startDist     = ptsDist(pts[0], pts[1]);
+    gesture.startAngle    = ptsAngle(pts[0], pts[1]);
+    gesture.startZoom     = st ? st.zoom : 1;
     gesture.startRotation = (st && st.canvasRotation != null) ? st.canvasRotation : 0;
-    gesture.startPanX    = st ? st.panX : 0;
-    gesture.startPanY    = st ? st.panY : 0;
+    gesture.startPanX     = st ? st.panX : 0;
+    gesture.startPanY     = st ? st.panY : 0;
     const mid = ptsMid(pts[0], pts[1]);
-    gesture.midStartX    = mid.x;
-    gesture.midStartY    = mid.y;
-    // Cancel any drawing in progress
-    if (st) st.drawing = false;
+    gesture.midStartX = mid.x;
+    gesture.midStartY = mid.y;
   }
 
   function updateGesture() {
@@ -11794,19 +11803,13 @@ function toast(msg) {
     const newAngle = ptsAngle(pts[0], pts[1]);
     const mid      = ptsMid(pts[0], pts[1]);
 
-    // Zoom: scale from start
-    const rawZoom = gesture.startZoom * (newDist / gesture.startDist);
-    st.zoom = Math.min(8, Math.max(0.05, rawZoom));
+    st.zoom = Math.min(8, Math.max(0.05, gesture.startZoom * (newDist / gesture.startDist)));
 
-    // Rotation: delta angle from gesture start
-    let deltaAngle = newAngle - gesture.startAngle;
-    // Clamp to avoid wrap-around jumps > 180°
-    while (deltaAngle > 180)  deltaAngle -= 360;
-    while (deltaAngle < -180) deltaAngle += 360;
-    if (!st.canvasRotation) st.canvasRotation = 0;
-    st.canvasRotation = gesture.startRotation + deltaAngle;
+    let dAngle = newAngle - gesture.startAngle;
+    while (dAngle > 180)  dAngle -= 360;
+    while (dAngle < -180) dAngle += 360;
+    st.canvasRotation = (gesture.startRotation + dAngle);
 
-    // Pan: midpoint movement
     st.panX = gesture.startPanX + (mid.x - gesture.midStartX);
     st.panY = gesture.startPanY + (mid.y - gesture.midStartY);
 
@@ -11815,33 +11818,27 @@ function toast(msg) {
   }
 
   function attachGestureListeners() {
-    const wrap = document.getElementById('canvas-wrap');
-    if (!wrap) return;
-
-    function isOverWrap(e) {
-      const rect = wrap.getBoundingClientRect();
-      return e.clientX >= rect.left && e.clientX <= rect.right &&
-             e.clientY >= rect.top  && e.clientY <= rect.bottom;
-    }
-
+    // Intercept touch pointerdown at document level, CAPTURE phase,
+    // so we run before canvasContainer's bubble-phase listeners.
     document.addEventListener('pointerdown', e => {
       if (e.pointerType !== 'touch') return;
       if (e.target.matches('input[type=range]')) return;
 
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      if (activePointers.size === 2) {
+      if (activePointers.size >= 2) {
+        // Two or more fingers — always a gesture, never drawing
         patchApplyTransform();
-        beginGesture();
-        const st = appSt();
-        if (st) st.drawing = false;
-        if (window.stabilizer && window.stabilizer.active) {
-          window.stabilizer.active = false;
-          if (window.stabilizer.rafId) { cancelAnimationFrame(window.stabilizer.rafId); window.stabilizer.rafId = null; }
-        }
-      } else if (activePointers.size === 1 && isOverWrap(e) && !window._ugTouchDraw) {
+        if (!gesture.active) beginGesture();
         e.stopImmediatePropagation();
         e.preventDefault();
+      } else {
+        // Single finger — block if touch-draw is off
+        if (!window._ugTouchDraw) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+        // If touch-draw is ON, let it fall through to canvasContainer normally
       }
     }, { capture: true, passive: false });
 
@@ -11852,17 +11849,17 @@ function toast(msg) {
 
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      if (gesture.active && activePointers.size >= 2) {
+      if (gesture.active) {
         e.stopImmediatePropagation();
         e.preventDefault();
         updateGesture();
-      } else if (!gesture.active && !window._ugTouchDraw && activePointers.size === 1 && isOverWrap(e)) {
+      } else if (!window._ugTouchDraw) {
         e.stopImmediatePropagation();
         e.preventDefault();
       }
     }, { capture: true, passive: false });
 
-    function endPointer(e) {
+    document.addEventListener('pointerup', e => {
       if (e.pointerType !== 'touch') return;
       activePointers.delete(e.pointerId);
       if (activePointers.size < 2 && gesture.active) {
@@ -11870,10 +11867,17 @@ function toast(msg) {
         const st = appSt();
         if (st) st.drawing = false;
       }
-    }
+    }, { capture: true, passive: true });
 
-    document.addEventListener('pointerup',     endPointer, { capture: true, passive: true });
-    document.addEventListener('pointercancel', endPointer, { capture: true, passive: true });
+    document.addEventListener('pointercancel', e => {
+      if (e.pointerType !== 'touch') return;
+      activePointers.delete(e.pointerId);
+      if (activePointers.size < 2 && gesture.active) {
+        gesture.active = false;
+        const st = appSt();
+        if (st) st.drawing = false;
+      }
+    }, { capture: true, passive: true });
   }
 
   if (document.readyState === 'loading') {
@@ -11889,6 +11893,7 @@ function toast(msg) {
     // Wire up the Touch to Draw preference toggle
     const touchDrawBtn = document.getElementById('pref-touch-draw');
     if (touchDrawBtn) {
+      // Sync button to the default-OFF state
       touchDrawBtn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
       touchDrawBtn.classList.toggle('active', !!window._ugTouchDraw);
       touchDrawBtn.addEventListener('pointerup', (e) => {
@@ -11897,7 +11902,7 @@ function toast(msg) {
         touchDrawBtn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
         touchDrawBtn.classList.toggle('active', window._ugTouchDraw);
         if (typeof toast === 'function') {
-          toast(window._ugTouchDraw ? 'Touch drawing enabled' : 'Touch drawing disabled — use stylus or gestures only');
+          toast(window._ugTouchDraw ? 'Touch drawing enabled' : 'Touch drawing disabled — gestures only');
         }
       });
     }
