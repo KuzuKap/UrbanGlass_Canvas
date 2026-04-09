@@ -64,7 +64,7 @@
     overflow-y: auto;
   }
 
-  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); background-image: radial-gradient(ellipse at 20% 50%, rgba(30,80,45,0.35) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(20,60,35,0.25) 0%, transparent 50%), radial-gradient(ellipse at 60% 80%, rgba(10,40,20,0.3) 0%, transparent 55%); font-family: 'DM Sans', sans-serif; color: var(--text); }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); background-image: radial-gradient(ellipse at 20% 50%, rgba(30,80,45,0.35) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(20,60,35,0.25) 0%, transparent 50%), radial-gradient(ellipse at 60% 80%, rgba(10,40,20,0.3) 0%, transparent 55%); font-family: 'DM Sans', sans-serif; color: var(--text); touch-action: none; }
 
   /* Safe area support for iPhone notch / Dynamic Island / Android cutouts */
   #app {
@@ -11564,198 +11564,73 @@ function toast(msg) {
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  UrbanGlass PWA — Touch & Gesture Enhancement Layer v1.0
-//  Adds: pinch-to-zoom, two-finger pan, palm rejection,
-//        stylus pressure passthrough, 300ms tap fix,
-//        Service Worker registration
+//  UrbanGlass PWA — Gesture, Touch & PWA Layer
+//  Single IIFE. Uses Touch Events API for gesture detection
+//  (the only reliable approach on Safari/iPadOS).
 // ═══════════════════════════════════════════════════════════
-
 (function() {
   'use strict';
 
-  // ── Register Service Worker ──────────────────────────────
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').then(reg => {
-        console.log('[UG-PWA] SW registered, scope:', reg.scope);
-      }).catch(err => {
-        console.warn('[UG-PWA] SW registration failed:', err);
-      });
-    });
-  }
-
-  // ── Prevent browser default gestures on the canvas only ──
-  // IMPORTANT: Do NOT call preventDefault on document-level touchstart —
-  // on iOS/iPadOS Safari this suppresses pointer events entirely.
-  // touch-action:none CSS on #canvas-wrap handles this for the canvas.
-  // For Safari's proprietary gesture events, we still block those:
-  document.addEventListener('gesturestart',  e => e.preventDefault(), { passive: false });
-  document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
-  document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
-
-  // ── Scroll-wheel zoom anchored to cursor position ────────
-  window.addEventListener('load', () => {
-    const wrap = document.getElementById('canvas-wrap');
-    if (!wrap) return;
-    wrap.addEventListener('wheel', e => {
-      e.preventDefault();
-      const st = window.state;
-      if (!st) return;
-      const factor = e.deltaY < 0 ? 1.08 : 0.92;
-      const newZoom = Math.min(8, Math.max(0.05, st.zoom * factor));
-      const rect = wrap.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      const zoomRatio = newZoom / st.zoom;
-      st.panX = cx - zoomRatio * (cx - st.panX);
-      st.panY = cy - zoomRatio * (cy - st.panY);
-      st.zoom = newZoom;
-      if (typeof applyTransform === 'function') applyTransform();
-      if (window._redrawBrushCursor) window._redrawBrushCursor();
-    }, { passive: false, capture: false });
-  });
-
-  // ── Android Back Button / History API ───────────────────
-  window.addEventListener('load', () => {
-    if (window.history && window.history.pushState) {
-      window.history.pushState({ ugCanvas: true }, '');
-      window.addEventListener('popstate', () => {
-        window.history.pushState({ ugCanvas: true }, '');
-      });
-    }
-  });
-
-  // ── Haptic feedback on long press (vibration API) ────────
-  let longPressTimer = null;
-  document.addEventListener('pointerdown', () => {
-    if (!navigator.vibrate) return;
-    longPressTimer = setTimeout(() => { navigator.vibrate(30); }, 500);
-  });
-  document.addEventListener('pointerup',     () => clearTimeout(longPressTimer));
-  document.addEventListener('pointermove',   () => clearTimeout(longPressTimer));
-  document.addEventListener('pointercancel', () => clearTimeout(longPressTimer));
-
-  // ── Screen wake lock — prevent sleep while drawing ───────
-  let wakeLock = null;
-  async function requestWakeLock() {
-    if (!('wakeLock' in navigator)) return;
-    try {
-      wakeLock = await navigator.wakeLock.request('screen');
-    } catch (e) {
-      console.warn('[UG-PWA] Wake lock failed:', e.message);
-    }
-  }
-  document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible' && wakeLock === null) {
-      await requestWakeLock();
-    }
-  });
-  window.addEventListener('load', requestWakeLock);
-
-  // ── Fix 300ms tap delay on older Android WebViews ────────
-  (function fastClick() {
-    let touchStartX, touchStartY, touchStartTime;
-    document.addEventListener('touchstart', e => {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartTime = Date.now();
-    }, { passive: true });
-  })();
-
-})(); // end Touch & Gesture Enhancement Layer v1.0
-
-// ═══════════════════════════════════════════════════════════
-//  UrbanGlass PWA — Touch & Gesture Enhancement Layer v2.0
-//  Adds: pinch-to-zoom, two-finger pan, two-finger ROTATE,
-//        touch-to-draw toggle, fixed slider touch,
-//        palm rejection, wake lock, haptics, SW registration
-// ═══════════════════════════════════════════════════════════
-
-(function() {
-  'use strict';
-
-  // ── Register Service Worker ──────────────────────────────
+  // ── Service Worker ───────────────────────────────────────
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
-        .then(r => console.log('[UG-PWA] SW registered'))
+        .then(r  => console.log('[UG-PWA] SW registered:', r.scope))
         .catch(e => console.warn('[UG-PWA] SW failed:', e));
     });
   }
 
-  // ── Prevent browser default gestures ────────────────────
-  // Do NOT preventDefault on document touchstart — iOS Safari suppresses
-  // pointer events when you do. CSS touch-action:none on #canvas-wrap
-  // handles gesture prevention for the drawing area.
-  // Only block Safari's proprietary gesture* events:
-  document.addEventListener('gesturestart',  e => e.preventDefault(), { passive: false });
-  document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
-  document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
+  // ── Touch-to-Draw: OFF by default ───────────────────────
+  window._ugTouchDraw    = false;
+  window._ugGestureActive = false;
 
-  // ── Global: Touch-to-Draw state — OFF by default ────────
-  window._ugTouchDraw = false;
-
-  // ── Canvas rotation state ────────────────────────────────
-  let rotationPatched = false;
-
+  // ── Canvas Rotation patch ────────────────────────────────
+  let _rotPatched = false;
   function patchApplyTransform() {
-    if (rotationPatched) return;
-    if (typeof applyTransform !== 'function') return;
-    rotationPatched = true;
-
+    if (_rotPatched || typeof applyTransform !== 'function') return;
+    _rotPatched = true;
     const _orig = applyTransform;
     window.applyTransform = function() {
       const st = window.state;
       if (!st) return _orig.apply(this, arguments);
-
       const rot = st.canvasRotation || 0;
       const cc  = document.getElementById('canvas-container');
-      if (cc) {
-        cc.style.transform = `translate(${st.panX}px, ${st.panY}px) scale(${st.zoom}) rotate(${rot}deg)`;
-      }
-      const zoomEl = document.getElementById('stat-zoom');
-      if (zoomEl) zoomEl.textContent = Math.round(st.zoom * 100) + '%';
-      const rotEl = document.getElementById('stat-rot');
-      if (rotEl) rotEl.textContent = Math.round(rot) + '°';
+      if (cc) cc.style.transform =
+        'translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ') rotate(' + rot + 'deg)';
+      const zEl = document.getElementById('stat-zoom');
+      if (zEl) zEl.textContent = Math.round(st.zoom * 100) + '%';
+      const rEl = document.getElementById('stat-rot');
+      if (rEl) rEl.textContent = Math.round(rot) + '\u00b0';
       if (typeof canvasPrefs !== 'undefined' && canvasPrefs.showGrid &&
           typeof updateGridOverlay === 'function') updateGridOverlay();
-      if (typeof updateCropVisual === 'function' &&
-          document.getElementById('crop-overlay')?.classList.contains('active')) {
-        updateCropVisual();
-      }
     };
-    console.log('[UG-PWA] applyTransform patched with rotation ✓');
+    console.log('[UG-PWA] applyTransform patched \u2713');
   }
 
-  // ── Pointer-based pinch zoom + pan + ROTATE ──────────────
-  // Strategy: intercept ALL touch pointerdown events at document capture phase,
-  // before canvasContainer ever sees them. Track how many fingers are down.
-  // • 1 finger + touch-draw ON  → let it through to the drawing engine
-  // • 1 finger + touch-draw OFF → swallow it (gestures/stylus only)
-  // • 2 fingers                 → activate gesture, swallow both fingers
-
-  const activePointers = new Map(); // pointerId → {x, y}
-  let gesture = {
-    active: false, startDist: 0, startAngle: 0,
-    startZoom: 1, startRotation: 0,
-    startPanX: 0, startPanY: 0, midStartX: 0, midStartY: 0,
-  };
-
-  function ptsDist(p1, p2) {
-    const dx = p1.x - p2.x, dy = p1.y - p2.y;
+  // ── Gesture helpers ──────────────────────────────────────
+  function _dist(t1, t2) {
+    var dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
     return Math.sqrt(dx*dx + dy*dy);
   }
-  function ptsMid(p1, p2)   { return { x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2 }; }
-  function ptsAngle(p1, p2) { return Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI; }
+  function _angle(t1, t2) {
+    return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180 / Math.PI;
+  }
+  function _mid(t1, t2) {
+    return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+  }
 
-  function appSt()    { return window.state; }
-  function appApply() { if (typeof applyTransform === 'function') applyTransform(); }
+  // ── Gesture state ────────────────────────────────────────
+  var _gest = {
+    active: false,
+    startDist: 1, startAngle: 0,
+    startZoom: 1, startRotation: 0,
+    startPanX: 0, startPanY: 0,
+    midStartX: 0, midStartY: 0
+  };
 
-  function cancelDrawing() {
-    const st = appSt();
-    if (!st) return;
-    st.drawing = false;
-    // Cancel stabilizer
+  function _cancelDrawing() {
+    var st = window.state;
+    if (st) st.drawing = false;
     if (window.stabilizer && window.stabilizer.active) {
       window.stabilizer.active = false;
       if (window.stabilizer.rafId) {
@@ -11763,290 +11638,262 @@ function toast(msg) {
         window.stabilizer.rafId = null;
       }
     }
-    // Release any pointer captures on canvasContainer so it stops receiving events
-    const cc = document.getElementById('canvas-container');
-    if (cc) {
-      activePointers.forEach((_, pid) => {
-        try { cc.releasePointerCapture(pid); } catch(_) {}
-      });
-    }
-    // Commit any in-progress wet brush stroke without saving
     if (typeof wetCommit === 'function') wetCommit();
-    lastStampX = null; lastStampY = null;
+    if (typeof lastStampX !== 'undefined') { lastStampX = null; lastStampY = null; }
   }
 
-  function beginGesture() {
-    gesture.active = true;
+  // ── Touch Event handlers ─────────────────────────────────
+  // WHY Touch Events not Pointer Events:
+  // Calling preventDefault() on touchstart suppresses pointer events on iOS.
+  // Touch Events fire independently and are the correct API for gesture detection
+  // on Safari. We use { passive:false } only on touchmove to allow preventDefault.
+  // We do NOT call preventDefault on touchstart so pointer events still fire
+  // (needed for stylus drawing).
+
+  function _onTouchStart(e) {
+    if (e.touches.length < 2) return;
+
+    // Ignore if both touches are clearly on a UI panel (not the canvas area)
+    // We check changedTouches[0] — the finger that JUST landed.
+    // Be permissive: if either touch is in the canvas-wrap, allow the gesture.
+    var wrap = document.getElementById('canvas-wrap');
+    if (wrap) {
+      var r = wrap.getBoundingClientRect();
+      var anyOnCanvas = false;
+      for (var i = 0; i < e.touches.length; i++) {
+        var t = e.touches[i];
+        if (t.clientX >= r.left && t.clientX <= r.right &&
+            t.clientY >= r.top  && t.clientY <= r.bottom) {
+          anyOnCanvas = true; break;
+        }
+      }
+      if (!anyOnCanvas) return;
+    }
+
+    _gest.active = true;
     window._ugGestureActive = true;
-    cancelDrawing();
-    const pts = [...activePointers.values()];
-    const st = appSt();
-    gesture.startDist     = ptsDist(pts[0], pts[1]);
-    gesture.startAngle    = ptsAngle(pts[0], pts[1]);
-    gesture.startZoom     = st ? st.zoom : 1;
-    gesture.startRotation = (st && st.canvasRotation != null) ? st.canvasRotation : 0;
-    gesture.startPanX     = st ? st.panX : 0;
-    gesture.startPanY     = st ? st.panY : 0;
-    const mid = ptsMid(pts[0], pts[1]);
-    gesture.midStartX = mid.x;
-    gesture.midStartY = mid.y;
+
+    var t1 = e.touches[0], t2 = e.touches[1];
+    var st = window.state || {};
+    var mid = _mid(t1, t2);
+    _gest.startDist     = _dist(t1, t2);
+    _gest.startAngle    = _angle(t1, t2);
+    _gest.startZoom     = st.zoom || 1;
+    _gest.startRotation = st.canvasRotation || 0;
+    _gest.startPanX     = st.panX || 0;
+    _gest.startPanY     = st.panY || 0;
+    _gest.midStartX     = mid.x;
+    _gest.midStartY     = mid.y;
+
+    _cancelDrawing();
+    // NOTE: deliberately do NOT call e.preventDefault() here.
+    // Doing so suppresses pointer events on iOS Safari which breaks stylus.
   }
 
-  function updateGesture() {
-    const pts = [...activePointers.values()];
-    const st = appSt();
-    if (!st || pts.length < 2) return;
+  function _onTouchMove(e) {
+    if (!_gest.active) return;
+    if (e.touches.length < 2) return;
+    // Prevent page scroll/zoom during gesture
+    e.preventDefault();
 
-    const newDist  = ptsDist(pts[0], pts[1]);
-    const newAngle = ptsAngle(pts[0], pts[1]);
-    const mid      = ptsMid(pts[0], pts[1]);
+    var t1 = e.touches[0], t2 = e.touches[1];
+    var st = window.state;
+    if (!st) return;
 
-    st.zoom = Math.min(8, Math.max(0.05, gesture.startZoom * (newDist / gesture.startDist)));
+    var newDist  = _dist(t1, t2);
+    var newAngle = _angle(t1, t2);
+    var mid      = _mid(t1, t2);
 
-    let dAngle = newAngle - gesture.startAngle;
-    while (dAngle > 180)  dAngle -= 360;
+    st.zoom = Math.min(8, Math.max(0.05, _gest.startZoom * (newDist / _gest.startDist)));
+
+    var dAngle = newAngle - _gest.startAngle;
+    while (dAngle >  180) dAngle -= 360;
     while (dAngle < -180) dAngle += 360;
-    st.canvasRotation = (gesture.startRotation + dAngle);
+    st.canvasRotation = _gest.startRotation + dAngle;
 
-    st.panX = gesture.startPanX + (mid.x - gesture.midStartX);
-    st.panY = gesture.startPanY + (mid.y - gesture.midStartY);
+    st.panX = _gest.startPanX + (mid.x - _gest.midStartX);
+    st.panY = _gest.startPanY + (mid.y - _gest.midStartY);
 
-    appApply();
+    if (typeof applyTransform === 'function') applyTransform();
     if (window._redrawBrushCursor) window._redrawBrushCursor();
   }
 
-  function attachGestureListeners() {
-    // Intercept touch pointerdown at document level, CAPTURE phase,
-    // so we run before canvasContainer's bubble-phase listeners.
-    document.addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'touch') return;
-      if (e.target.matches('input[type=range]')) return;
-
-      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-      if (activePointers.size >= 2) {
-        // Two or more fingers — always a gesture, never drawing
-        patchApplyTransform();
-        if (!gesture.active) beginGesture();
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      } else {
-        // Single finger — block if touch-draw is off
-        if (!window._ugTouchDraw) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-        }
-        // If touch-draw is ON, let it fall through to canvasContainer normally
-      }
-    }, { capture: true, passive: false });
-
-    document.addEventListener('pointermove', e => {
-      if (e.pointerType !== 'touch') return;
-      if (e.target.matches('input[type=range]')) return;
-      if (!activePointers.has(e.pointerId)) return;
-
-      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-      if (gesture.active) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        updateGesture();
-      } else if (!window._ugTouchDraw) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-      }
-    }, { capture: true, passive: false });
-
-    document.addEventListener('pointerup', e => {
-      if (e.pointerType !== 'touch') return;
-      activePointers.delete(e.pointerId);
-      if (activePointers.size < 2 && gesture.active) {
-        gesture.active = false;
-        window._ugGestureActive = false;
-        const st = appSt();
-        if (st) st.drawing = false;
-      }
-    }, { capture: true, passive: true });
-
-    document.addEventListener('pointercancel', e => {
-      if (e.pointerType !== 'touch') return;
-      activePointers.delete(e.pointerId);
-      if (activePointers.size < 2 && gesture.active) {
-        gesture.active = false;
-        window._ugGestureActive = false;
-        const st = appSt();
-        if (st) st.drawing = false;
-      }
-    }, { capture: true, passive: true });
+  function _onTouchEnd(e) {
+    if (e.touches.length < 2) {
+      _gest.active = false;
+      window._ugGestureActive = false;
+      var st = window.state;
+      if (st) st.drawing = false;
+    }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', attachGestureListeners);
-  } else {
-    setTimeout(attachGestureListeners, 0);
-  }
+  // Attach at window level — more reliable on iOS Safari than document
+  // when body/html have overflow:hidden. passive:false on touchmove only,
+  // so we can preventDefault to stop page zoom/scroll during gestures.
+  // touchstart is passive:true intentionally — calling preventDefault there
+  // would suppress pointer events (needed for Apple Pencil drawing).
+  window.addEventListener('touchstart',  _onTouchStart, { passive: true  });
+  window.addEventListener('touchmove',   _onTouchMove,  { passive: false });
+  window.addEventListener('touchend',    _onTouchEnd,   { passive: true  });
+  window.addEventListener('touchcancel', _onTouchEnd,   { passive: true  });
 
-  // ── Patch applyTransform + wire toggle + keyboard shortcut ──
-  window.addEventListener('load', () => {
+  // ── Block Safari pinch-zoom via gesturestart ─────────────
+  // These are Safari proprietary events, separate from touch/pointer events.
+  // Calling preventDefault here does NOT suppress touchstart or pointerdown.
+  document.addEventListener('gesturestart',  function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('gestureend',    function(e) { e.preventDefault(); }, { passive: false });
+
+  // ── Init on load ─────────────────────────────────────────
+  window.addEventListener('load', function() {
     patchApplyTransform();
 
-    // Wire up the Touch to Draw preference toggle
-    const touchDrawBtn = document.getElementById('pref-touch-draw');
-    if (touchDrawBtn) {
-      // Sync button to the default-OFF state
-      touchDrawBtn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
-      touchDrawBtn.classList.toggle('active', !!window._ugTouchDraw);
-      touchDrawBtn.addEventListener('pointerup', (e) => {
-        e.stopPropagation();
+    var wrap = document.getElementById('canvas-wrap');
+
+    // Scroll-wheel zoom anchored to cursor position
+    if (wrap) {
+      wrap.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var st = window.state;
+        if (!st) return;
+        var factor = e.deltaY < 0 ? 1.08 : 0.92;
+        var newZoom = Math.min(8, Math.max(0.05, st.zoom * factor));
+        var rect = wrap.getBoundingClientRect();
+        var cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+        var ratio = newZoom / st.zoom;
+        st.panX = cx - ratio * (cx - st.panX);
+        st.panY = cy - ratio * (cy - st.panY);
+        st.zoom = newZoom;
+        if (typeof applyTransform === 'function') applyTransform();
+        if (window._redrawBrushCursor) window._redrawBrushCursor();
+      }, { passive: false });
+    }
+
+    // Touch-to-Draw toggle button
+    var btn = document.getElementById('pref-touch-draw');
+    if (btn) {
+      btn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
+      btn.classList.toggle('active', !!window._ugTouchDraw);
+      btn.addEventListener('click', function() {
         window._ugTouchDraw = !window._ugTouchDraw;
-        touchDrawBtn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
-        touchDrawBtn.classList.toggle('active', window._ugTouchDraw);
-        if (typeof toast === 'function') {
+        btn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
+        btn.classList.toggle('active', window._ugTouchDraw);
+        if (typeof toast === 'function')
           toast(window._ugTouchDraw ? 'Touch drawing enabled' : 'Touch drawing disabled — gestures only');
-        }
       });
     }
 
-    // Keyboard shortcut R to reset canvas rotation
-    document.addEventListener('keydown', e => {
-      if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const st = appSt();
-        if (!st) return;
-        const tag = document.activeElement?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        st.canvasRotation = 0;
-        patchApplyTransform();
-        appApply();
-        if (typeof toast === 'function') toast('Canvas rotation reset');
-      }
+    // Keyboard R = reset canvas rotation
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'r' || e.ctrlKey || e.metaKey || e.altKey) return;
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      var st = window.state;
+      if (!st) return;
+      st.canvasRotation = 0;
+      if (typeof applyTransform === 'function') applyTransform();
+      if (typeof toast === 'function') toast('Canvas rotation reset');
     });
+
+    // Android back button trap
+    if (window.history && window.history.pushState) {
+      window.history.pushState({ ugCanvas: true }, '');
+      window.addEventListener('popstate', function() {
+        window.history.pushState({ ugCanvas: true }, '');
+      });
+    }
   });
 
-  // ── Fix all range sliders for touch ─────────────────────
-  // Chrome Android doesn't fire 'input' events for vertical range inputs on touch.
-  // We implement a custom pointer-drag fallback for all input[type=range] elements.
+  // ── Slider touch fix ─────────────────────────────────────
+  // Chrome Android: vertical range inputs don't fire input events on touch.
   function fixSliderTouch(slider) {
     if (slider._ugTouchFixed) return;
     slider._ugTouchFixed = true;
-
-    const isVertical = slider.classList.contains('vertical');
-
-    // Ensure touch-action allows our pointer events
     slider.style.touchAction = 'none';
+    var isVert = slider.classList.contains('vertical');
+    var dragging = false;
 
-    let dragging = false;
-    let startClientPos = 0;
-    let startValue = 0;
-
-    slider.addEventListener('pointerdown', e => {
+    slider.addEventListener('pointerdown', function(e) {
       dragging = true;
       slider.setPointerCapture(e.pointerId);
-      startClientPos = isVertical ? e.clientY : e.clientX;
-      startValue = parseFloat(slider.value);
-      e.stopPropagation();   // prevent gesture handler from firing
-      e.preventDefault();    // prevent browser scroll/zoom interference
+      e.stopPropagation();
+      e.preventDefault();
     }, { passive: false });
 
-    slider.addEventListener('pointermove', e => {
+    slider.addEventListener('pointermove', function(e) {
       if (!dragging) return;
       e.stopPropagation();
-
-      const rect   = slider.getBoundingClientRect();
-      const min    = parseFloat(slider.min) || 0;
-      const max    = parseFloat(slider.max) || 100;
-      const range  = max - min;
-
-      let ratio;
-      if (isVertical) {
-        // Vertical: top = max, bottom = min (direction: rtl + writing-mode)
-        ratio = 1 - (e.clientY - rect.top) / rect.height;
-      } else {
-        ratio = (e.clientX - rect.left) / rect.width;
-      }
-
+      var rect  = slider.getBoundingClientRect();
+      var min   = parseFloat(slider.min) || 0;
+      var max   = parseFloat(slider.max) || 100;
+      var step  = parseFloat(slider.step) || 1;
+      var ratio = isVert
+        ? 1 - (e.clientY - rect.top)  / rect.height
+        :     (e.clientX - rect.left) / rect.width;
       ratio = Math.max(0, Math.min(1, ratio));
-      const step  = parseFloat(slider.step) || 1;
-      const raw   = min + ratio * range;
-      const snapped = Math.round(raw / step) * step;
-      const clamped = Math.max(min, Math.min(max, snapped));
-
-      if (slider.value !== String(clamped)) {
-        slider.value = clamped;
-        // Fire both 'input' and 'change' so all listeners fire
+      var val = Math.round((min + ratio * (max - min)) / step) * step;
+      if (parseFloat(slider.value) !== val) {
+        slider.value = val;
         slider.dispatchEvent(new Event('input',  { bubbles: true }));
         slider.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }, { passive: false });
 
-    slider.addEventListener('pointerup', e => {
-      dragging = false;
-      e.stopPropagation();
-    }, { passive: false });
-
-    slider.addEventListener('pointercancel', e => {
-      dragging = false;
-    }, { passive: false });
+    slider.addEventListener('pointerup',     function() { dragging = false; }, { passive: false });
+    slider.addEventListener('pointercancel', function() { dragging = false; });
   }
 
   function fixAllSliders() {
     document.querySelectorAll('input[type=range]').forEach(fixSliderTouch);
   }
 
-  // Fix sliders now and watch for dynamically added ones
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', fixAllSliders);
   } else {
     fixAllSliders();
   }
-  // Also run after load (in case sliders are created by JS after DOMContentLoaded)
   window.addEventListener('load', fixAllSliders);
-  // Watch for new sliders added dynamically (e.g. brush settings panel)
-  const _sliderObserver = new MutationObserver(() => {
-    document.querySelectorAll('input[type=range]:not([data-ug-touch-fixed])').forEach(el => {
-      el.setAttribute('data-ug-touch-fixed', '1');
+
+  var _sliderObs = new MutationObserver(function() {
+    document.querySelectorAll('input[type=range]:not([data-ugtf])').forEach(function(el) {
+      el.setAttribute('data-ugtf', '1');
       fixSliderTouch(el);
     });
   });
   if (document.body) {
-    _sliderObserver.observe(document.body, { childList: true, subtree: true });
+    _sliderObs.observe(document.body, { childList: true, subtree: true });
   } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      _sliderObserver.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', function() {
+      _sliderObs.observe(document.body, { childList: true, subtree: true });
     });
   }
 
-  // ── Android Back Button / History API ───────────────────
-  window.addEventListener('load', () => {
-    if (window.history?.pushState) {
-      window.history.pushState({ ugCanvas: true }, '');
-      window.addEventListener('popstate', () => {
-        window.history.pushState({ ugCanvas: true }, '');
-      });
-    }
-  });
-
-  // ── Haptic feedback on long press ────────────────────────
-  let _lpTimer = null;
-  document.addEventListener('pointerdown', () => {
-    if (!navigator.vibrate) return;
-    _lpTimer = setTimeout(() => navigator.vibrate(30), 500);
-  });
-  document.addEventListener('pointerup',     () => clearTimeout(_lpTimer));
-  document.addEventListener('pointermove',   () => clearTimeout(_lpTimer));
-  document.addEventListener('pointercancel', () => clearTimeout(_lpTimer));
-
-  // ── Screen wake lock ─────────────────────────────────────
-  let _wakeLock = null;
-  async function requestWakeLock() {
+  // ── Wake lock ────────────────────────────────────────────
+  var _wakeLock = null;
+  function requestWakeLock() {
     if (!('wakeLock' in navigator)) return;
-    try { _wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+    navigator.wakeLock.request('screen').then(function(wl) {
+      _wakeLock = wl;
+    }).catch(function(e) {
+      console.warn('[UG-PWA] Wake lock failed:', e.message);
+    });
   }
-  document.addEventListener('visibilitychange', async () => {
+  document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible' && !_wakeLock) requestWakeLock();
   });
   window.addEventListener('load', requestWakeLock);
 
-  console.log('[UG-PWA] Touch & Gesture Layer v2.0 initialised ✓');
+  // ── Haptics ──────────────────────────────────────────────
+  var _lpTimer = null;
+  document.addEventListener('pointerdown', function() {
+    if (!navigator.vibrate) return;
+    _lpTimer = setTimeout(function() { navigator.vibrate(30); }, 500);
+  });
+  document.addEventListener('pointerup',     function() { clearTimeout(_lpTimer); });
+  document.addEventListener('pointermove',   function() { clearTimeout(_lpTimer); });
+  document.addEventListener('pointercancel', function() { clearTimeout(_lpTimer); });
+
+  console.log('[UG-PWA] Gesture & PWA layer initialised \u2713');
 })();
 </script>
 
