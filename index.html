@@ -11634,18 +11634,18 @@ function toast(msg) {
 <script>
 // ═══════════════════════════════════════════════════════════
 //  UrbanGlass PWA — Gesture, Touch & PWA Layer
-//  Single IIFE. Uses Touch Events API for gesture detection
-//  (the only reliable approach on Safari/iPadOS).
+//  Pure Pointer Events — works on iOS Safari, Android Chrome, desktop.
+//  Intercepts at document CAPTURE phase before canvasContainer sees events.
 // ═══════════════════════════════════════════════════════════
 (function() {
   'use strict';
 
   // ── Service Worker ───────────────────────────────────────
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
+    window.addEventListener('load', function() {
       navigator.serviceWorker.register('./sw.js')
-        .then(r  => console.log('[UG-PWA] SW registered:', r.scope))
-        .catch(e => console.warn('[UG-PWA] SW failed:', e));
+        .then(function(r)  { console.log('[UG-PWA] SW registered:', r.scope); })
+        .catch(function(e) { console.warn('[UG-PWA] SW failed:', e); });
     });
   }
 
@@ -11654,21 +11654,21 @@ function toast(msg) {
   window._ugGestureActive = false;
 
   // ── Canvas Rotation patch ────────────────────────────────
-  let _rotPatched = false;
+  var _rotPatched = false;
   function patchApplyTransform() {
     if (_rotPatched || typeof applyTransform !== 'function') return;
     _rotPatched = true;
-    const _orig = applyTransform;
+    var _orig = applyTransform;
     window.applyTransform = function() {
-      const st = window.state;
+      var st = window.state;
       if (!st) return _orig.apply(this, arguments);
-      const rot = st.canvasRotation || 0;
-      const cc  = document.getElementById('canvas-container');
+      var rot = st.canvasRotation || 0;
+      var cc  = document.getElementById('canvas-container');
       if (cc) cc.style.transform =
         'translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ') rotate(' + rot + 'deg)';
-      const zEl = document.getElementById('stat-zoom');
+      var zEl = document.getElementById('stat-zoom');
       if (zEl) zEl.textContent = Math.round(st.zoom * 100) + '%';
-      const rEl = document.getElementById('stat-rot');
+      var rEl = document.getElementById('stat-rot');
       if (rEl) rEl.textContent = Math.round(rot) + '\u00b0';
       if (typeof canvasPrefs !== 'undefined' && canvasPrefs.showGrid &&
           typeof updateGridOverlay === 'function') updateGridOverlay();
@@ -11676,19 +11676,23 @@ function toast(msg) {
     console.log('[UG-PWA] applyTransform patched \u2713');
   }
 
-  // ── Gesture helpers ──────────────────────────────────────
-  function _dist(t1, t2) {
-    var dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
-    return Math.sqrt(dx*dx + dy*dy);
+  // ── Geometry helpers ─────────────────────────────────────
+  function pdist(a, b) {
+    var dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
   }
-  function _angle(t1, t2) {
-    return Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180 / Math.PI;
+  function pangle(a, b) {
+    return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
   }
-  function _mid(t1, t2) {
-    return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+  function pmid(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 
-  // ── Gesture state ────────────────────────────────────────
+  // ── Pointer tracking ─────────────────────────────────────
+  // We track ALL active touch pointers ourselves.
+  // This map is populated at document capture phase — before canvasContainer.
+  var _ptrs = new Map(); // pointerId → {x, y}
+
   var _gest = {
     active: false,
     startDist: 1, startAngle: 0,
@@ -11707,71 +11711,45 @@ function toast(msg) {
         window.stabilizer.rafId = null;
       }
     }
+    // Release any pointer capture on canvasContainer so it stops getting events
+    var cc = document.getElementById('canvas-container');
+    if (cc) {
+      _ptrs.forEach(function(_, id) {
+        try { cc.releasePointerCapture(id); } catch(ex) {}
+      });
+    }
     if (typeof wetCommit === 'function') wetCommit();
     if (typeof lastStampX !== 'undefined') { lastStampX = null; lastStampY = null; }
   }
 
-  // ── Touch Event handlers ─────────────────────────────────
-  // WHY Touch Events not Pointer Events:
-  // Calling preventDefault() on touchstart suppresses pointer events on iOS.
-  // Touch Events fire independently and are the correct API for gesture detection
-  // on Safari. We use { passive:false } only on touchmove to allow preventDefault.
-  // We do NOT call preventDefault on touchstart so pointer events still fire
-  // (needed for stylus drawing).
-
-  function _onTouchStart(e) {
-    if (e.touches.length < 2) return;
-
-    // Ignore if both touches are clearly on a UI panel (not the canvas area)
-    // We check changedTouches[0] — the finger that JUST landed.
-    // Be permissive: if either touch is in the canvas-wrap, allow the gesture.
-    var wrap = document.getElementById('canvas-wrap');
-    if (wrap) {
-      var r = wrap.getBoundingClientRect();
-      var anyOnCanvas = false;
-      for (var i = 0; i < e.touches.length; i++) {
-        var t = e.touches[i];
-        if (t.clientX >= r.left && t.clientX <= r.right &&
-            t.clientY >= r.top  && t.clientY <= r.bottom) {
-          anyOnCanvas = true; break;
-        }
-      }
-      if (!anyOnCanvas) return;
-    }
-
-    _gest.active = true;
-    window._ugGestureActive = true;
-
-    var t1 = e.touches[0], t2 = e.touches[1];
+  function _beginGesture() {
+    var pts = Array.from(_ptrs.values());
+    var a = pts[0], b = pts[1];
     var st = window.state || {};
-    var mid = _mid(t1, t2);
-    _gest.startDist     = _dist(t1, t2);
-    _gest.startAngle    = _angle(t1, t2);
-    _gest.startZoom     = st.zoom || 1;
+    _gest.active       = true;
+    _gest.startDist    = pdist(a, b);
+    _gest.startAngle   = pangle(a, b);
+    _gest.startZoom    = st.zoom || 1;
     _gest.startRotation = st.canvasRotation || 0;
-    _gest.startPanX     = st.panX || 0;
-    _gest.startPanY     = st.panY || 0;
-    _gest.midStartX     = mid.x;
-    _gest.midStartY     = mid.y;
-
+    _gest.startPanX    = st.panX || 0;
+    _gest.startPanY    = st.panY || 0;
+    var m = pmid(a, b);
+    _gest.midStartX = m.x;
+    _gest.midStartY = m.y;
+    window._ugGestureActive = true;
     _cancelDrawing();
-    // NOTE: deliberately do NOT call e.preventDefault() here.
-    // Doing so suppresses pointer events on iOS Safari which breaks stylus.
   }
 
-  function _onTouchMove(e) {
-    if (!_gest.active) return;
-    if (e.touches.length < 2) return;
-    // Prevent page scroll/zoom during gesture
-    e.preventDefault();
-
-    var t1 = e.touches[0], t2 = e.touches[1];
+  function _updateGesture() {
+    var pts = Array.from(_ptrs.values());
+    if (pts.length < 2) return;
+    var a = pts[0], b = pts[1];
     var st = window.state;
     if (!st) return;
 
-    var newDist  = _dist(t1, t2);
-    var newAngle = _angle(t1, t2);
-    var mid      = _mid(t1, t2);
+    var newDist  = pdist(a, b);
+    var newAngle = pangle(a, b);
+    var mid      = pmid(a, b);
 
     st.zoom = Math.min(8, Math.max(0.05, _gest.startZoom * (newDist / _gest.startDist)));
 
@@ -11787,28 +11765,72 @@ function toast(msg) {
     if (window._redrawBrushCursor) window._redrawBrushCursor();
   }
 
-  function _onTouchEnd(e) {
-    if (e.touches.length < 2) {
+  // ── Document-level capture listeners ────────────────────
+  // Run BEFORE canvasContainer's bubble-phase listeners.
+  // For touch pointers: we fully manage gesture detection here.
+
+  document.addEventListener('pointerdown', function(e) {
+    // Only intercept touch (finger). Mouse and pen pass through normally.
+    if (e.pointerType !== 'touch') return;
+
+    _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (_ptrs.size >= 2) {
+      // Two fingers down — gesture mode
+      patchApplyTransform();
+      if (!_gest.active) _beginGesture();
+      // Stop propagation so canvasContainer never sees this
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    } else if (!window._ugTouchDraw) {
+      // Single finger, touch-draw OFF — block drawing
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+    // Single finger + touch-draw ON → let it fall through to canvasContainer
+  }, { capture: true, passive: false });
+
+  document.addEventListener('pointermove', function(e) {
+    if (e.pointerType !== 'touch') return;
+    if (!_ptrs.has(e.pointerId)) return;
+
+    _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (_gest.active) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      _updateGesture();
+    } else if (!window._ugTouchDraw) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, { capture: true, passive: false });
+
+  document.addEventListener('pointerup', function(e) {
+    if (e.pointerType !== 'touch') return;
+    _ptrs.delete(e.pointerId);
+    if (_ptrs.size < 2 && _gest.active) {
       _gest.active = false;
       window._ugGestureActive = false;
       var st = window.state;
       if (st) st.drawing = false;
     }
-  }
+  }, { capture: true, passive: true });
 
-  // Attach at window level — more reliable on iOS Safari than document
-  // when body/html have overflow:hidden. passive:false on touchmove only,
-  // so we can preventDefault to stop page zoom/scroll during gestures.
-  // touchstart is passive:true intentionally — calling preventDefault there
-  // would suppress pointer events (needed for Apple Pencil drawing).
-  window.addEventListener('touchstart',  _onTouchStart, { passive: true  });
-  window.addEventListener('touchmove',   _onTouchMove,  { passive: false });
-  window.addEventListener('touchend',    _onTouchEnd,   { passive: true  });
-  window.addEventListener('touchcancel', _onTouchEnd,   { passive: true  });
+  document.addEventListener('pointercancel', function(e) {
+    if (e.pointerType !== 'touch') return;
+    _ptrs.delete(e.pointerId);
+    if (_ptrs.size < 2 && _gest.active) {
+      _gest.active = false;
+      window._ugGestureActive = false;
+      var st = window.state;
+      if (st) st.drawing = false;
+    }
+  }, { capture: true, passive: true });
 
-  // ── Block Safari pinch-zoom via gesturestart ─────────────
-  // These are Safari proprietary events, separate from touch/pointer events.
-  // Calling preventDefault here does NOT suppress touchstart or pointerdown.
+  // ── Block Safari browser pinch-zoom ─────────────────────
+  // gesturestart/change/end are Safari-proprietary — blocking them
+  // prevents browser zoom without affecting pointer events.
   document.addEventListener('gesturestart',  function(e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('gestureend',    function(e) { e.preventDefault(); }, { passive: false });
@@ -11874,7 +11896,6 @@ function toast(msg) {
   });
 
   // ── Slider touch fix ─────────────────────────────────────
-  // Chrome Android: vertical range inputs don't fire input events on touch.
   function fixSliderTouch(slider) {
     if (slider._ugTouchFixed) return;
     slider._ugTouchFixed = true;
