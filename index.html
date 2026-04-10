@@ -11794,6 +11794,16 @@ function toast(msg) {
     st.panY = _g.panY + (m.y - _g.midY);
 
     if (typeof applyTransform === 'function') applyTransform();
+
+    // Re-anchor each frame so next move is relative to current position (prevents drift)
+    _g.dist  = nd;
+    _g.angle = na;
+    _g.zoom  = st.zoom;
+    _g.rot   = st.canvasRotation;
+    _g.panX  = st.panX;
+    _g.panY  = st.panY;
+    _g.midX  = m.x;
+    _g.midY  = m.y;
   }
 
   function _onTouchEnd(e) {
@@ -11827,9 +11837,16 @@ function toast(msg) {
 
   // ── Block single-touch drawing when touch-draw is OFF ────
   // Uses Pointer Events — document capture fires before canvasContainer.
+  // IMPORTANT: Never block when a gesture is already active, and never block
+  // the second finger coming down (which triggers the gesture engine).
   document.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'touch') return;
-    if (!window._ugTouchDraw || window._ugGestureActive) {
+    // Always let touches through when a gesture is in progress
+    if (window._ugGestureActive) return;
+    // Let multi-touch through so the touchstart gesture handler can see 2 fingers
+    if (e.touches && e.touches.length >= 2) return;
+    // Only block single-touch drawing when touch-draw is explicitly OFF
+    if (!window._ugTouchDraw) {
       e.stopImmediatePropagation();
     }
   }, { capture: true, passive: false });
