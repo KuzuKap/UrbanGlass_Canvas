@@ -5413,6 +5413,8 @@ canvasContainer.addEventListener('pointermove', e => {
   if (statPos) statPos.textContent = `${Math.round(x)}, ${Math.round(y)}`;
 
   if (!state.drawing) return;
+  // Don't draw during touch gestures
+  if (e.pointerType === 'touch' && window._ugGestureActive) return;
 
   if (state.tool === 'move') {
     const dx = e.clientX - state.moveStartX;
@@ -6005,6 +6007,10 @@ function applyCanvasCursor() {
   const wrap = document.getElementById('canvas-wrap');
 
   wrap.addEventListener('pointermove', e => {
+    // Don't show brush cursor during touch gestures
+    if (e.pointerType === 'touch' && window._ugGestureActive) {
+      visible = false; drawCursor(); return;
+    }
     if (!isBrushTool()) { visible = false; drawCursor(); return; }
     const wr = overlay.getBoundingClientRect();
     cursorX = e.clientX - wr.left;
@@ -11633,12 +11639,352 @@ function toast(msg) {
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  UrbanGlass PWA — Gesture, Touch & PWA Layer
-//  Pure Pointer Events — works on iOS Safari, Android Chrome, desktop.
-//  Intercepts at document CAPTURE phase before canvasContainer sees events.
+//  UrbanGlass — Gesture, Touch & PWA Layer
+//  Hybrid approach: Touch Events for gestures (always cancelable on iOS/Android),
+//  Pointer Events only for drawing (handled by canvasContainer).
 // ═══════════════════════════════════════════════════════════
 (function() {
   'use strict';
+
+  // ── Service Worker ───────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('./sw.js')
+        .then(function(r)  { console.log('[UG-PWA] SW registered:', r.scope); })
+        .catch(function(e) { console.warn('[UG-PWA] SW failed:', e); });
+    });
+  }
+
+  // ── Touch-to-Draw: OFF by default ───────────────────────
+  window._ugTouchDraw    = false;
+  window._ugGestureActive = false;
+
+  // ── Canvas Rotation patch ────────────────────────────────
+  var _rotPatched = false;
+  function patchApplyTransform() {
+    if (_rotPatched || typeof applyTransform !== 'function') return;
+    _rotPatched = true;
+    var _orig = applyTransform;
+    window.applyTransform = function() {
+      var st = window.state;
+      if (!st) return _orig.apply(this, arguments);
+      var rot = st.canvasRotation || 0;
+      var cc  = document.getElementById('canvas-container');
+      if (cc) cc.style.transform =
+        'translate(' + st.panX + 'px,' + st.panY + 'px) scale(' + st.zoom + ') rotate(' + rot + 'deg)';
+      var zEl = document.getElementById('stat-zoom');
+      if (zEl) zEl.textContent = Math.round(st.zoom * 100) + '%';
+      var rEl = document.getElementById('stat-rot');
+      if (rEl) rEl.textContent = Math.round(rot) + '\u00b0';
+      if (typeof canvasPrefs !== 'undefined' && canvasPrefs.showGrid &&
+          typeof updateGridOverlay === 'function') updateGridOverlay();
+    };
+    console.log('[UG-PWA] applyTransform patched \u2713');
+  }
+
+  // ── Geometry ─────────────────────────────────────────────
+  function tdist(a, b) {
+    var dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+  function tangle(a, b) {
+    return Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX) * 180 / Math.PI;
+  }
+  function tmid(a, b) {
+    return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+  }
+
+  // ── Gesture state ─────────────────────────────────────────
+  var _g = {
+    active: false,
+    dist: 1, angle: 0, zoom: 1, rot: 0,
+    panX: 0, panY: 0, midX: 0, midY: 0
+  };
+
+  function _cancelDraw() {
+    var st = window.state;
+    if (!st) return;
+    st.drawing = false;
+    if (window.stabilizer && window.stabilizer.active) {
+      window.stabilizer.active = false;
+      if (window.stabilizer.rafId) {
+        cancelAnimationFrame(window.stabilizer.rafId);
+        window.stabilizer.rafId = null;
+      }
+    }
+    // Release any pointer captures so canvasContainer stops receiving events
+    var cc = document.getElementById('canvas-container');
+    if (cc && cc.releasePointerCapture) {
+      // We don't know the pointer IDs, so just set drawing=false and let pointerup clean up
+    }
+    if (typeof wetCommit === 'function') wetCommit();
+    if (typeof lastStampX !== 'undefined') { lastStampX = null; lastStampY = null; }
+  }
+
+  // ── Touch Event Gesture Detection ────────────────────────
+  // Touch Events are used because:
+  // 1. They are ALWAYS cancelable (preventDefault works) on iOS Safari and Android
+  // 2. They fire independently of Pointer Event capture (setPointerCapture on
+  //    canvasContainer does NOT affect touch event delivery)
+  // 3. e.touches gives us ALL current touches, not just the one that changed
+
+  var _wrap = null; // set on load
+
+  function _onTouchStart(e) {
+    if (e.touches.length < 2) {
+      // Single finger — only matters for touch-draw blocking
+      // Pointer events handle single-finger drawing, not touch events
+      return;
+    }
+
+    // 2+ fingers: start gesture
+    // Check at least one finger is on the canvas area
+    if (_wrap) {
+      var r = _wrap.getBoundingClientRect();
+      var any = false;
+      for (var i = 0; i < e.touches.length; i++) {
+        var t = e.touches[i];
+        if (t.clientX >= r.left && t.clientX <= r.right &&
+            t.clientY >= r.top  && t.clientY <= r.bottom) { any = true; break; }
+      }
+      if (!any) return;
+    }
+
+    // Prevent browser scroll/zoom — this WORKS on iOS/Android because
+    // we're in a touch event handler (not a pointer event handler)
+    e.preventDefault();
+
+    var t1 = e.touches[0], t2 = e.touches[1];
+    var st = window.state || {};
+    var mid = tmid(t1, t2);
+
+    _g.active = true;
+    _g.dist   = tdist(t1, t2);
+    _g.angle  = tangle(t1, t2);
+    _g.zoom   = st.zoom || 1;
+    _g.rot    = st.canvasRotation || 0;
+    _g.panX   = st.panX || 0;
+    _g.panY   = st.panY || 0;
+    _g.midX   = mid.x;
+    _g.midY   = mid.y;
+
+    window._ugGestureActive = true;
+    _cancelDraw();
+  }
+
+  function _onTouchMove(e) {
+    if (!_g.active) return;
+    if (e.touches.length < 2) return;
+
+    // Prevent browser from scrolling/zooming while we handle the gesture
+    e.preventDefault();
+
+    var t1 = e.touches[0], t2 = e.touches[1];
+    var st = window.state;
+    if (!st) return;
+
+    var newDist  = tdist(t1, t2);
+    var newAngle = tangle(t1, t2);
+    var mid      = tmid(t1, t2);
+
+    // Zoom
+    st.zoom = Math.min(8, Math.max(0.05, _g.zoom * (newDist / _g.dist)));
+
+    // Rotation
+    var da = newAngle - _g.angle;
+    while (da >  180) da -= 360;
+    while (da < -180) da += 360;
+    st.canvasRotation = _g.rot + da;
+
+    // Pan
+    st.panX = _g.panX + (mid.x - _g.midX);
+    st.panY = _g.panY + (mid.y - _g.midY);
+
+    if (typeof applyTransform === 'function') applyTransform();
+  }
+
+  function _onTouchEnd(e) {
+    if (e.touches.length < 2) {
+      _g.active = false;
+      window._ugGestureActive = false;
+      var st = window.state;
+      if (st) st.drawing = false;
+    }
+  }
+
+  // Attach to canvas-wrap specifically with passive:false so preventDefault works.
+  // MUST be on the element itself (or ancestor), not window/document, for
+  // passive:false to actually allow preventDefault on iOS 13+.
+  function _attachGesture() {
+    _wrap = document.getElementById('canvas-wrap');
+    if (!_wrap) return;
+    _wrap.addEventListener('touchstart',  _onTouchStart, { passive: false });
+    _wrap.addEventListener('touchmove',   _onTouchMove,  { passive: false });
+    _wrap.addEventListener('touchend',    _onTouchEnd,   { passive: true  });
+    _wrap.addEventListener('touchcancel', _onTouchEnd,   { passive: true  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _attachGesture);
+  } else {
+    _attachGesture();
+  }
+
+  // ── Block single-touch drawing when touch-draw is OFF ────
+  // Done via Pointer Events — intercept at document capture before canvasContainer.
+  // This works for both iOS and Android for SINGLE finger blocking.
+  document.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'touch') return;
+    if (!window._ugTouchDraw || window._ugGestureActive) {
+      e.stopImmediatePropagation();
+      // Don't preventDefault — we only want to block drawing, not browser behavior
+    }
+  }, { capture: true, passive: false });
+
+  // ── Block Safari browser pinch-zoom ──────────────────────
+  document.addEventListener('gesturestart',  function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('gestureend',    function(e) { e.preventDefault(); }, { passive: false });
+
+  // ── Init on load ─────────────────────────────────────────
+  window.addEventListener('load', function() {
+    patchApplyTransform();
+
+    var wrap = document.getElementById('canvas-wrap');
+
+    // Scroll-wheel zoom
+    if (wrap) {
+      wrap.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var st = window.state;
+        if (!st) return;
+        var factor = e.deltaY < 0 ? 1.08 : 0.92;
+        var newZoom = Math.min(8, Math.max(0.05, st.zoom * factor));
+        var rect = wrap.getBoundingClientRect();
+        var cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+        var ratio = newZoom / st.zoom;
+        st.panX = cx - ratio * (cx - st.panX);
+        st.panY = cy - ratio * (cy - st.panY);
+        st.zoom = newZoom;
+        if (typeof applyTransform === 'function') applyTransform();
+        if (window._redrawBrushCursor) window._redrawBrushCursor();
+      }, { passive: false });
+    }
+
+    // Touch-to-Draw toggle
+    var btn = document.getElementById('pref-touch-draw');
+    if (btn) {
+      btn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
+      btn.classList.toggle('active', !!window._ugTouchDraw);
+      btn.addEventListener('click', function() {
+        window._ugTouchDraw = !window._ugTouchDraw;
+        btn.textContent = window._ugTouchDraw ? 'ON' : 'OFF';
+        btn.classList.toggle('active', window._ugTouchDraw);
+        if (typeof toast === 'function')
+          toast(window._ugTouchDraw ? 'Touch drawing enabled' : 'Touch drawing disabled — gestures only');
+      });
+    }
+
+    // Keyboard R = reset canvas rotation
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'r' || e.ctrlKey || e.metaKey || e.altKey) return;
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      var st = window.state;
+      if (!st) return;
+      st.canvasRotation = 0;
+      if (typeof applyTransform === 'function') applyTransform();
+      if (typeof toast === 'function') toast('Canvas rotation reset');
+    });
+
+    // Android back button trap
+    if (window.history && window.history.pushState) {
+      window.history.pushState({ ugCanvas: true }, '');
+      window.addEventListener('popstate', function() {
+        window.history.pushState({ ugCanvas: true }, '');
+      });
+    }
+  });
+
+  // ── Slider touch fix ─────────────────────────────────────
+  function fixSliderTouch(slider) {
+    if (slider._ugTouchFixed) return;
+    slider._ugTouchFixed = true;
+    slider.style.touchAction = 'none';
+    var isVert = slider.classList.contains('vertical');
+    var dragging = false;
+
+    slider.addEventListener('pointerdown', function(e) {
+      dragging = true;
+      slider.setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      e.preventDefault();
+    }, { passive: false });
+
+    slider.addEventListener('pointermove', function(e) {
+      if (!dragging) return;
+      e.stopPropagation();
+      var rect  = slider.getBoundingClientRect();
+      var min   = parseFloat(slider.min) || 0;
+      var max   = parseFloat(slider.max) || 100;
+      var step  = parseFloat(slider.step) || 1;
+      var ratio = isVert
+        ? 1 - (e.clientY - rect.top)  / rect.height
+        :     (e.clientX - rect.left) / rect.width;
+      ratio = Math.max(0, Math.min(1, ratio));
+      var val = Math.round((min + ratio * (max - min)) / step) * step;
+      if (parseFloat(slider.value) !== val) {
+        slider.value = val;
+        slider.dispatchEvent(new Event('input',  { bubbles: true }));
+        slider.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }, { passive: false });
+
+    slider.addEventListener('pointerup',     function() { dragging = false; }, { passive: false });
+    slider.addEventListener('pointercancel', function() { dragging = false; });
+  }
+
+  function fixAllSliders() {
+    document.querySelectorAll('input[type=range]').forEach(fixSliderTouch);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fixAllSliders);
+  } else {
+    fixAllSliders();
+  }
+  window.addEventListener('load', fixAllSliders);
+  var _sObs = new MutationObserver(function() {
+    document.querySelectorAll('input[type=range]:not([data-ugtf])').forEach(function(el) {
+      el.setAttribute('data-ugtf', '1'); fixSliderTouch(el);
+    });
+  });
+  if (document.body) { _sObs.observe(document.body, { childList: true, subtree: true }); }
+  else { document.addEventListener('DOMContentLoaded', function() { _sObs.observe(document.body, { childList: true, subtree: true }); }); }
+
+  // ── Wake lock ────────────────────────────────────────────
+  var _wl = null;
+  function _rlwl() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function(w) { _wl = w; }).catch(function(){});
+  }
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && !_wl) _rlwl();
+  });
+  window.addEventListener('load', _rlwl);
+
+  // ── Haptics ──────────────────────────────────────────────
+  var _ht = null;
+  document.addEventListener('pointerdown', function() {
+    if (!navigator.vibrate) return;
+    _ht = setTimeout(function() { navigator.vibrate(30); }, 500);
+  });
+  document.addEventListener('pointerup',     function() { clearTimeout(_ht); });
+  document.addEventListener('pointermove',   function() { clearTimeout(_ht); });
+  document.addEventListener('pointercancel', function() { clearTimeout(_ht); });
+
+  console.log('[UG-PWA] Gesture & PWA layer ready \u2713');
+})();
+</script>
 
   // ── Service Worker ───────────────────────────────────────
   if ('serviceWorker' in navigator) {
