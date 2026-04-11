@@ -5269,30 +5269,59 @@ function _getWrapRect() {
 }
 function _invalidateWrapRect() { _wrapRect = null; }
 
+// Cached canvas origin in viewport coords — invalidated on every applyTransform / resize.
+// This is the viewport position of the canvas (0,0) point after all transforms.
+let _canvasOriginCache = null;
+
+function _invalidateCanvasMatrix() {
+  _canvasOriginCache = null;
+}
+
+// Return the viewport coords of the canvas element's top-left layout position
+// (i.e. where it sits WITHOUT any CSS transform — purely from flex/flow layout).
+function _getLayoutOrigin() {
+  const cc = canvasContainer;
+  // offsetLeft/offsetTop give position relative to offsetParent, unaffected by CSS transform.
+  let el = cc;
+  let left = 0, top = 0;
+  while (el && el !== document.body) {
+    left += el.offsetLeft;
+    top  += el.offsetTop;
+    el    = el.offsetParent;
+  }
+  return { x: left, y: top };
+}
+
 function clientToCanvas(cx, cy) {
-  // The CSS transform applied to canvas-container is:
-  //   translate(panX, panY)  scale(zoom)  rotate(rot deg)
+  // The CSS transform on canvas-container is (from applyTransform):
+  //   translate(panX, panY)  scale(zoom)  rotate(rot)
   // with transform-origin: top left.
   //
-  // Forward mapping (canvas-space → screen):
-  //   screen = translate(panX,panY) · scale(zoom) · rotate(rot) · canvasPoint
+  // The transform is applied relative to the element's layout position (from flexbox).
+  // Let L = layout top-left in viewport coords (from _getLayoutOrigin).
   //
-  // Inverse (screen → canvas-space) — must undo in reverse order:
-  //   1. Undo translate:  v = screen - (wrapLeft+panX, wrapTop+panY)
-  //   2. Undo rotate:     r = rotate(-rot) · v
-  //   3. Undo scale:      canvasPoint = r / zoom
-  const wr  = _getWrapRect();
-  const vx  = cx - (wr.left + state.panX);
-  const vy  = cy - (wr.top  + state.panY);
+  // Forward: a canvas point (x,y) appears on screen at:
+  //   screenX = L.x + panX + (x*cos - y*sin)*zoom
+  //   screenY = L.y + panY + (x*sin + y*cos)*zoom
+  //
+  // Inverse: given pointer at (cx, cy):
+  //   vx = cx - L.x - panX      (wrap-space, before scale/rotate)
+  //   vy = cy - L.y - panY
+  //   canvasX = ( vx*cos + vy*sin) / zoom
+  //   canvasY = (-vx*sin + vy*cos) / zoom
+
+  if (!_canvasOriginCache) {
+    _canvasOriginCache = _getLayoutOrigin();
+  }
+  const L   = _canvasOriginCache;
   const rot = (state.canvasRotation || 0) * Math.PI / 180;
   const cos = Math.cos(rot);
   const sin = Math.sin(rot);
-  // Rotate by -rot (cos(-rot)=cos, sin(-rot)=-sin)
-  const rx  =  vx * cos + vy * sin;
-  const ry  = -vx * sin + vy * cos;
+  const vx  = cx - L.x - state.panX;
+  const vy  = cy - L.y - state.panY;
   return {
-    x: rx / state.zoom,
-    y: ry / state.zoom,
+    x: ( vx * cos + vy * sin) / state.zoom,
+    y: (-vx * sin + vy * cos) / state.zoom,
   };
 }
 
@@ -6806,6 +6835,7 @@ resizeSelOverlay();
 // ────────────────────────────────────────
 function applyTransform() {
   _invalidateWrapRect();
+  _invalidateCanvasMatrix();
   canvasContainer.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
   const zoomEl = document.getElementById('stat-zoom');
   if (zoomEl) zoomEl.textContent = Math.round(state.zoom * 100) + '%';
@@ -7645,19 +7675,10 @@ let crop = { active: false, dragging: false, resizing: false,
              handle: null };
 
 function overlayToCanvas(ox, oy) {
-  // CSS transform: translate(panX,panY) scale(zoom) rotate(rot)
-  // Inverse: undo translate → undo rotate → undo scale
-  const rot = (state.canvasRotation || 0) * Math.PI / 180;
-  const cos = Math.cos(rot), sin = Math.sin(rot);
-  const vx = ox - state.panX;
-  const vy = oy - state.panY;
-  // Rotate by -rot
-  const rx =  vx * cos + vy * sin;
-  const ry = -vx * sin + vy * cos;
-  return {
-    x: rx / state.zoom,
-    y: ry / state.zoom
-  };
+  // ox, oy are wrap-relative coords (clientX - wrapLeft, clientY - wrapTop).
+  // Convert to viewport coords and delegate to clientToCanvas.
+  const wr = _getWrapRect();
+  return clientToCanvas(ox + wr.left, oy + wr.top);
 }
 
 function updateCropVisual() {
@@ -11844,6 +11865,7 @@ function toast(msg) {
     var _orig = applyTransform;
     window.applyTransform = function() {
       if (typeof _invalidateWrapRect === 'function') _invalidateWrapRect();
+      if (typeof _invalidateCanvasMatrix === 'function') _invalidateCanvasMatrix();
       var st = window.state;
       if (!st) return _orig.apply(this, arguments);
       var rot = st.canvasRotation || 0;
