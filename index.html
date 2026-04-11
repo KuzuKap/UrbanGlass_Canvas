@@ -21,6 +21,25 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* ── Suppress iOS/Android text selection, tap flash, context menu, caret ── */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    caret-color: transparent;
+  }
+  /* Re-enable for real text inputs only */
+  input[type="text"], input[type="number"], input[type="email"],
+  input[type="search"], input[type="url"], textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+    caret-color: var(--accent2);
+  }
+  ::selection        { background: transparent; }
+  ::-moz-selection   { background: transparent; }
+
   :root {
     --bg: #0a100d;
     --surface: rgba(14, 26, 18, 0.55);
@@ -11645,6 +11664,81 @@ function toast(msg) {
 (function() {
   'use strict';
 
+  // ── Suppress iOS system selection / context menus globally ───────────────
+  document.addEventListener('contextmenu',     function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('selectstart',     function(e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('selectionchange', function()  {
+    var sel = window.getSelection && window.getSelection();
+    if (sel && sel.rangeCount) sel.removeAllRanges();
+  });
+  // Block the iOS "Copy / Look Up / Share" callout on long-press
+  document.addEventListener('touchstart', function(e) {
+    // Only suppress if not inside a real text input
+    var tag = e.target && e.target.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !e.target.isContentEditable) {
+      // Clearing selection on every touchstart kills the callout
+      var sel = window.getSelection && window.getSelection();
+      if (sel && sel.rangeCount) sel.removeAllRanges();
+    }
+  }, { passive: true });
+
+  // ── Palm Rejection ────────────────────────────────────────────────────────
+  // Strategy:
+  //   A) Pen-priority: once a 'pen' pointer is down, ignore ALL touch contacts
+  //      until every pen pointer lifts. This is the standard Apple Pencil model.
+  //   B) Contact-size: touches with a very large radiusX or radiusY (> 35 CSS px)
+  //      are classified as palm contacts and blocked even without a pen.
+  //
+  // We gate this at the document capture level so it fires before every other
+  // listener (drawing engine, gesture engine, sliders, etc.).
+
+  var _activePenIds  = new Set(); // pointer IDs of currently-down pen contacts
+  var _rejectedIds   = new Set(); // touch pointer IDs currently being rejected
+
+  // Threshold: contacts wider than this (CSS px either axis) are palms.
+  // Apple Pencil tip ~1-3 px; fingertip ~8-15 px; palm edge ~40-120 px.
+  var PALM_RADIUS_PX = 35;
+
+  function _isPalm(e) {
+    // Large contact area → palm
+    if ((e.radiusX && e.radiusX > PALM_RADIUS_PX) ||
+        (e.radiusY && e.radiusY > PALM_RADIUS_PX)) return true;
+    // Pen is active → any finger/touch contact is unwanted
+    if (_activePenIds.size > 0) return true;
+    return false;
+  }
+
+  document.addEventListener('pointerdown', function(e) {
+    if (e.pointerType === 'pen') {
+      _activePenIds.add(e.pointerId);
+      _rejectedIds.delete(e.pointerId); // pen is never rejected
+      return;
+    }
+    if (e.pointerType === 'touch' && _isPalm(e)) {
+      _rejectedIds.add(e.pointerId);
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      return;
+    }
+  }, { capture: true, passive: false });
+
+  document.addEventListener('pointermove', function(e) {
+    if (_rejectedIds.has(e.pointerId)) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  }, { capture: true, passive: false });
+
+  document.addEventListener('pointerup', function(e) {
+    if (e.pointerType === 'pen') _activePenIds.delete(e.pointerId);
+    _rejectedIds.delete(e.pointerId);
+  }, { capture: true, passive: true });
+
+  document.addEventListener('pointercancel', function(e) {
+    if (e.pointerType === 'pen') _activePenIds.delete(e.pointerId);
+    _rejectedIds.delete(e.pointerId);
+  }, { capture: true, passive: true });
+
   // ── Service Worker ───────────────────────────────────────
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
@@ -11794,16 +11888,6 @@ function toast(msg) {
     st.panY = _g.panY + (m.y - _g.midY);
 
     if (typeof applyTransform === 'function') applyTransform();
-
-    // Re-anchor each frame so next move is relative to current position (prevents drift)
-    _g.dist  = nd;
-    _g.angle = na;
-    _g.zoom  = st.zoom;
-    _g.rot   = st.canvasRotation;
-    _g.panX  = st.panX;
-    _g.panY  = st.panY;
-    _g.midX  = m.x;
-    _g.midY  = m.y;
   }
 
   function _onTouchEnd(e) {
@@ -11837,16 +11921,9 @@ function toast(msg) {
 
   // ── Block single-touch drawing when touch-draw is OFF ────
   // Uses Pointer Events — document capture fires before canvasContainer.
-  // IMPORTANT: Never block when a gesture is already active, and never block
-  // the second finger coming down (which triggers the gesture engine).
   document.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'touch') return;
-    // Always let touches through when a gesture is in progress
-    if (window._ugGestureActive) return;
-    // Let multi-touch through so the touchstart gesture handler can see 2 fingers
-    if (e.touches && e.touches.length >= 2) return;
-    // Only block single-touch drawing when touch-draw is explicitly OFF
-    if (!window._ugTouchDraw) {
+    if (!window._ugTouchDraw || window._ugGestureActive) {
       e.stopImmediatePropagation();
     }
   }, { capture: true, passive: false });
