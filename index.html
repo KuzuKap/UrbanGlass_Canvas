@@ -5261,12 +5261,26 @@ function eyedrop(x, y) {
 //  CANVAS INPUT EVENTS
 // ────────────────────────────────────────
 function clientToCanvas(cx, cy) {
-  // canvasContainer uses CSS transform: scale(zoom), so getBoundingClientRect
-  // returns the visually scaled rect. We need to map into the unscaled canvas space.
-  const rect = canvasContainer.getBoundingClientRect();
+  // Inverse of the CSS transform: translate(panX,panY) scale(zoom) rotate(rot)
+  // with transform-origin: top left on canvas-container inside canvas-wrap.
+  // Step 1: wrap-relative coords
+  const wrap = document.getElementById('canvas-wrap');
+  const wr   = wrap.getBoundingClientRect();
+  const wx   = cx - wr.left;
+  const wy   = cy - wr.top;
+  // Step 2: undo translation
+  const tx   = wx - state.panX;
+  const ty   = wy - state.panY;
+  // Step 3: undo scale
+  const sx   = tx / state.zoom;
+  const sy   = ty / state.zoom;
+  // Step 4: undo rotation
+  const rot  = (state.canvasRotation || 0) * Math.PI / 180;
+  const cos  = Math.cos(rot);
+  const sin  = Math.sin(rot);
   return {
-    x: (cx - rect.left) / state.zoom,
-    y: (cy - rect.top) / state.zoom
+    x:  sx * cos + sy * sin,
+    y: -sx * sin + sy * cos,
   };
 }
 
@@ -5713,33 +5727,45 @@ function updateGridOverlay() {
   }
   gridCanvas.classList.add('visible');
 
-  // Compute where the canvas is in wrap space (accounting for pan + zoom)
-  const cr   = canvasContainer.getBoundingClientRect();
-  const wr   = wrap.getBoundingClientRect();
-  const offX = cr.left - wr.left;
-  const offY = cr.top  - wr.top;
-  const cell = canvasPrefs.gridSize * state.zoom;
+  const cell = canvasPrefs.gridSize;
+  const rot  = (state.canvasRotation || 0) * Math.PI / 180;
 
   gridCtx.clearRect(0, 0, w, h);
-  gridCtx.strokeStyle = 'rgba(255,255,255,0.10)';
-  gridCtx.lineWidth   = 1;
+  gridCtx.save();
 
-  // Vertical lines
-  const startX = ((offX % cell) + cell) % cell;
-  for (let x = startX; x < w; x += cell) {
+  // Apply the same transform as the canvas so the grid aligns exactly.
+  // panX/panY are wrap-relative, which is where gridCanvas 0,0 is too.
+  gridCtx.translate(state.panX, state.panY);
+  gridCtx.rotate(rot);
+  gridCtx.scale(state.zoom, state.zoom);
+
+  gridCtx.strokeStyle = 'rgba(255,255,255,0.10)';
+  gridCtx.lineWidth   = 1 / state.zoom;
+
+  // Draw lines across the full canvas doc area (plus a margin so lines reach
+  // the edges when rotated). Work in canvas/doc space.
+  const margin = Math.max(state.canvasW, state.canvasH) * 2;
+  const startX = -margin, endX = state.canvasW + margin;
+  const startY = -margin, endY = state.canvasH + margin;
+
+  // Vertical grid lines
+  const firstCol = Math.floor(startX / cell) * cell;
+  for (let x = firstCol; x <= endX; x += cell) {
     gridCtx.beginPath();
-    gridCtx.moveTo(x + 0.5, 0);
-    gridCtx.lineTo(x + 0.5, h);
+    gridCtx.moveTo(x, startY);
+    gridCtx.lineTo(x, endY);
     gridCtx.stroke();
   }
-  // Horizontal lines
-  const startY = ((offY % cell) + cell) % cell;
-  for (let y = startY; y < h; y += cell) {
+  // Horizontal grid lines
+  const firstRow = Math.floor(startY / cell) * cell;
+  for (let y = firstRow; y <= endY; y += cell) {
     gridCtx.beginPath();
-    gridCtx.moveTo(0, y + 0.5);
-    gridCtx.lineTo(w, y + 0.5);
+    gridCtx.moveTo(startX, y);
+    gridCtx.lineTo(endX,   y);
     gridCtx.stroke();
   }
+
+  gridCtx.restore();
 }
 
 // Redraw grid on pan / zoom — applyTransform is declared in ZOOM/PAN below,
@@ -6075,39 +6101,57 @@ function clearSelection() {
   if (selState.animFrame) { cancelAnimationFrame(selState.animFrame); selState.animFrame = null; }
 }
 
-// Map canvas logical coords → overlay pixel coords
+// Map canvas logical coords → overlay pixel coords (wrap-relative screen space).
+// Uses the same transform as the canvas: translate(panX,panY) rotate(rot) scale(zoom),
+// origin top-left. Works correctly for all pan/zoom/rotation states.
 function canvasToOverlay(cx, cy) {
-  const cr = canvasContainer.getBoundingClientRect();
-  const wr = document.getElementById('canvas-wrap').getBoundingClientRect();
+  const rot = (state.canvasRotation || 0) * Math.PI / 180;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  const rx = cx * cos - cy * sin;
+  const ry = cx * sin + cy * cos;
   return {
-    x: (cr.left - wr.left) + cx * state.zoom,
-    y: (cr.top  - wr.top)  + cy * state.zoom,
+    x: rx * state.zoom + state.panX,
+    y: ry * state.zoom + state.panY,
   };
 }
 
 // ── Marching ants drawing ─────────────────────────────────
+// All draw functions work in canvas space using selCtx transform,
+// so they rotate/scale correctly with the canvas.
+function _selCtxTransform() {
+  selCtx.translate(state.panX, state.panY);
+  selCtx.rotate((state.canvasRotation || 0) * Math.PI / 180);
+  selCtx.scale(state.zoom, state.zoom);
+}
+
+// x,y,w,h in canvas coords
 function drawAntsRect(x, y, w, h) {
+  const s = state.zoom;
   selCtx.save();
-  selCtx.setLineDash([6, 6]);
-  selCtx.lineDashOffset = -selState.marchOffset;
+  _selCtxTransform();
+  selCtx.setLineDash([6 / s, 6 / s]);
+  selCtx.lineWidth = 2 / s;
+  selCtx.lineDashOffset = -selState.marchOffset / s;
   selCtx.strokeStyle = '#fff';
-  selCtx.lineWidth = 2;
-  selCtx.strokeRect(x + 0.5, y + 0.5, w, h);
+  selCtx.strokeRect(x + 0.5 / s, y + 0.5 / s, w, h);
   selCtx.strokeStyle = 'rgba(0,0,0,0.8)';
-  selCtx.lineDashOffset = -(selState.marchOffset + 6);
-  selCtx.strokeRect(x + 0.5, y + 0.5, w, h);
+  selCtx.lineDashOffset = -(selState.marchOffset + 6) / s;
+  selCtx.strokeRect(x + 0.5 / s, y + 0.5 / s, w, h);
   selCtx.restore();
 }
 
+// x,y,w,h in canvas coords
 function drawAntsEllipse(x, y, w, h) {
   if (w < 2 || h < 2) return;
+  const s = state.zoom;
   const cx = x + w / 2, cy = y + h / 2;
   const rx = w / 2, ry = h / 2;
   selCtx.save();
-  selCtx.setLineDash([6, 6]);
-  selCtx.lineWidth = 2;
+  _selCtxTransform();
+  selCtx.setLineDash([6 / s, 6 / s]);
+  selCtx.lineWidth = 2 / s;
   for (let pass = 0; pass < 2; pass++) {
-    selCtx.lineDashOffset = pass === 0 ? -selState.marchOffset : -(selState.marchOffset + 6);
+    selCtx.lineDashOffset = pass === 0 ? -selState.marchOffset / s : -(selState.marchOffset + 6) / s;
     selCtx.strokeStyle    = pass === 0 ? '#fff' : 'rgba(0,0,0,0.8)';
     selCtx.beginPath();
     selCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
@@ -6118,17 +6162,17 @@ function drawAntsEllipse(x, y, w, h) {
 
 function drawAntsPath(pts, close) {
   if (pts.length < 2) return;
+  const s = state.zoom;
   selCtx.save();
-  selCtx.setLineDash([6, 6]);
-  selCtx.strokeStyle = '#fff';
-  selCtx.lineWidth = 2;
+  _selCtxTransform();
+  selCtx.setLineDash([6 / s, 6 / s]);
+  selCtx.lineWidth = 2 / s;
   for (let pass = 0; pass < 2; pass++) {
-    selCtx.lineDashOffset = pass === 0 ? -selState.marchOffset : -(selState.marchOffset + 6);
-    selCtx.strokeStyle   = pass === 0 ? '#fff' : 'rgba(0,0,0,0.7)';
+    selCtx.lineDashOffset = pass === 0 ? -selState.marchOffset / s : -(selState.marchOffset + 6) / s;
+    selCtx.strokeStyle    = pass === 0 ? '#fff' : 'rgba(0,0,0,0.7)';
     selCtx.beginPath();
     pts.forEach((p, i) => {
-      const o = canvasToOverlay(p.x, p.y);
-      i === 0 ? selCtx.moveTo(o.x, o.y) : selCtx.lineTo(o.x, o.y);
+      i === 0 ? selCtx.moveTo(p.x, p.y) : selCtx.lineTo(p.x, p.y);
     });
     if (close) selCtx.closePath();
     selCtx.stroke();
@@ -6175,11 +6219,6 @@ function buildEdgeImage(m, cw, ch) {
 function drawEdgeImage(edge, offset, r1,g1,b1, r2,g2,b2) {
   if (!edge) return;
   const cw = state.canvasW, ch = state.canvasH;
-  const scale = state.zoom;
-  const cr = canvasContainer.getBoundingClientRect();
-  const wr = document.getElementById('canvas-wrap').getBoundingClientRect();
-  const ox = Math.round(cr.left - wr.left);
-  const oy = Math.round(cr.top  - wr.top);
 
   // Render edge to a canvas at canvas resolution, then scale to overlay
   const ec = document.createElement('canvas');
@@ -6216,10 +6255,13 @@ function drawEdgeImage(edge, offset, r1,g1,b1, r2,g2,b2) {
   }
   ectx.putImageData(id, 0, 0);
 
-  // Scale and blit to overlay
+  // Scale and blit to overlay, applying the same pan/zoom/rotation as the canvas
   selCtx.save();
+  selCtx.translate(state.panX, state.panY);
+  selCtx.rotate((state.canvasRotation || 0) * Math.PI / 180);
+  selCtx.scale(state.zoom, state.zoom);
   selCtx.imageSmoothingEnabled = false;
-  selCtx.drawImage(ec, ox, oy, cw * scale, ch * scale);
+  selCtx.drawImage(ec, 0, 0);
   selCtx.restore();
 }
 
@@ -6227,21 +6269,21 @@ function drawEdgeImage(edge, offset, r1,g1,b1, r2,g2,b2) {
 function drawAntsFromEdges(segs, offset, col1, col2) {
   if (!segs || segs.length === 0) return;
   const scale = state.zoom;
-  const cr = canvasContainer.getBoundingClientRect();
-  const wr = document.getElementById('canvas-wrap').getBoundingClientRect();
-  const ox = cr.left - wr.left;
-  const oy = cr.top  - wr.top;
+  const rot = (state.canvasRotation || 0) * Math.PI / 180;
 
   selCtx.save();
-  selCtx.setLineDash([6, 6]);
-  selCtx.lineWidth = 2;
+  selCtx.translate(state.panX, state.panY);
+  selCtx.rotate(rot);
+  selCtx.scale(scale, scale);
+  selCtx.setLineDash([6 / scale, 6 / scale]);
+  selCtx.lineWidth = 2 / scale;
   for (let pass = 0; pass < 2; pass++) {
-    selCtx.lineDashOffset = pass === 0 ? -offset : -(offset + 6);
+    selCtx.lineDashOffset = pass === 0 ? -offset / scale : -(offset + 6) / scale;
     selCtx.strokeStyle    = pass === 0 ? col1    : col2;
     selCtx.beginPath();
     for (let i = 0; i < segs.length; i += 4) {
-      selCtx.moveTo(ox + segs[i]   * scale, oy + segs[i+1] * scale);
-      selCtx.lineTo(ox + segs[i+2] * scale, oy + segs[i+3] * scale);
+      selCtx.moveTo(segs[i],   segs[i+1]);
+      selCtx.lineTo(segs[i+2], segs[i+3]);
     }
     selCtx.stroke();
   }
@@ -6329,9 +6371,7 @@ function selAnimLoop() {
       const x2 = Math.max(selState.x1, selState.x2);
       const y2 = Math.max(selState.y1, selState.y2);
       if (x2 - x1 > 1 || y2 - y1 > 1) {
-        const o1 = canvasToOverlay(x1, y1);
-        const o2 = canvasToOverlay(x2, y2);
-        drawAntsRect(o1.x, o1.y, o2.x - o1.x, o2.y - o1.y);
+        drawAntsRect(x1, y1, x2 - x1, y2 - y1);
       }
     } else if (selState.selKind === 'ellipse') {
       const x1 = Math.min(selState.x1, selState.x2);
@@ -6339,9 +6379,7 @@ function selAnimLoop() {
       const x2 = Math.max(selState.x1, selState.x2);
       const y2 = Math.max(selState.y1, selState.y2);
       if (x2 - x1 > 1 || y2 - y1 > 1) {
-        const o1 = canvasToOverlay(x1, y1);
-        const o2 = canvasToOverlay(x2, y2);
-        drawAntsEllipse(o1.x, o1.y, o2.x - o1.x, o2.y - o1.y);
+        drawAntsEllipse(x1, y1, x2 - x1, y2 - y1);
       }
     } else if (selState.selKind === 'lasso' && selState.path.length > 1) {
       drawAntsPath(selState.path, false);
@@ -7592,19 +7630,6 @@ let crop = { active: false, dragging: false, resizing: false,
              startMx: 0, startMy: 0, startX: 0, startY: 0, startW: 0, startH: 0,
              handle: null };
 
-function canvasToOverlay(cx, cy) {
-  // Transform: translate(panX,panY) scale(zoom) rotate(rot), origin top-left of canvas-wrap
-  // Canvas point (cx,cy) → rotate → scale → add pan
-  const rot = (state.canvasRotation || 0) * Math.PI / 180;
-  const cos = Math.cos(rot), sin = Math.sin(rot);
-  const rx = cx * cos - cy * sin;
-  const ry = cx * sin + cy * cos;
-  return {
-    x: rx * state.zoom + state.panX,
-    y: ry * state.zoom + state.panY
-  };
-}
-
 function overlayToCanvas(ox, oy) {
   // Inverse: subtract pan → unscale → unrotate
   const rot = (state.canvasRotation || 0) * Math.PI / 180;
@@ -8172,10 +8197,6 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   // Position handles at their exact corner/edge positions in skew mode
   function updateBoxVisualSkew() {
     if (!tx.corners) return;
-    const wrap = document.getElementById('canvas-wrap').getBoundingClientRect();
-    const cc   = canvasContainer.getBoundingClientRect();
-    const ox = cc.left - wrap.left, oy = cc.top - wrap.top;
-    const z  = state.zoom;
     const c  = tx.corners;
 
     // Place the box div at position 0,0 with full overlay size so handles can
@@ -8186,7 +8207,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     box.style.height    = '100%';
     box.style.transform = '';
 
-    const toOv = (pt) => ({ x: ox + pt.x * z, y: oy + pt.y * z });
+    const toOv = (pt) => canvasToOverlay(pt.x, pt.y);
     const ptTL = toOv(c.tl), ptTR = toOv(c.tr);
     const ptBL = toOv(c.bl), ptBR = toOv(c.br);
     const ptT  = { x:(ptTL.x+ptTR.x)/2, y:(ptTL.y+ptTR.y)/2 };
@@ -8443,14 +8464,18 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   function updateBoxVisual() {
     if (!tx.active) return;
     if (tx.mode === 'skew' && tx.corners) { updateBoxVisualSkew(); return; }
-    const wrap=document.getElementById('canvas-wrap').getBoundingClientRect();
-    const cc=canvasContainer.getBoundingClientRect();
-    const ox=cc.left-wrap.left, oy=cc.top-wrap.top;
-    box.style.left=(ox+tx.x*state.zoom)+'px';
-    box.style.top=(oy+tx.y*state.zoom)+'px';
-    box.style.width=(tx.w*state.zoom)+'px';
-    box.style.height=(tx.h*state.zoom)+'px';
-    box.style.transform=`rotate(${tx.angle}deg)`;
+    // canvasToOverlay already accounts for pan/zoom/canvasRotation,
+    // so tl is the correct screen position of the canvas-space top-left corner.
+    const tl = canvasToOverlay(tx.x, tx.y);
+    box.style.left   = tl.x + 'px';
+    box.style.top    = tl.y + 'px';
+    box.style.width  = (tx.w * state.zoom) + 'px';
+    box.style.height = (tx.h * state.zoom) + 'px';
+    // tx.angle is the layer's own rotation (canvas-space); canvasRotation is already
+    // applied by canvasToOverlay. Add both so the box tilts with both the canvas and
+    // the layer's own rotation, pivoting around the top-left corner.
+    box.style.transformOrigin = '0 0';
+    box.style.transform = `rotate(${(state.canvasRotation || 0) + (tx.angle || 0)}deg)`;
     resetHandlePositions();
   }
 
@@ -8481,8 +8506,14 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   overlay.addEventListener('pointermove', e => {
     if (!tx.active||!tx.dragging) return;
     e.preventDefault();
-    const dx=(e.clientX-tx.dragStartMx)/state.zoom;
-    const dy=(e.clientY-tx.dragStartMy)/state.zoom;
+    // Rotate screen-space delta into canvas space so handles track correctly
+    // when the canvas is rotated.
+    const rot = (state.canvasRotation || 0) * Math.PI / 180;
+    const cos = Math.cos(rot), sin = Math.sin(rot);
+    const sdx = e.clientX - tx.dragStartMx;
+    const sdy = e.clientY - tx.dragStartMy;
+    const dx = ( sdx * cos + sdy * sin) / state.zoom;
+    const dy = (-sdx * sin + sdy * cos) / state.zoom;
 
     if (tx.dragging==='move') {
       if (tx.mode==='skew' && tx.corners) {
@@ -8534,8 +8565,10 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
       updateBoxVisualSkew();
 
     } else if (tx.dragging==='rotate') {
-      const cc=canvasContainer.getBoundingClientRect();
-      const pcx=cc.left+(tx.x+tx.w/2)*state.zoom, pcy=cc.top+(tx.y+tx.h/2)*state.zoom;
+      const centre = canvasToOverlay(tx.x + tx.w/2, tx.y + tx.h/2);
+      const wrap = document.getElementById('canvas-wrap').getBoundingClientRect();
+      const pcx = centre.x + wrap.left;
+      const pcy = centre.y + wrap.top;
       const startAng=Math.atan2(tx.dragStartMy-pcy,tx.dragStartMx-pcx);
       const curAng=Math.atan2(e.clientY-pcy,e.clientX-pcx);
       tx.angle=tx.dragStartAngle+(curAng-startAng)*180/Math.PI;
@@ -8578,6 +8611,8 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     _origApplyT.apply(this, arguments);
     if (tx.active) updateBoxVisual();
   };
+  // Expose for the PWA rotation patch which replaces applyTransform entirely
+  window._updateTxBox = function() { if (tx.active) updateBoxVisual(); };
 })();
 
 // ────────────────────────────────────────
@@ -10528,13 +10563,9 @@ function toast(msg) {
     pCtx.restore();
   }
 
-  // Convert a pointer event on pCanvas to doc-space coords (accounting for zoom)
+  // Convert a pointer event on pCanvas to doc-space coords (accounting for zoom and canvas rotation)
   function eventToDoc(e) {
-    const rect = pCanvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) / state.zoom,
-      y: (e.clientY - rect.top)  / state.zoom,
-    };
+    return clientToCanvas(e.clientX, e.clientY);
   }
 
   // Check if a doc-space point is near the rotate handle
@@ -11280,11 +11311,7 @@ function toast(msg) {
 
   // ── Helper: get canvas-space coords from pointer event ─────
   function ptrToCanvas(e) {
-    const rect = canvasContainer.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) / state.zoom,
-      y: (e.clientY - rect.top)  / state.zoom,
-    };
+    return clientToCanvas(e.clientX, e.clientY);
   }
 
   // ── Build per-pixel falloff weight inside the brush ────────
@@ -11815,6 +11842,8 @@ function toast(msg) {
           document.getElementById('crop-overlay').classList.contains('active')) {
         updateCropVisual();
       }
+      // Keep transform box in sync with zoom/pan/rotation
+      if (typeof window._updateTxBox === 'function') window._updateTxBox();
     };
     console.log('[UG-PWA] applyTransform patched \u2713');
   }
@@ -11966,18 +11995,16 @@ function toast(msg) {
     // Pan: translate from anchor + zoom anchor correction.
     // With transform-origin: top left, changing zoom shifts the canvas unless
     // we compensate by adjusting pan so the midpoint stays fixed on screen.
-    var cc = document.getElementById('canvas-container');
-    var ccRect = cc ? cc.getBoundingClientRect() : null;
-    if (ccRect) {
-      // Offset of pinch midpoint from the container's current screen top-left
-      var ox = _g.midX - ccRect.left;
-      var oy = _g.midY - ccRect.top;
-      // Pan delta from finger translation
-      var dpx = m.x - _g.midX;
-      var dpy = m.y - _g.midY;
-      // Combine: anchor zoom + pan movement
-      st.panX = _g.panX + ox * (1 - zoomRatio) + dpx;
-      st.panY = _g.panY + oy * (1 - zoomRatio) + dpy;
+    // Use wrap-space coords (where panX/panY live) — this is correct regardless of rotation.
+    var wrapEl = document.getElementById('canvas-wrap');
+    var wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : null;
+    if (wrapRect) {
+      // Pinch midpoint in wrap space
+      var mx = m.x - wrapRect.left;
+      var my = m.y - wrapRect.top;
+      // Anchor zoom: keep the wrap-space point under the midpoint fixed
+      st.panX = _g.panX + (mx - _g.panX) * (1 - zoomRatio) + (m.x - _g.midX);
+      st.panY = _g.panY + (my - _g.panY) * (1 - zoomRatio) + (m.y - _g.midY);
     } else {
       st.panX = _g.panX + (m.x - _g.midX);
       st.panY = _g.panY + (m.y - _g.midY);
@@ -12071,16 +12098,17 @@ function toast(msg) {
         if (!st) return;
         var factor = e.deltaY < 0 ? 1.08 : 0.92;
         var nz = Math.min(8, Math.max(0.05, st.zoom * factor));
-        var cc = document.getElementById('canvas-container');
-        var rect = cc ? cc.getBoundingClientRect() : null;
-        if (rect) {
+        var wrapEl = document.getElementById('canvas-wrap');
+        var wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : null;
+        if (wrapRect) {
           var ratio = nz / st.zoom;
-          // Cursor offset from the container's current screen-space top-left
-          var ox = e.clientX - rect.left;
-          var oy = e.clientY - rect.top;
-          // Shift pan so the canvas point under cursor stays fixed
-          st.panX = st.panX + ox * (1 - ratio);
-          st.panY = st.panY + oy * (1 - ratio);
+          // Cursor offset in wrap space (where panX/panY live)
+          var ox = e.clientX - wrapRect.left;
+          var oy = e.clientY - wrapRect.top;
+          // Shift pan so the canvas point under cursor stays fixed.
+          // This works regardless of rotation because pan is in wrap space.
+          st.panX = st.panX + (ox - st.panX) * (1 - ratio);
+          st.panY = st.panY + (oy - st.panY) * (1 - ratio);
         }
         st.zoom = nz;
         if (typeof applyTransform === 'function') applyTransform();
