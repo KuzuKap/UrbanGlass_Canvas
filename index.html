@@ -21,25 +21,6 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ── Suppress iOS/Android text selection, tap flash, context menu, caret ── */
-  * {
-    -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    user-select: none;
-    caret-color: transparent;
-  }
-  /* Re-enable for real text inputs only */
-  input[type="text"], input[type="number"], input[type="email"],
-  input[type="search"], input[type="url"], textarea, [contenteditable="true"] {
-    -webkit-user-select: text;
-    user-select: text;
-    caret-color: var(--accent2);
-  }
-  ::selection        { background: transparent; }
-  ::-moz-selection   { background: transparent; }
-
   :root {
     --bg: #0a100d;
     --surface: rgba(14, 26, 18, 0.55);
@@ -4520,6 +4501,12 @@ const wet = {
 };
 
 function wetInit(layerCtx) {
+  // Cancel any rAF flush that may still be pending from the previous stroke.
+  // Without this, a fast second stroke's wetInit runs while the previous
+  // stroke's rAF is still queued — the rAF then fires with the new snapshot
+  // and overwrites the new stroke's first dab.
+  _wetFlushPending = false;
+
   const W = state.canvasW, H = state.canvasH;
   if (!wet.canvas || wet.w !== W || wet.h !== H) {
     wet.canvas = document.createElement('canvas');
@@ -5403,7 +5390,9 @@ canvasContainer.addEventListener('pointerdown', e => {
     return;
   }
 
-  saveHistory();
+  // History was already captured at the end of the previous stroke (see pointerup).
+  // On the very first stroke _historyPending is true so we save synchronously.
+  if (window._historyPending) { saveHistory(); window._historyPending = false; }
   state.drawing = true;
   lastStampX = null; lastStampY = null;
 
@@ -5477,9 +5466,18 @@ canvasContainer.addEventListener('pointerup', e => {
       wetCommit();
       if (window.addToColorHistory) window.addToColorHistory(state.color);
     }
-    refreshLayerThumb();
-    renderLayersList();
-    applyAllFxLayers();
+    // Defer heavy DOM/compositing work so it never blocks the next stroke's
+    // pointerdown. requestAnimationFrame yields to the browser event loop first,
+    // meaning a fast second tap can begin drawing immediately.
+    requestAnimationFrame(() => {
+      refreshLayerThumb();
+      renderLayersList();
+      applyAllFxLayers();
+      // Capture history snapshot NOW (pixels are final, main thread is idle
+      // between strokes). The next pointerdown skips its saveHistory call.
+      saveHistory();
+      window._historyPending = false;
+    });
   }
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
   state.drawing = false;
@@ -11664,81 +11662,6 @@ function toast(msg) {
 (function() {
   'use strict';
 
-  // ── Suppress iOS system selection / context menus globally ───────────────
-  document.addEventListener('contextmenu',     function(e) { e.preventDefault(); }, { passive: false });
-  document.addEventListener('selectstart',     function(e) { e.preventDefault(); }, { passive: false });
-  document.addEventListener('selectionchange', function()  {
-    var sel = window.getSelection && window.getSelection();
-    if (sel && sel.rangeCount) sel.removeAllRanges();
-  });
-  // Block the iOS "Copy / Look Up / Share" callout on long-press
-  document.addEventListener('touchstart', function(e) {
-    // Only suppress if not inside a real text input
-    var tag = e.target && e.target.tagName;
-    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !e.target.isContentEditable) {
-      // Clearing selection on every touchstart kills the callout
-      var sel = window.getSelection && window.getSelection();
-      if (sel && sel.rangeCount) sel.removeAllRanges();
-    }
-  }, { passive: true });
-
-  // ── Palm Rejection ────────────────────────────────────────────────────────
-  // Strategy:
-  //   A) Pen-priority: once a 'pen' pointer is down, ignore ALL touch contacts
-  //      until every pen pointer lifts. This is the standard Apple Pencil model.
-  //   B) Contact-size: touches with a very large radiusX or radiusY (> 35 CSS px)
-  //      are classified as palm contacts and blocked even without a pen.
-  //
-  // We gate this at the document capture level so it fires before every other
-  // listener (drawing engine, gesture engine, sliders, etc.).
-
-  var _activePenIds  = new Set(); // pointer IDs of currently-down pen contacts
-  var _rejectedIds   = new Set(); // touch pointer IDs currently being rejected
-
-  // Threshold: contacts wider than this (CSS px either axis) are palms.
-  // Apple Pencil tip ~1-3 px; fingertip ~8-15 px; palm edge ~40-120 px.
-  var PALM_RADIUS_PX = 35;
-
-  function _isPalm(e) {
-    // Large contact area → palm
-    if ((e.radiusX && e.radiusX > PALM_RADIUS_PX) ||
-        (e.radiusY && e.radiusY > PALM_RADIUS_PX)) return true;
-    // Pen is active → any finger/touch contact is unwanted
-    if (_activePenIds.size > 0) return true;
-    return false;
-  }
-
-  document.addEventListener('pointerdown', function(e) {
-    if (e.pointerType === 'pen') {
-      _activePenIds.add(e.pointerId);
-      _rejectedIds.delete(e.pointerId); // pen is never rejected
-      return;
-    }
-    if (e.pointerType === 'touch' && _isPalm(e)) {
-      _rejectedIds.add(e.pointerId);
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      return;
-    }
-  }, { capture: true, passive: false });
-
-  document.addEventListener('pointermove', function(e) {
-    if (_rejectedIds.has(e.pointerId)) {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-    }
-  }, { capture: true, passive: false });
-
-  document.addEventListener('pointerup', function(e) {
-    if (e.pointerType === 'pen') _activePenIds.delete(e.pointerId);
-    _rejectedIds.delete(e.pointerId);
-  }, { capture: true, passive: true });
-
-  document.addEventListener('pointercancel', function(e) {
-    if (e.pointerType === 'pen') _activePenIds.delete(e.pointerId);
-    _rejectedIds.delete(e.pointerId);
-  }, { capture: true, passive: true });
-
   // ── Service Worker ───────────────────────────────────────
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
@@ -11751,6 +11674,8 @@ function toast(msg) {
   // ── Touch-to-Draw: OFF by default ───────────────────────
   window._ugTouchDraw    = false;
   window._ugGestureActive = false;
+  // First stroke must save history synchronously (no previous stroke end to piggyback on)
+  window._historyPending = true;
 
   // ── Canvas Rotation patch ────────────────────────────────
   var _rotPatched = false;
