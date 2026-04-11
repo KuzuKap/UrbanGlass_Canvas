@@ -5260,24 +5260,28 @@ function eyedrop(x, y) {
 // ────────────────────────────────────────
 //  CANVAS INPUT EVENTS
 // ────────────────────────────────────────
+// Cached wrap rect — updated on resize and applyTransform to avoid
+// forced layout reflow on every pointermove/pointerdown.
+let _wrapRect = null;
+function _getWrapRect() {
+  if (!_wrapRect) _wrapRect = document.getElementById('canvas-wrap').getBoundingClientRect();
+  return _wrapRect;
+}
+function _invalidateWrapRect() { _wrapRect = null; }
+
 function clientToCanvas(cx, cy) {
-  // Inverse of the CSS transform: translate(panX,panY) scale(zoom) rotate(rot)
-  // with transform-origin: top left on canvas-container inside canvas-wrap.
-  // Step 1: wrap-relative coords
-  const wrap = document.getElementById('canvas-wrap');
-  const wr   = wrap.getBoundingClientRect();
-  const wx   = cx - wr.left;
-  const wy   = cy - wr.top;
-  // Step 2: undo translation
-  const tx   = wx - state.panX;
-  const ty   = wy - state.panY;
-  // Step 3: undo scale
-  const sx   = tx / state.zoom;
-  const sy   = ty / state.zoom;
-  // Step 4: undo rotation
-  const rot  = (state.canvasRotation || 0) * Math.PI / 180;
-  const cos  = Math.cos(rot);
-  const sin  = Math.sin(rot);
+  // Viewport coords of the canvas (0,0) corner = wrapRect.left + panX, top + panY.
+  // (panX/panY encode the full visual position because fitCanvasToViewport sets them
+  // to visually centre the canvas overriding flexbox, per the comment there.)
+  // Then: undo scale, then undo rotation to get canvas-space coords.
+  const wr  = _getWrapRect();
+  const vx  = cx - (wr.left + state.panX);
+  const vy  = cy - (wr.top  + state.panY);
+  const sx  = vx / state.zoom;
+  const sy  = vy / state.zoom;
+  const rot = (state.canvasRotation || 0) * Math.PI / 180;
+  const cos = Math.cos(rot);
+  const sin = Math.sin(rot);
   return {
     x:  sx * cos + sy * sin,
     y: -sx * sin + sy * cos,
@@ -6793,6 +6797,7 @@ resizeSelOverlay();
 //  ZOOM / PAN
 // ────────────────────────────────────────
 function applyTransform() {
+  _invalidateWrapRect();
   canvasContainer.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
   const zoomEl = document.getElementById('stat-zoom');
   if (zoomEl) zoomEl.textContent = Math.round(state.zoom * 100) + '%';
@@ -6822,6 +6827,7 @@ function fitCanvasToViewport() {
 }
 
 window.addEventListener('resize', fitCanvasToViewport);
+window.addEventListener('resize', _invalidateWrapRect);
 
 function zoomIn() { state.zoom = Math.min(8, state.zoom * 1.2); applyTransform(); }
 function zoomOut() { state.zoom = Math.max(0.1, state.zoom / 1.2); applyTransform(); }
@@ -11825,6 +11831,7 @@ function toast(msg) {
     _rotPatched = true;
     var _orig = applyTransform;
     window.applyTransform = function() {
+      if (typeof _invalidateWrapRect === 'function') _invalidateWrapRect();
       var st = window.state;
       if (!st) return _orig.apply(this, arguments);
       var rot = st.canvasRotation || 0;
