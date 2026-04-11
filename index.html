@@ -5270,21 +5270,29 @@ function _getWrapRect() {
 function _invalidateWrapRect() { _wrapRect = null; }
 
 function clientToCanvas(cx, cy) {
-  // Viewport coords of the canvas (0,0) corner = wrapRect.left + panX, top + panY.
-  // (panX/panY encode the full visual position because fitCanvasToViewport sets them
-  // to visually centre the canvas overriding flexbox, per the comment there.)
-  // Then: undo scale, then undo rotation to get canvas-space coords.
+  // The CSS transform applied to canvas-container is:
+  //   translate(panX, panY)  scale(zoom)  rotate(rot deg)
+  // with transform-origin: top left.
+  //
+  // Forward mapping (canvas-space → screen):
+  //   screen = translate(panX,panY) · scale(zoom) · rotate(rot) · canvasPoint
+  //
+  // Inverse (screen → canvas-space) — must undo in reverse order:
+  //   1. Undo translate:  v = screen - (wrapLeft+panX, wrapTop+panY)
+  //   2. Undo rotate:     r = rotate(-rot) · v
+  //   3. Undo scale:      canvasPoint = r / zoom
   const wr  = _getWrapRect();
   const vx  = cx - (wr.left + state.panX);
   const vy  = cy - (wr.top  + state.panY);
-  const sx  = vx / state.zoom;
-  const sy  = vy / state.zoom;
   const rot = (state.canvasRotation || 0) * Math.PI / 180;
   const cos = Math.cos(rot);
   const sin = Math.sin(rot);
+  // Rotate by -rot (cos(-rot)=cos, sin(-rot)=-sin)
+  const rx  =  vx * cos + vy * sin;
+  const ry  = -vx * sin + vy * cos;
   return {
-    x:  sx * cos + sy * sin,
-    y: -sx * sin + sy * cos,
+    x: rx / state.zoom,
+    y: ry / state.zoom,
   };
 }
 
@@ -7637,14 +7645,18 @@ let crop = { active: false, dragging: false, resizing: false,
              handle: null };
 
 function overlayToCanvas(ox, oy) {
-  // Inverse: subtract pan → unscale → unrotate
+  // CSS transform: translate(panX,panY) scale(zoom) rotate(rot)
+  // Inverse: undo translate → undo rotate → undo scale
   const rot = (state.canvasRotation || 0) * Math.PI / 180;
   const cos = Math.cos(rot), sin = Math.sin(rot);
-  const rx = (ox - state.panX) / state.zoom;
-  const ry = (oy - state.panY) / state.zoom;
+  const vx = ox - state.panX;
+  const vy = oy - state.panY;
+  // Rotate by -rot
+  const rx =  vx * cos + vy * sin;
+  const ry = -vx * sin + vy * cos;
   return {
-    x:  rx * cos + ry * sin,
-    y: -rx * sin + ry * cos
+    x: rx / state.zoom,
+    y: ry / state.zoom
   };
 }
 
