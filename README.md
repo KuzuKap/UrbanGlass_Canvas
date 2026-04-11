@@ -19,4 +19,4 @@
 
 // 3. Optional and never required, but if you want to tip me for whatever reason: https://ko-fi.com/kuzukap
 
-// 4. Thank you and have fun!
+// 4. Enjoy and have fun! (This step is required BTW)
