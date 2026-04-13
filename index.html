@@ -5269,56 +5269,68 @@ function _getWrapRect() {
 }
 function _invalidateWrapRect() { _wrapRect = null; }
 
-// Cached canvas origin in viewport coords — invalidated on every applyTransform / resize.
-// This is the viewport position of the canvas (0,0) point after all transforms.
-let _canvasOriginCache = null;
+// Cached canvas layout offset from wrap's top-left — invalidated on resize/transform.
+// This is the flex-centered position of canvas-container within canvas-wrap,
+// WITHOUT any CSS transform applied. All coordinate conversions use this.
 
-function _invalidateCanvasMatrix() {
-  _canvasOriginCache = null;
-}
+let _flexOffsetCache = null;
+function _invalidateCanvasMatrix() { _flexOffsetCache = null; }
 
-// Return the viewport coords of the canvas element's top-left layout position
-// (i.e. where it sits WITHOUT any CSS transform — purely from flex/flow layout).
-function _getLayoutOrigin() {
-  const cc = canvasContainer;
-  // offsetLeft/offsetTop give position relative to offsetParent, unaffected by CSS transform.
-  let el = cc;
-  let left = 0, top = 0;
-  while (el && el !== document.body) {
-    left += el.offsetLeft;
-    top  += el.offsetTop;
+function _getFlexOffset() {
+  // Returns {x, y}: the canvas-container's top-left position relative to canvas-wrap,
+  // as placed by flexbox — NOT affected by CSS transform.
+  // offsetLeft/offsetTop are unaffected by CSS transforms (by spec).
+  if (_flexOffsetCache) return _flexOffsetCache;
+  const cc   = canvasContainer;
+  const wrap = document.getElementById('canvas-wrap');
+  let el = cc, left = 0, top = 0;
+  while (el && el !== wrap && el !== document.body) {
+    left += el.offsetLeft - (el.offsetParent ? el.offsetParent.scrollLeft || 0 : 0);
+    top  += el.offsetTop  - (el.offsetParent ? el.offsetParent.scrollTop  || 0 : 0);
     el    = el.offsetParent;
   }
-  return { x: left, y: top };
+  _flexOffsetCache = { x: left, y: top };
+  return _flexOffsetCache;
 }
 
-function clientToCanvas(cx, cy) {
-  // The CSS transform on canvas-container is (from applyTransform):
-  //   translate(panX, panY)  scale(zoom)  rotate(rot)
-  // with transform-origin: top left.
-  //
-  // The transform is applied relative to the element's layout position (from flexbox).
-  // Let L = layout top-left in viewport coords (from _getLayoutOrigin).
-  //
-  // Forward: a canvas point (x,y) appears on screen at:
-  //   screenX = L.x + panX + (x*cos - y*sin)*zoom
-  //   screenY = L.y + panY + (x*sin + y*cos)*zoom
-  //
-  // Inverse: given pointer at (cx, cy):
-  //   vx = cx - L.x - panX      (wrap-space, before scale/rotate)
-  //   vy = cy - L.y - panY
-  //   canvasX = ( vx*cos + vy*sin) / zoom
-  //   canvasY = (-vx*sin + vy*cos) / zoom
-
-  if (!_canvasOriginCache) {
-    _canvasOriginCache = _getLayoutOrigin();
-  }
-  const L   = _canvasOriginCache;
+// Convert a canvas-space point to wrap-relative screen coords (for overlay positioning).
+// Forward transform: rotate → scale → translate(panX,panY) → add flex offset
+function canvasToWrap(cx, cy) {
   const rot = (state.canvasRotation || 0) * Math.PI / 180;
-  const cos = Math.cos(rot);
-  const sin = Math.sin(rot);
-  const vx  = cx - L.x - state.panX;
-  const vy  = cy - L.y - state.panY;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  const rx = cx * cos - cy * sin;
+  const ry = cx * sin + cy * cos;
+  const fo = _getFlexOffset();
+  return {
+    x: fo.x + state.panX + rx * state.zoom,
+    y: fo.y + state.panY + ry * state.zoom,
+  };
+}
+
+// Convert viewport coords to canvas-space.
+// Inverse: subtract flex offset + pan → unrotate → unscale
+function clientToCanvas(cx, cy) {
+  const wr  = _getWrapRect();
+  const fo  = _getFlexOffset();
+  const rot = (state.canvasRotation || 0) * Math.PI / 180;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  // Pointer relative to canvas-container's layout origin (before transform)
+  const vx  = (cx - wr.left) - fo.x - state.panX;
+  const vy  = (cy - wr.top)  - fo.y - state.panY;
+  // Undo rotation, then undo scale
+  return {
+    x: ( vx * cos + vy * sin) / state.zoom,
+    y: (-vx * sin + vy * cos) / state.zoom,
+  };
+}
+
+// Convert wrap-relative coords to canvas-space (used by crop/selection overlays).
+function overlayToCanvas(ox, oy) {
+  const fo  = _getFlexOffset();
+  const rot = (state.canvasRotation || 0) * Math.PI / 180;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  const vx  = ox - fo.x - state.panX;
+  const vy  = oy - fo.y - state.panY;
   return {
     x: ( vx * cos + vy * sin) / state.zoom,
     y: (-vx * sin + vy * cos) / state.zoom,
@@ -5775,8 +5787,8 @@ function updateGridOverlay() {
   gridCtx.save();
 
   // Apply the same transform as the canvas so the grid aligns exactly.
-  // panX/panY are wrap-relative, which is where gridCanvas 0,0 is too.
-  gridCtx.translate(state.panX, state.panY);
+  const fo = _getFlexOffset();
+  gridCtx.translate(fo.x + state.panX, fo.y + state.panY);
   gridCtx.rotate(rot);
   gridCtx.scale(state.zoom, state.zoom);
 
@@ -6142,25 +6154,15 @@ function clearSelection() {
   if (selState.animFrame) { cancelAnimationFrame(selState.animFrame); selState.animFrame = null; }
 }
 
-// Map canvas logical coords → overlay pixel coords (wrap-relative screen space).
-// Uses the same transform as the canvas: translate(panX,panY) rotate(rot) scale(zoom),
-// origin top-left. Works correctly for all pan/zoom/rotation states.
-function canvasToOverlay(cx, cy) {
-  const rot = (state.canvasRotation || 0) * Math.PI / 180;
-  const cos = Math.cos(rot), sin = Math.sin(rot);
-  const rx = cx * cos - cy * sin;
-  const ry = cx * sin + cy * cos;
-  return {
-    x: rx * state.zoom + state.panX,
-    y: ry * state.zoom + state.panY,
-  };
-}
+// canvasToOverlay: canvas-space → wrap-relative coords (for overlay/crop/selection visual positioning)
+function canvasToOverlay(cx, cy) { return canvasToWrap(cx, cy); }
 
 // ── Marching ants drawing ─────────────────────────────────
 // All draw functions work in canvas space using selCtx transform,
 // so they rotate/scale correctly with the canvas.
 function _selCtxTransform() {
-  selCtx.translate(state.panX, state.panY);
+  const fo = _getFlexOffset();
+  selCtx.translate(fo.x + state.panX, fo.y + state.panY);
   selCtx.rotate((state.canvasRotation || 0) * Math.PI / 180);
   selCtx.scale(state.zoom, state.zoom);
 }
@@ -6298,7 +6300,8 @@ function drawEdgeImage(edge, offset, r1,g1,b1, r2,g2,b2) {
 
   // Scale and blit to overlay, applying the same pan/zoom/rotation as the canvas
   selCtx.save();
-  selCtx.translate(state.panX, state.panY);
+  const fo = _getFlexOffset();
+  selCtx.translate(fo.x + state.panX, fo.y + state.panY);
   selCtx.rotate((state.canvasRotation || 0) * Math.PI / 180);
   selCtx.scale(state.zoom, state.zoom);
   selCtx.imageSmoothingEnabled = false;
@@ -6311,9 +6314,10 @@ function drawAntsFromEdges(segs, offset, col1, col2) {
   if (!segs || segs.length === 0) return;
   const scale = state.zoom;
   const rot = (state.canvasRotation || 0) * Math.PI / 180;
+  const fo = _getFlexOffset();
 
   selCtx.save();
-  selCtx.translate(state.panX, state.panY);
+  selCtx.translate(fo.x + state.panX, fo.y + state.panY);
   selCtx.rotate(rot);
   selCtx.scale(scale, scale);
   selCtx.setLineDash([6 / scale, 6 / scale]);
@@ -6866,6 +6870,7 @@ function fitCanvasToViewport() {
 
 window.addEventListener('resize', fitCanvasToViewport);
 window.addEventListener('resize', _invalidateWrapRect);
+window.addEventListener('resize', _invalidateCanvasMatrix);
 
 function zoomIn() { state.zoom = Math.min(8, state.zoom * 1.2); applyTransform(); }
 function zoomOut() { state.zoom = Math.max(0.1, state.zoom / 1.2); applyTransform(); }
