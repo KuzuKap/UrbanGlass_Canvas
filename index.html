@@ -1128,6 +1128,7 @@
     z-index: 20;
     cursor: crosshair;
     overflow: visible;
+    touch-action: none;
   }
   #crop-overlay.active { display: block; }
   #crop-canvas-boundary {
@@ -1151,18 +1152,21 @@
   }
   #crop-handles span {
     position: absolute;
-    width: 10px; height: 10px;
+    width: 16px; height: 16px;
     background: var(--accent);
-    border-radius: 2px;
+    border-radius: 3px;
     transform: translate(-50%,-50%);
     pointer-events: all;
     cursor: nwse-resize;
+    touch-action: none;
   }
   #crop-toolbar {
+    display: none;
     position: fixed;
     top: 60px; left: 50%;
     transform: translateX(-50%);
-    display: flex; gap: 8px; align-items: center;
+    align-items: center;
+    gap: 8px;
     z-index: 290;
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
@@ -1170,6 +1174,7 @@
     border-radius: 10px;
     padding: 8px 12px;
     box-shadow: none;
+    touch-action: manipulation;
   }
   .crop-info {
     font-family: 'DM Mono', monospace; font-size: 11px;
@@ -1651,6 +1656,7 @@
     display: block;
     pointer-events: all;
     cursor: default;
+    touch-action: none;
   }
 
   /* The bounding box frame drawn around the transformed content */
@@ -1665,17 +1671,18 @@
   /* Corner + edge handles */
   #transform-box .txh {
     position: absolute;
-    width: 10px; height: 10px;
+    width: 20px; height: 20px;
     background: #fff;
     border: 1.5px solid var(--accent);
-    border-radius: 2px;
+    border-radius: 3px;
     transform: translate(-50%, -50%);
     pointer-events: all;
     box-shadow: none;
+    touch-action: none;
   }
   /* Rotate handle — sits above the top-centre handle */
   #transform-box .txh-rotate {
-    width: 12px; height: 12px;
+    width: 20px; height: 20px;
     border-radius: 50%;
     background: var(--accent2);
     border-color: var(--accent);
@@ -1712,7 +1719,8 @@
     position: fixed;
     top: 60px; left: 50%;
     transform: translateX(-50%);
-    display: flex; gap: 6px; align-items: center;
+    display: none;
+    gap: 6px; align-items: center;
     z-index: 285;
     background: var(--panel-bg-soft);
     backdrop-filter: blur(24px) saturate(1.6);
@@ -1725,6 +1733,7 @@
     white-space: nowrap;
     flex-wrap: nowrap;
     cursor: default;
+    touch-action: manipulation;
   }
   .tx-group {
     display: flex; align-items: center; gap: 5px;
@@ -2297,17 +2306,6 @@
         <div id="crop-selection">
           <div id="crop-handles"></div>
         </div>
-        <div id="crop-toolbar">
-          <span class="crop-info" id="crop-info">0 × 0</span>
-          <button class="crop-rotate-btn" id="crop-rotate-ccw" title="Rotate 90° counter-clockwise">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-          </button>
-          <button class="crop-rotate-btn" id="crop-rotate-cw" title="Rotate 90° clockwise">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-          </button>
-          <button id="crop-cancel">Cancel</button>
-          <button class="apply" id="crop-apply">Apply Crop</button>
-        </div>
       </div>
       <!-- Transform overlay -->
       <div id="transform-overlay">
@@ -2328,32 +2326,47 @@
           <!-- Pivot crosshair (centre) -->
           <div id="transform-pivot" style="left:50%;top:50%;"></div>
         </div>
-        <div id="transform-toolbar">
-          <!-- Mode toggle: Free / Skew -->
-          <button class="tx-mode-btn active" id="tx-mode-free" title="Free Transform">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
-            Free
-          </button>
-          <button class="tx-mode-btn" id="tx-mode-skew" title="Skew Transform">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20 L18 4"/><path d="M3 20h8M8 4h8"/></svg>
-            Skew
-          </button>
-          <div class="tx-sep"></div>
-          <!-- Flip buttons (icon only) -->
-          <button class="tx-icon-btn" id="tx-flip-h" title="Flip Horizontal">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M4 7l4 5-4 5"/><path d="M20 7l-4 5 4 5"/></svg>
-          </button>
-          <button class="tx-icon-btn" id="tx-flip-v" title="Flip Vertical">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7 4l5 4 5-4"/><path d="M7 20l5-4 5 4"/></svg>
-          </button>
-          <div class="tx-sep"></div>
-          <button class="tx-cancel" id="transform-cancel">Cancel</button>
-          <button class="tx-apply"  id="transform-apply">Apply</button>
-        </div>
       </div>
     </div>
 
   </div>
+</div>
+
+<!-- Crop toolbar — body-level fixed so touch events work on iOS/Android -->
+<div id="crop-toolbar">
+  <span class="crop-info" id="crop-info">0 × 0</span>
+  <button class="crop-rotate-btn" id="crop-rotate-ccw" title="Rotate 90° counter-clockwise">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+  </button>
+  <button class="crop-rotate-btn" id="crop-rotate-cw" title="Rotate 90° clockwise">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+  </button>
+  <button id="crop-cancel">Cancel</button>
+  <button class="apply" id="crop-apply">Apply Crop</button>
+</div>
+
+<!-- Transform toolbar — body-level fixed so touch events work on iOS/Android -->
+<div id="transform-toolbar">
+  <!-- Mode toggle: Free / Skew -->
+  <button class="tx-mode-btn active" id="tx-mode-free" title="Free Transform">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+    Free
+  </button>
+  <button class="tx-mode-btn" id="tx-mode-skew" title="Skew Transform">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20 L18 4"/><path d="M3 20h8M8 4h8"/></svg>
+    Skew
+  </button>
+  <div class="tx-sep"></div>
+  <!-- Flip buttons (icon only) -->
+  <button class="tx-icon-btn" id="tx-flip-h" title="Flip Horizontal">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M4 7l4 5-4 5"/><path d="M20 7l-4 5 4 5"/></svg>
+  </button>
+  <button class="tx-icon-btn" id="tx-flip-v" title="Flip Vertical">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7 4l5 4 5-4"/><path d="M7 20l5-4 5 4"/></svg>
+  </button>
+  <div class="tx-sep"></div>
+  <button class="tx-cancel" id="transform-cancel">Cancel</button>
+  <button class="tx-apply"  id="transform-apply">Apply</button>
 </div>
 
 <!-- Floating Layers Panel -->
@@ -4077,6 +4090,8 @@ function restoreSnapshot(snap) {
   rebuildLayerOrder();
   renderLayersList();
   updateStatusBar();
+  // Layer canvases are new objects — snapshot canvas is stale
+  _wetInvalidateSnapshot();
 }
 
 function saveHistory() {
@@ -4493,35 +4508,100 @@ const TEXTURE_KEYS = Object.keys(TEXTURES);
 //  2. Each stamp is accumulated on `wetCanvas` at full opacity (no bleed).
 //  3. After each stamp, composite: layer = wetSnapshot + wetCanvas @ user opacity.
 // This gives perfectly clean strokes regardless of overlap.
+//
+// Performance optimisations:
+//  - Dirty-rect tracking: only flush the bounding box of painted pixels,
+//    not the entire canvas, on every rAF frame.
+//  - Persistent snapshot canvas: we keep a `wet.snapCanvas` that mirrors the
+//    layer's committed state, updated via drawImage at wetCommit (GPU-side copy,
+//    no CPU readback). This eliminates the expensive getImageData at stroke start.
 const wet = {
-  canvas:   null,
-  ctx:      null,
-  snapshot: null, // ImageData of layer before stroke
-  layerCtx: null, // ref to the active layer ctx at stroke start
+  canvas:      null,  // accumulation canvas (stamps go here)
+  ctx:         null,
+  snapCanvas:  null,  // persistent snapshot of the layer BEFORE the current stroke
+  snapCtx:     null,
+  layerCtx:    null,  // ref to the active layer ctx at stroke start
   w: 0, h: 0,
+  // Cumulative dirty rect for this stroke (canvas-space, integer pixels)
+  dirtyX1: 0, dirtyY1: 0, dirtyX2: 0, dirtyY2: 0,
+  hasDirty: false,
 };
+
+// Expand the dirty rect to include the stamp footprint at (sx, sy, sw, sh)
+function _wetExpandDirty(sx, sy, sw, sh) {
+  const x1 = Math.max(0, sx);
+  const y1 = Math.max(0, sy);
+  const x2 = Math.min(wet.w, sx + sw);
+  const y2 = Math.min(wet.h, sy + sh);
+  if (x2 <= x1 || y2 <= y1) return;
+  if (!wet.hasDirty) {
+    wet.dirtyX1 = x1; wet.dirtyY1 = y1;
+    wet.dirtyX2 = x2; wet.dirtyY2 = y2;
+    wet.hasDirty = true;
+  } else {
+    if (x1 < wet.dirtyX1) wet.dirtyX1 = x1;
+    if (y1 < wet.dirtyY1) wet.dirtyY1 = y1;
+    if (x2 > wet.dirtyX2) wet.dirtyX2 = x2;
+    if (y2 > wet.dirtyY2) wet.dirtyY2 = y2;
+  }
+}
+
+function _ensureWetCanvases(W, H) {
+  if (wet.canvas && wet.w === W && wet.h === H) return;
+  wet.canvas = document.createElement('canvas');
+  wet.canvas.width = W; wet.canvas.height = H;
+  wet.ctx = wet.canvas.getContext('2d');
+
+  wet.snapCanvas = document.createElement('canvas');
+  wet.snapCanvas.width = W; wet.snapCanvas.height = H;
+  wet.snapCtx = wet.snapCanvas.getContext('2d');
+
+  wet.w = W; wet.h = H;
+  // Snapshot canvas is now stale — mark it so wetInit will refresh it
+  wet._snapStale = true;
+}
 
 function wetInit(layerCtx) {
   const W = state.canvasW, H = state.canvasH;
-  if (!wet.canvas || wet.w !== W || wet.h !== H) {
-    wet.canvas = document.createElement('canvas');
-    wet.canvas.width = W; wet.canvas.height = H;
-    wet.ctx = wet.canvas.getContext('2d');
-    wet.w = W; wet.h = H;
-  }
+  _ensureWetCanvases(W, H);
+
   wet.ctx.clearRect(0, 0, W, H);
+  wet.hasDirty = false;
+
+  // If switching to a different layer, or snapshot is stale, refresh it.
+  // drawImage is a GPU-side blit — no CPU readback, very fast.
+  const needsRefresh = wet._snapStale !== false || wet._snapLayerCtx !== layerCtx;
+  if (needsRefresh) {
+    const { px, py } = getPad();
+    wet.snapCtx.clearRect(0, 0, W, H);
+    wet.snapCtx.drawImage(layerCtx.canvas, px, py, W, H, 0, 0, W, H);
+    wet._snapStale = false;
+    wet._snapLayerCtx = layerCtx;
+  }
+
   wet.layerCtx = layerCtx;
-  const { px, py } = getPad();
-  // getImageData ignores ctx.translate — read from physical pad offset
-  wet.snapshot = layerCtx.getImageData(px, py, W, H);
 }
 
 function wetCommit() {
   // Final synchronous flush — ensures last dabs are composited before we clear
   _doWetFlush();
   _wetFlushPending = false;
-  wet.snapshot = null;
+
+  // Update the persistent snapshot to reflect the committed stroke.
+  // Use drawImage (GPU copy) — no getImageData needed.
+  if (wet.layerCtx && wet.snapCtx && wet.hasDirty) {
+    const { px, py } = getPad();
+    const dx = wet.dirtyX1, dy = wet.dirtyY1;
+    const dw = wet.dirtyX2 - wet.dirtyX1;
+    const dh = wet.dirtyY2 - wet.dirtyY1;
+    if (dw > 0 && dh > 0) {
+      wet.snapCtx.drawImage(wet.layerCtx.canvas, px + dx, py + dy, dw, dh, dx, dy, dw, dh);
+      wet._snapLayerCtx = wet.layerCtx;
+    }
+  }
+
   wet.layerCtx = null;
+  wet.hasDirty = false;
 }
 
 // rAF-based flush: schedule at most one composite per animation frame
@@ -4529,7 +4609,8 @@ function wetCommit() {
 // that causes lag, while still keeping visual output smooth.
 let _wetFlushPending = false;
 function wetFlushToLayer() {
-  if (!wet.snapshot || !wet.layerCtx) return;
+  if (!wet.layerCtx) return;
+  if (!wet.hasDirty) return;
   // When stabilizer is active the stabilizerTick loop already runs in rAF,
   // so flush immediately there. When stab is OFF we batch via rAF.
   if (pressureSettings.stabilizer > 0 || !state.drawing) {
@@ -4544,14 +4625,34 @@ function wetFlushToLayer() {
     }
   }
 }
+
 function _doWetFlush() {
-  if (!wet.snapshot || !wet.layerCtx) return;
-  const { px, py } = getPad();
-  wet.layerCtx.putImageData(wet.snapshot, px, py);
+  if (!wet.layerCtx || !wet.hasDirty) return;
   const brush = getActiveBrush();
-  wet.layerCtx.globalAlpha = brush.opacity / 100;
-  wet.layerCtx.drawImage(wet.canvas, 0, 0);
+
+  const dx = wet.dirtyX1;
+  const dy = wet.dirtyY1;
+  const dw = wet.dirtyX2 - wet.dirtyX1;
+  const dh = wet.dirtyY2 - wet.dirtyY1;
+  if (dw <= 0 || dh <= 0) return;
+
+  // Restore the dirty region from the snapshot canvas (GPU blit — no CPU cost).
+  // wet.layerCtx has translate(px,py) so doc coords (dx,dy) land correctly.
+  wet.layerCtx.save();
   wet.layerCtx.globalAlpha = 1;
+  wet.layerCtx.globalCompositeOperation = 'source-over';
+  wet.layerCtx.drawImage(wet.snapCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
+
+  // Composite accumulated stamps over the restored region
+  wet.layerCtx.globalAlpha = brush.opacity / 100;
+  wet.layerCtx.drawImage(wet.canvas, dx, dy, dw, dh, dx, dy, dw, dh);
+  wet.layerCtx.restore();
+}
+
+// Called when the layer contents change outside of a wet stroke
+// (undo/redo, fx layers, erase, fill, etc.) so the snapshot is refreshed next stroke.
+function _wetInvalidateSnapshot() {
+  wet._snapStale = true;
 }
 
 // Smear helper: sample from the current layer at a position
@@ -4699,6 +4800,7 @@ function placeOneDab(brush, ctx, x, y, size, rgb, flowAlpha, angleOverride) {
       wet.ctx.globalAlpha = flowAlpha * ratio;
       wet.ctx.drawImage(tmp, sx, sy);
       wet.ctx.globalAlpha = 1;
+      _wetExpandDirty(sx, sy, sw, sh);
       return;
     }
   }
@@ -4714,11 +4816,13 @@ function placeOneDab(brush, ctx, x, y, size, rgb, flowAlpha, angleOverride) {
       tc.globalCompositeOperation = 'destination-in';
       tc.drawImage(maskC, -sx, -sy);
       wet.ctx.drawImage(tmp, sx, sy);
+      _wetExpandDirty(sx, sy, sw, sh);
       return;
     }
   }
 
   wet.ctx.drawImage(stamp, sx, sy);
+  _wetExpandDirty(sx, sy, sw, sh);
 }
 
 // ── Main stroke functions ─────────────────────────────────────────────────────
@@ -5234,6 +5338,7 @@ function floodFill(x, y) {
   }
 
   ctx.putImageData(imgData, padX, padY);
+  _wetInvalidateSnapshot(); // layer changed outside wet stroke
   refreshLayerThumb();
 }
 
@@ -5526,6 +5631,9 @@ canvasContainer.addEventListener('pointerup', e => {
       wetCommit();
       if (window.addToColorHistory) window.addToColorHistory(state.color);
     }
+    if (state.tool === 'eraser') {
+      _wetInvalidateSnapshot(); // layer pixels changed outside wet stroke
+    }
     refreshLayerThumb();
     renderLayersList();
     applyAllFxLayers();
@@ -5540,6 +5648,7 @@ canvasContainer.addEventListener('pointerup', e => {
 canvasContainer.addEventListener('pointercancel', () => {
   if (state.drawing && state.tool !== 'move') {
     if (state.tool === 'brush') wetCommit();
+    if (state.tool === 'eraser') _wetInvalidateSnapshot();
     refreshLayerThumb();
     applyAllFxLayers();
   }
@@ -7687,72 +7796,105 @@ function overlayToCanvas(ox, oy) {
 }
 
 function updateCropVisual() {
-  const rot = state.canvasRotation || 0;
-
-  // The four corners of the crop rect in canvas space → overlay screen space
+  // The crop rect is in canvas space (axis-aligned to the canvas).
+  // We map the four corners through canvasToOverlay to get their wrap-relative
+  // screen positions, then compute the axis-aligned bounding box on screen.
+  // The cropSel box is always drawn as a plain axis-aligned rectangle on screen
+  // (no CSS rotation) — it remains square with the canvas regardless of canvas rotation.
   const tl = canvasToOverlay(crop.x,          crop.y);
   const tr = canvasToOverlay(crop.x + crop.w, crop.y);
   const bl = canvasToOverlay(crop.x,          crop.y + crop.h);
   const br = canvasToOverlay(crop.x + crop.w, crop.y + crop.h);
 
-  // Screen-space size of the (possibly rotated) crop rect
-  const vw = crop.w * state.zoom;
-  const vh = crop.h * state.zoom;
+  // Axis-aligned bounding box of the four projected corners
+  const minX = Math.min(tl.x, tr.x, bl.x, br.x);
+  const minY = Math.min(tl.y, tr.y, bl.y, br.y);
+  const maxX = Math.max(tl.x, tr.x, bl.x, br.x);
+  const maxY = Math.max(tl.y, tr.y, bl.y, br.y);
 
-  // Position the selection box at the tl corner; rotate it to match canvas rotation
-  cropSel.style.left      = tl.x + 'px';
-  cropSel.style.top       = tl.y + 'px';
-  cropSel.style.width     = vw + 'px';
-  cropSel.style.height    = vh + 'px';
-  cropSel.style.transform = `rotate(${rot}deg)`;
-  cropSel.style.transformOrigin = '0 0';
+  cropSel.style.left      = minX + 'px';
+  cropSel.style.top       = minY + 'px';
+  cropSel.style.width     = (maxX - minX) + 'px';
+  cropSel.style.height    = (maxY - minY) + 'px';
+  cropSel.style.transform = '';  // no rotation — stays square with canvas
 
-  // Canvas boundary indicator
+  // Canvas boundary indicator — also no rotation on screen
   const cTL = canvasToOverlay(0, 0);
-  const cW  = state.canvasW * state.zoom;
-  const cH  = state.canvasH * state.zoom;
-  cropBoundary.style.left            = cTL.x + 'px';
-  cropBoundary.style.top             = cTL.y + 'px';
-  cropBoundary.style.width           = cW + 'px';
-  cropBoundary.style.height          = cH + 'px';
-  cropBoundary.style.transform       = `rotate(${rot}deg)`;
-  cropBoundary.style.transformOrigin = '0 0';
+  const cTR = canvasToOverlay(state.canvasW, 0);
+  const cBL = canvasToOverlay(0, state.canvasH);
+  const cBR = canvasToOverlay(state.canvasW, state.canvasH);
+  const cbMinX = Math.min(cTL.x, cTR.x, cBL.x, cBR.x);
+  const cbMinY = Math.min(cTL.y, cTR.y, cBL.y, cBR.y);
+  const cbMaxX = Math.max(cTL.x, cTR.x, cBL.x, cBR.x);
+  const cbMaxY = Math.max(cTL.y, cTR.y, cBL.y, cBR.y);
+  cropBoundary.style.left      = cbMinX + 'px';
+  cropBoundary.style.top       = cbMinY + 'px';
+  cropBoundary.style.width     = (cbMaxX - cbMinX) + 'px';
+  cropBoundary.style.height    = (cbMaxY - cbMinY) + 'px';
+  cropBoundary.style.transform = '';
 
-  // Shade: compute axis-aligned bounding box of the four crop corners
-  const xs = [tl.x, tr.x, bl.x, br.x];
-  const ys = [tl.y, tr.y, bl.y, br.y];
-  const sx = Math.max(0, Math.min(...xs));
-  const sy = Math.max(0, Math.min(...ys));
-  const ex = Math.min(cropOverlay.offsetWidth  || window.innerWidth,  Math.max(...xs));
-  const ey = Math.min(cropOverlay.offsetHeight || window.innerHeight, Math.max(...ys));
-  const wrapW = cropOverlay.offsetWidth  || window.innerWidth;
-  const wrapH = cropOverlay.offsetHeight || window.innerHeight;
-  cropShadeT.style.cssText = `left:0;top:0;width:${wrapW}px;height:${sy}px;`;
-  cropShadeB.style.cssText = `left:0;top:${ey}px;width:${wrapW}px;height:${Math.max(0,wrapH-ey)}px;`;
+  // Shade areas outside crop selection
+  const sw = cropOverlay.offsetWidth  || window.innerWidth;
+  const sh = cropOverlay.offsetHeight || window.innerHeight;
+  const sx = Math.max(0, minX), sy = Math.max(0, minY);
+  const ex = Math.min(sw, maxX), ey = Math.min(sh, maxY);
+  cropShadeT.style.cssText = `left:0;top:0;width:${sw}px;height:${sy}px;`;
+  cropShadeB.style.cssText = `left:0;top:${ey}px;width:${sw}px;height:${Math.max(0,sh-ey)}px;`;
   cropShadeL.style.cssText = `left:0;top:${sy}px;width:${sx}px;height:${ey-sy}px;`;
-  cropShadeR.style.cssText = `left:${ex}px;top:${sy}px;width:${Math.max(0,wrapW-ex)}px;height:${ey-sy}px;`;
+  cropShadeR.style.cssText = `left:${ex}px;top:${sy}px;width:${Math.max(0,sw-ex)}px;height:${ey-sy}px;`;
 
-  // Corner handles — positioned relative to the (unrotated) cropSel box
+  // Rebuild corner handles using pointer events (works on touch + mouse)
   cropHandles.innerHTML = '';
-  const corners = [[0,0,'nwse-resize'],[1,0,'nesw-resize'],[0,1,'nesw-resize'],[1,1,'nwse-resize']];
-  corners.forEach(([fx, fy, cur], idx) => {
+  const selW = maxX - minX, selH = maxY - minY;
+  const corners = [
+    [0, 0, 'nwse-resize', 0],
+    [1, 0, 'nesw-resize', 1],
+    [0, 1, 'nesw-resize', 2],
+    [1, 1, 'nwse-resize', 3],
+  ];
+  corners.forEach(([fx, fy, cur, idx]) => {
     const h = document.createElement('span');
-    h.style.left   = (fx * vw) + 'px';
-    h.style.top    = (fy * vh) + 'px';
+    h.style.left   = (fx * selW) + 'px';
+    h.style.top    = (fy * selH) + 'px';
     h.style.cursor = cur;
     h.dataset.handle = idx;
-    h.addEventListener('mousedown', e => {
+    // Use pointer events so touch works on iPad/Android.
+    // After setPointerCapture, all pointermove/up go to this element,
+    // so we handle resize math here too.
+    h.addEventListener('pointerdown', e => {
       e.stopPropagation();
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
       crop.resizing = true;
       crop.handle   = idx;
       crop.startMx  = e.clientX; crop.startMy = e.clientY;
       crop.startX   = crop.x; crop.startY = crop.y;
       crop.startW   = crop.w; crop.startH  = crop.h;
     });
+    h.addEventListener('pointermove', e => {
+      if (!crop.resizing || crop.handle !== idx) return;
+      const rot = (state.canvasRotation || 0) * Math.PI / 180;
+      const cos = Math.cos(rot), sin = Math.sin(rot);
+      const sdx = e.clientX - crop.startMx;
+      const sdy = e.clientY - crop.startMy;
+      const dx = ( sdx * cos + sdy * sin) / state.zoom;
+      const dy = (-sdx * sin + sdy * cos) / state.zoom;
+      let nx = crop.startX, ny = crop.startY, nw = crop.startW, nh = crop.startH;
+      if (idx === 0) { nx = crop.startX + dx; ny = crop.startY + dy; nw = crop.startW - dx; nh = crop.startH - dy; }
+      if (idx === 1) {                          ny = crop.startY + dy; nw = crop.startW + dx; nh = crop.startH - dy; }
+      if (idx === 2) { nx = crop.startX + dx;                          nw = crop.startW - dx; nh = crop.startH + dy; }
+      if (idx === 3) {                                                   nw = crop.startW + dx; nh = crop.startH + dy; }
+      if (nw < 0) { nx += nw; nw = -nw; }
+      if (nh < 0) { ny += nh; nh = -nh; }
+      crop.x = nx; crop.y = ny; crop.w = nw; crop.h = nh;
+      updateCropVisual();
+    });
+    h.addEventListener('pointerup', () => { crop.resizing = false; });
+    h.addEventListener('pointercancel', () => { crop.resizing = false; });
     cropHandles.appendChild(h);
   });
 
-  // Expand/contract mode indicator in info bar
+  // Expand/contract mode indicator
   const expanding = crop.x < 0 || crop.y < 0 ||
                     crop.x + crop.w > state.canvasW ||
                     crop.y + crop.h > state.canvasH;
@@ -7764,42 +7906,49 @@ function enterCropMode() {
   crop.x = 0; crop.y = 0;
   crop.w = state.canvasW; crop.h = state.canvasH;
   cropOverlay.classList.add('active');
+  document.getElementById('crop-toolbar').style.display = 'flex';
   updateCropVisual();
+  if (window.positionSubToolbars) window.positionSubToolbars();
 }
 
 function exitCropMode() {
   cropOverlay.classList.remove('active');
+  document.getElementById('crop-toolbar').style.display = 'none';
   crop.active = false; crop.dragging = false; crop.resizing = false;
+  if (window.positionSubToolbars) window.positionSubToolbars();
 }
 
-// Start drag to draw new crop selection — no clamping to canvas
-cropOverlay.addEventListener('mousedown', e => {
-  if (e.target.dataset.handle !== undefined) return;
-  const wrapRect = document.getElementById('canvas-wrap').getBoundingClientRect();
-  const ox = e.clientX - wrapRect.left;
-  const oy = e.clientY - wrapRect.top;
-  const cc = overlayToCanvas(ox, oy);
+// ── Crop overlay drag — unified pointer events (works on touch + mouse) ──
+cropOverlay.addEventListener('pointerdown', e => {
+  if (!cropOverlay.classList.contains('active')) return;
+  // Only handle primary pointer (ignore multi-touch gestures)
+  if (!e.isPrimary) return;
+  // Only handle left mouse button — let middle/right click pass through for MMB pan etc.
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  // Don't start a new drag if a handle already captured the pointer
+  if (crop.resizing) return;
+  e.stopPropagation();
+  e.preventDefault();
+  cropOverlay.setPointerCapture(e.pointerId);
+
+  const cc = clientToCanvas(e.clientX, e.clientY);
   crop.dragging   = true;
   crop.hasDragged = false;
   crop.startMx = e.clientX; crop.startMy = e.clientY;
   crop.startX  = cc.x;      crop.startY  = cc.y;
 });
 
-document.addEventListener('mousemove', e => {
+cropOverlay.addEventListener('pointermove', e => {
   if (!cropOverlay.classList.contains('active')) return;
-  const wrapRect = document.getElementById('canvas-wrap').getBoundingClientRect();
+  if (!e.isPrimary) return;
 
   if (crop.dragging) {
-    const ox = e.clientX - wrapRect.left;
-    const oy = e.clientY - wrapRect.top;
-    const cc = overlayToCanvas(ox, oy);
     if (!crop.hasDragged) {
-      const mdx = e.clientX - crop.startMx;
-      const mdy = e.clientY - crop.startMy;
-      if (Math.abs(mdx) < 4 && Math.abs(mdy) < 4) return;
+      if (Math.abs(e.clientX - crop.startMx) < 4 && Math.abs(e.clientY - crop.startMy) < 4) return;
       crop.hasDragged = true;
       crop.x = crop.startX; crop.y = crop.startY; crop.w = 0; crop.h = 0;
     }
+    const cc = clientToCanvas(e.clientX, e.clientY);
     crop.x = Math.min(crop.startX, cc.x);
     crop.y = Math.min(crop.startY, cc.y);
     crop.w = Math.abs(cc.x - crop.startX);
@@ -7808,8 +7957,7 @@ document.addEventListener('mousemove', e => {
   }
 
   if (crop.resizing) {
-    // Rotate the screen-space mouse delta into canvas space so handles
-    // track correctly even when the canvas is rotated.
+    // Convert screen delta to canvas-space delta (accounts for zoom + canvas rotation)
     const rot = (state.canvasRotation || 0) * Math.PI / 180;
     const cos = Math.cos(rot), sin = Math.sin(rot);
     const sdx = e.clientX - crop.startMx;
@@ -7822,91 +7970,17 @@ document.addEventListener('mousemove', e => {
     if (h === 1) {                          ny = crop.startY + dy; nw = crop.startW + dx; nh = crop.startH - dy; }
     if (h === 2) { nx = crop.startX + dx;                          nw = crop.startW - dx; nh = crop.startH + dy; }
     if (h === 3) {                                                   nw = crop.startW + dx; nh = crop.startH + dy; }
-    // Flip if dragged negative
     if (nw < 0) { nx += nw; nw = -nw; }
     if (nh < 0) { ny += nh; nh = -nh; }
-    // No clamping — allow expanding beyond canvas bounds
     crop.x = nx; crop.y = ny; crop.w = nw; crop.h = nh;
     updateCropVisual();
   }
 });
 
-document.addEventListener('mouseup', () => {
+cropOverlay.addEventListener('pointerup', () => {
   crop.dragging = false; crop.resizing = false;
 });
-
-// ── Touch support for crop overlay ──────────────────────────
-cropOverlay.addEventListener('touchstart', e => {
-  if (!cropOverlay.classList.contains('active')) return;
-  e.preventDefault();
-  const t = e.changedTouches[0];
-  // Check if touch hit a handle
-  const handleEl = document.elementFromPoint(t.clientX, t.clientY);
-  if (handleEl && handleEl.dataset.handle !== undefined) {
-    const idx = parseInt(handleEl.dataset.handle);
-    crop.resizing = true;
-    crop.handle   = idx;
-    crop.startMx  = t.clientX; crop.startMy = t.clientY;
-    crop.startX   = crop.x; crop.startY = crop.y;
-    crop.startW   = crop.w; crop.startH  = crop.h;
-    return;
-  }
-  const wrapRect = document.getElementById('canvas-wrap').getBoundingClientRect();
-  const ox = t.clientX - wrapRect.left;
-  const oy = t.clientY - wrapRect.top;
-  const cc = overlayToCanvas(ox, oy);
-  crop.dragging   = true;
-  crop.hasDragged = false;
-  crop.startMx = t.clientX; crop.startMy = t.clientY;
-  crop.startX  = cc.x;      crop.startY  = cc.y;
-}, { passive: false });
-
-document.addEventListener('touchmove', e => {
-  if (!cropOverlay.classList.contains('active')) return;
-  if (!crop.dragging && !crop.resizing) return;
-  e.preventDefault();
-  const t = e.changedTouches[0];
-  const wrapRect = document.getElementById('canvas-wrap').getBoundingClientRect();
-
-  if (crop.dragging) {
-    const ox = t.clientX - wrapRect.left;
-    const oy = t.clientY - wrapRect.top;
-    const cc = overlayToCanvas(ox, oy);
-    if (!crop.hasDragged) {
-      const mdx = t.clientX - crop.startMx;
-      const mdy = t.clientY - crop.startMy;
-      if (Math.abs(mdx) < 4 && Math.abs(mdy) < 4) return;
-      crop.hasDragged = true;
-      crop.x = crop.startX; crop.y = crop.startY; crop.w = 0; crop.h = 0;
-    }
-    crop.x = Math.min(crop.startX, cc.x);
-    crop.y = Math.min(crop.startY, cc.y);
-    crop.w = Math.abs(cc.x - crop.startX);
-    crop.h = Math.abs(cc.y - crop.startY);
-    updateCropVisual();
-  }
-
-  if (crop.resizing) {
-    const rot = (state.canvasRotation || 0) * Math.PI / 180;
-    const cos = Math.cos(rot), sin = Math.sin(rot);
-    const sdx = t.clientX - crop.startMx;
-    const sdy = t.clientY - crop.startMy;
-    const dx = ( sdx * cos + sdy * sin) / state.zoom;
-    const dy = (-sdx * sin + sdy * cos) / state.zoom;
-    const h = crop.handle;
-    let nx = crop.startX, ny = crop.startY, nw = crop.startW, nh = crop.startH;
-    if (h === 0) { nx = crop.startX + dx; ny = crop.startY + dy; nw = crop.startW - dx; nh = crop.startH - dy; }
-    if (h === 1) {                          ny = crop.startY + dy; nw = crop.startW + dx; nh = crop.startH - dy; }
-    if (h === 2) { nx = crop.startX + dx;                          nw = crop.startW - dx; nh = crop.startH + dy; }
-    if (h === 3) {                                                   nw = crop.startW + dx; nh = crop.startH + dy; }
-    if (nw < 0) { nx += nw; nw = -nw; }
-    if (nh < 0) { ny += nh; nh = -nh; }
-    crop.x = nx; crop.y = ny; crop.w = nw; crop.h = nh;
-    updateCropVisual();
-  }
-}, { passive: false });
-
-document.addEventListener('touchend', () => {
+cropOverlay.addEventListener('pointercancel', () => {
   crop.dragging = false; crop.resizing = false;
 });
 
@@ -8317,6 +8391,8 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
       tx._previewCanvas.getContext('2d').translate(pvPX,pvPY);
       canvasContainer.appendChild(tx._previewCanvas);
       tx.active=true; overlay.classList.add('active');
+      document.getElementById('transform-toolbar').style.display = 'flex';
+      if (window.positionSubToolbars) window.positionSubToolbars();
       updateBoxVisual(); previewTransform();
       toast('Transform folder — drag handles, then Apply');
       return;
@@ -8396,6 +8472,8 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
       layer.ctx.restore();
     }
     tx.active=true; overlay.classList.add('active');
+    document.getElementById('transform-toolbar').style.display = 'flex';
+    if (window.positionSubToolbars) window.positionSubToolbars();
     updateBoxVisual(); previewTransform();
     toast('Transform — drag handles, then Apply');
   }
@@ -8404,6 +8482,8 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   function exitTransform(apply) {
     if (!tx.active) return;
     tx.active=false; overlay.classList.remove('active');
+    document.getElementById('transform-toolbar').style.display = 'none';
+    if (window.positionSubToolbars) window.positionSubToolbars();
     if (tx._previewCanvas){tx._previewCanvas.remove();tx._previewCanvas=null;}
     if (tx._hiddenChildren){tx._hiddenChildren.forEach(c=>{c.canvas.style.opacity=c._savedOpacity||'';});tx._hiddenChildren=null;}
     tx.corners = null; tx._dragStartCorners = null;
@@ -8465,6 +8545,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     layer.ctx.restore();
     if (tx.hasSelection && tx.bgCanvas) layer.ctx.drawImage(tx.bgCanvas, 0, 0);
     drawTransformedContent(layer.ctx, snapshot);
+    _wetInvalidateSnapshot(); // layer changed outside wet stroke
     if (!tx.folderChildren) { renderLayersList(); toast('Transform applied'); }
   }
 
@@ -8525,7 +8606,10 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
 
   // ── Drag ────────────────────────────────────────────────
   overlay.addEventListener('pointerdown', e => {
-    if (!tx.active||e.button!==0) return;
+    if (!tx.active) return;
+    // Allow touch (button is 0 for touch) and left mouse button
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (!e.isPrimary) return;
     e.preventDefault();e.stopPropagation();
     const handle=e.target.dataset.txh;
     if (handle) tx.dragging=handle;
@@ -8549,6 +8633,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
 
   overlay.addEventListener('pointermove', e => {
     if (!tx.active||!tx.dragging) return;
+    if (!e.isPrimary) return;
     e.preventDefault();
     // Rotate screen-space delta into canvas space so handles track correctly
     // when the canvas is rotated.
@@ -8654,9 +8739,19 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   window.applyTransform = function() {
     _origApplyT.apply(this, arguments);
     if (tx.active) updateBoxVisual();
+    if (typeof updateCropVisual === 'function' &&
+        document.getElementById('crop-overlay').classList.contains('active')) {
+      updateCropVisual();
+    }
   };
   // Expose for the PWA rotation patch which replaces applyTransform entirely
-  window._updateTxBox = function() { if (tx.active) updateBoxVisual(); };
+  window._updateTxBox = function() {
+    if (tx.active) updateBoxVisual();
+    if (typeof updateCropVisual === 'function' &&
+        document.getElementById('crop-overlay').classList.contains('active')) {
+      updateCropVisual();
+    }
+  };
 })();
 
 // ────────────────────────────────────────
@@ -12116,8 +12211,24 @@ function toast(msg) {
 
   // ── Block single-touch drawing when touch-draw is OFF ────
   // Uses Pointer Events — document capture fires before canvasContainer.
+  // Exempts touches on crop/transform/toolbar UI elements so they always work.
   document.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'touch') return;
+    // Never block UI overlays: crop toolbar, transform overlay, sub-toolbars, buttons
+    var el = e.target;
+    while (el && el !== document.body) {
+      var id = el.id || '';
+      var cls = el.className || '';
+      if (id === 'crop-toolbar' || id === 'transform-toolbar' ||
+          id === 'transform-overlay' || id === 'crop-overlay' ||
+          id === 'sel-toolbar' || id === 'fx-toolbar' ||
+          id === 'liquify-toolbar' || id === 'text-toolbar' ||
+          el.tagName === 'BUTTON' || el.tagName === 'INPUT' ||
+          el.tagName === 'SELECT' || el.tagName === 'LABEL') {
+        return; // let it through
+      }
+      el = el.parentElement;
+    }
     if (!window._ugTouchDraw || window._ugGestureActive) {
       e.stopImmediatePropagation();
     }
