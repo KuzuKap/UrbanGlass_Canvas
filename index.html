@@ -12122,38 +12122,59 @@ function toast(msg) {
     var na = tangle(t1, t2);
     var m  = tmid(t1, t2);
 
-    // Zoom (anchored to pinch midpoint so canvas point under fingers stays fixed)
-    var newZoom = Math.min(8, Math.max(0.05, _g.zoom * (nd / _g.dist)));
-    var zoomRatio = newZoom / _g.zoom;
-    st.zoom = newZoom;
+    var wrapEl = document.getElementById('canvas-wrap');
+    var wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : null;
 
-    // Rotation
+    // Pinch midpoint in wrap space (panX/panY are in wrap space)
+    var mx = m.x - (wrapRect ? wrapRect.left : 0);
+    var my = m.y - (wrapRect ? wrapRect.top  : 0);
+
+    // New zoom and rotation values
+    var newZoom = Math.min(8, Math.max(0.05, _g.zoom * (nd / _g.dist)));
     var da = na - _g.angle;
     while (da >  180) da -= 360;
     while (da < -180) da += 360;
-    st.canvasRotation = _g.rot + da;
+    var newRot = _g.rot + da;
+    var newRotRad = newRot * Math.PI / 180;
 
-    // Pan: translate from anchor + zoom anchor correction.
-    // With transform-origin: top left, changing zoom shifts the canvas unless
-    // we compensate by adjusting pan so the midpoint stays fixed on screen.
-    // Use wrap-space coords (where panX/panY live) — this is correct regardless of rotation.
-    var wrapEl = document.getElementById('canvas-wrap');
-    var wrapRect = wrapEl ? wrapEl.getBoundingClientRect() : null;
-    if (wrapRect) {
-      // Pinch midpoint in wrap space
-      var mx = m.x - wrapRect.left;
-      var my = m.y - wrapRect.top;
-      // Anchor zoom: keep the wrap-space point under the midpoint fixed
-      st.panX = _g.panX + (mx - _g.panX) * (1 - zoomRatio) + (m.x - _g.midX);
-      st.panY = _g.panY + (my - _g.panY) * (1 - zoomRatio) + (m.y - _g.midY);
-    } else {
-      st.panX = _g.panX + (m.x - _g.midX);
-      st.panY = _g.panY + (m.y - _g.midY);
-    }
+    // Strategy: find the canvas-space point that was under the pinch midpoint
+    // at gesture start (_g.midX, _g.midY in wrap space), then compute the pan
+    // that keeps that same canvas-space point under the CURRENT midpoint (mx, my).
+    //
+    // At gesture start, the canvas-space point P under the start midpoint is:
+    //   P = R_inv(startRot) * ((startMid - startPan) / startZoom)
+    // where R_inv unrotates by startRot.
+    //
+    // With new zoom/rotation, the pan that places P back under current midpoint is:
+    //   newPan = currentMid - newZoom * R(newRot) * P
+    //
+    // Using start-of-gesture anchors throughout (_g.*) so there is no drift.
+
+    var smx = _g.midX - (wrapRect ? wrapRect.left : 0);
+    var smy = _g.midY - (wrapRect ? wrapRect.top  : 0);
+
+    // Unrotate the start-midpoint offset from start-pan into canvas space
+    var startRotRad = _g.rot * Math.PI / 180;
+    var cosS = Math.cos(-startRotRad), sinS = Math.sin(-startRotRad);
+    var vx = (smx - _g.panX) / _g.zoom;
+    var vy = (smy - _g.panY) / _g.zoom;
+    // Canvas-space point P (rotation-independent)
+    var px = cosS * vx - sinS * vy;
+    var py = sinS * vx + cosS * vy;
+
+    // Re-project P with new zoom and new rotation to find required pan
+    var cosN = Math.cos(newRotRad), sinN = Math.sin(newRotRad);
+    var projX = newZoom * (cosN * px - sinN * py);
+    var projY = newZoom * (sinN * px + cosN * py);
+
+    st.zoom = newZoom;
+    st.canvasRotation = newRot;
+    st.panX = mx - projX;
+    st.panY = my - projY;
 
     if (typeof applyTransform === 'function') applyTransform();
 
-    // Re-anchor: next frame's deltas are relative to current state
+    // Re-anchor every frame so incremental dist/angle deltas stay correct
     _g.dist  = nd;
     _g.angle = na;
     _g.zoom  = st.zoom;
