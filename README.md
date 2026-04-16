@@ -17,6 +17,8 @@
 
     // MacOS via Safari: Click File  (Or click the "Share" button in the Safari toolbar)  >>>  Add to Dock  >>>  Add  >>>  Profit.
 
+// For offline use download the .html file, You can open with a browser but it will have the browser UI
+
 // 3. Enjoy and have fun! (This step is required BTW)
 
 // ***Optional and never required, but if you want to tip me for whatever reason: https://ko-fi.com/kuzukap
