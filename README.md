@@ -4,7 +4,7 @@
 
 
 
-  // 2. To download the local application:
+  // 2. To download the Application and use without the browser UI (currently only works online, Offline versions in progress):
 
 
     // iOS/iPadOS via Safari: Click "..." in bottom right corner (iOS 26) >>>  Share  >>>  Scroll down and click "Add to Home Screen"  >>>  Make sure "Open as Web App" is turned on and press "Add"  >>>  Profit.
@@ -17,6 +17,6 @@
 
     // MacOS via Safari: Click File  (Or click the "Share" button in the Safari toolbar)  >>>  Add to Dock  >>>  Add  >>>  Profit.
 
-// 3. Optional and never required, but if you want to tip me for whatever reason: https://ko-fi.com/kuzukap
+// 3. Enjoy and have fun! (This step is required BTW)
 
-// 4. Enjoy and have fun! (This step is required BTW)
+// ***Optional and never required, but if you want to tip me for whatever reason: https://ko-fi.com/kuzukap
