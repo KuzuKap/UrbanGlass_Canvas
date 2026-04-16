@@ -15,7 +15,7 @@
 
     // Windows via Chrome: Click "..." in top right corner >>>  Cast, Save and Share  >>>  "Install page as app..."  >>> Install  >>> Profit.
 
-    // MacOS via Safari: Click File  >>>  Add to Dock (Or click the "Share" button in the Safari toolbar)  >>>  Add to Dock  >>>  Add  >>>  Profit.
+    // MacOS via Safari: Click File  (Or click the "Share" button in the Safari toolbar)  >>>  Add to Dock  >>>  Add  >>>  Profit.
 
 // 3. Optional and never required, but if you want to tip me for whatever reason: https://ko-fi.com/kuzukap
 
