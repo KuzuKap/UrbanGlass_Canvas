@@ -21,6 +21,24 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Prevent blue selection highlight when resting palm on iPad / Android.
+     Re-enable only for real text inputs so typing still works normally. */
+  *, *::before, *::after {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+    /* Suppress iOS/iPadOS long-press callout (copy/paste/select popup) */
+    -webkit-touch-callout: none;
+    /* Remove grey tap-flash on iOS WebKit */
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
   :root {
     --bg: #0a100d;
     --surface: rgba(14, 26, 18, 0.55);
@@ -3062,6 +3080,7 @@
   <div style="display:flex; align-items:center;">
     <input id="text-tb-input" type="text" placeholder="Type here…" value="Text"
       inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      readonly
       style="background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:16px;padding:4px 8px;outline:none;width:100%;min-width:200px;box-sizing:border-box;">
   </div>
 
@@ -5510,17 +5529,47 @@ function getPressure(e) {
   return 1;
 }
 
-// Blur any focused input when clicking outside text fields so shortcuts always work
+// Blur any focused input when clicking outside text fields so shortcuts always work.
+// IMPORTANT: we must NOT blur when the user taps a button that will immediately
+// focus a new input (e.g. Rename layer, Add Text).  We detect this by checking
+// whether the CURRENT activeElement is an input/textarea that the user is
+// actively editing — if so, only blur when they tap somewhere completely unrelated.
 document.addEventListener('pointerdown', e => {
   const tag  = e.target.tagName;
   const type = e.target.type || '';
+  // Is the thing being tapped a text-entry element?
   const isText = (tag === 'INPUT' && type !== 'range' && type !== 'checkbox' && type !== 'radio')
               || tag === 'TEXTAREA'
               || e.target.isContentEditable;
-  if (!isText && document.activeElement && document.activeElement !== document.body) {
-    document.activeElement.blur();
-  }
-}, true); // capture phase so it runs before anything else
+  if (isText) return; // tapping into a text field — never blur
+
+  // Is the currently active element a text-entry field?
+  const ae   = document.activeElement;
+  const aeTag  = ae ? ae.tagName : '';
+  const aeType = ae ? (ae.type || '') : '';
+  const activeIsText = (aeTag === 'INPUT' && aeType !== 'range' && aeType !== 'checkbox' && aeType !== 'radio')
+                    || aeTag === 'TEXTAREA'
+                    || (ae && ae.isContentEditable);
+
+  if (!activeIsText) return; // nothing text-focused, nothing to blur
+
+  // Allow the browser to process the tap first (so buttons that immediately
+  // focus a new input get their click handler before we blur).
+  // We defer the blur by one microtask; if the new activeElement is ALSO a text
+  // field by then, we leave it alone.
+  const toBlur = ae;
+  Promise.resolve().then(() => {
+    const nowActive = document.activeElement;
+    const nowTag  = nowActive ? nowActive.tagName : '';
+    const nowType = nowActive ? (nowActive.type || '') : '';
+    const nowIsText = (nowTag === 'INPUT' && nowType !== 'range' && nowType !== 'checkbox' && nowType !== 'radio')
+                   || nowTag === 'TEXTAREA'
+                   || (nowActive && nowActive.isContentEditable);
+    // Only blur if focus hasn't already moved to another text field
+    if (nowActive === toBlur && !nowIsText) { toBlur.blur(); return; }
+    if (!nowIsText && nowActive === toBlur) { toBlur.blur(); }
+  });
+}, true); // capture phase
 
 canvasContainer.addEventListener('pointerdown', e => {
   if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -10346,6 +10395,8 @@ function toast(msg) {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = l.name;
+    // Start readonly so the keyboard doesn't flash before we're ready
+    input.setAttribute('readonly', '');
     input.style.cssText = `
       width:100%; background:var(--surface3); border:1px solid var(--accent);
       border-radius:4px; padding:2px 5px; color:var(--text);
@@ -10353,7 +10404,20 @@ function toast(msg) {
       outline:none; box-sizing:border-box;
     `;
     nameEl.replaceWith(input);
-    input.focus(); input.select();
+    // Strip readonly and focus synchronously — we are still inside the
+    // trusted click gesture at this point (the ctx-menu click).
+    // iOS/iPadOS: setTimeout(0) still counts as trusted for keyboard purposes.
+    input.removeAttribute('readonly');
+    input.focus();
+    input.select();
+    setTimeout(() => {
+      input.removeAttribute('readonly');
+      input.focus();
+      input.select();
+    }, 0);
+    setTimeout(() => {
+      if (document.activeElement !== input) { input.removeAttribute('readonly'); input.focus(); input.select(); }
+    }, 100);
     const commit = () => {
       const val = input.value.trim();
       if (val) l.name = val;
@@ -10598,17 +10662,11 @@ function toast(msg) {
 
   // ── Add Text button opens the text toolbar ──
   document.getElementById('opt-add-text').addEventListener('click', () => {
-    // Focus the text input BEFORE closing the dropdown — this keeps the
-    // focus call inside the trusted user-gesture context on iOS/Android,
-    // which is required for the virtual keyboard to appear.
-    const textInput = document.getElementById('text-tb-input');
-    if (textInput) {
-      document.getElementById('text-toolbar').style.display = 'flex';
-      textInput.removeAttribute('readonly');
-      textInput.focus();
-    }
+    // Close the dropdown first (no async — sync, so we stay in trusted gesture)
     closeDropdown();
+    // Now open the text toolbar (sets display:flex, resets position)
     if (window.showTextToolbar) window.showTextToolbar();
+    // showTextToolbar already does the focus sequence; nothing more needed here.
   });
 })();
 
@@ -10810,20 +10868,32 @@ function toast(msg) {
     toolbar.style.display = 'flex';
 
     // ── Virtual keyboard fix for iPad / Android ──────────────
-    // Mobile browsers only show the keyboard when focus() is called
-    // synchronously inside a trusted user-gesture AND the element is
-    // visible (not display:none). We make the input visible first, then
-    // focus immediately. A short setTimeout re-focuses in case the
-    // browser deferred due to the dropdown-close animation frame.
+    // Rules for showing the software keyboard on mobile:
+    //   1. The element must be visible (not display:none) — done above.
+    //   2. focus() must be called in a trusted user-gesture context.
+    //   3. The element must NOT be readonly.
+    //   4. On iOS, setTimeout(0) still counts as "within" the gesture
+    //      for keyboard purposes, so we can defer past dropdown-close
+    //      handlers without losing the trusted context.
     input.removeAttribute('readonly');
+    // Synchronous focus first (works on most Android)
     input.focus();
     input.select();
-    // Belt-and-suspenders: some Android WebViews need a second focus
-    // after the next paint once layout has settled.
-    requestAnimationFrame(() => {
+    // Deferred focus: runs after dropdown closes + event bubbling finishes,
+    // but still within the trusted gesture window on iOS Safari/iPadOS.
+    setTimeout(() => {
+      input.removeAttribute('readonly');
       input.focus();
       input.select();
-    });
+    }, 0);
+    // Final fallback for slower Android WebViews
+    setTimeout(() => {
+      if (document.activeElement !== input) {
+        input.removeAttribute('readonly');
+        input.focus();
+        input.select();
+      }
+    }, 120);
 
     showPreview();
     if (window.positionSubToolbars) window.positionSubToolbars();
@@ -10887,11 +10957,16 @@ function toast(msg) {
   applyBtn.addEventListener('click', applyText);
   cancelBtn.addEventListener('click', hideTextToolbar);
 
-  // Re-trigger virtual keyboard when user taps the input directly on mobile
+  // Re-trigger virtual keyboard when user taps the input directly on mobile.
+  // touchstart fires first and is synchronous within the trusted gesture,
+  // so stripping readonly here ensures keyboard appears on the subsequent focus.
+  input.addEventListener('touchstart', e => {
+    input.removeAttribute('readonly');
+  }, { passive: true });
   input.addEventListener('touchend', e => {
     input.removeAttribute('readonly');
     input.focus();
-  });
+  }, { passive: true });
 
   input.addEventListener('keydown', e => {
     e.stopPropagation();
