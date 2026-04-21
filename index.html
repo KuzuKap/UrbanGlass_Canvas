@@ -4627,15 +4627,16 @@ const TEXTURE_KEYS = Object.keys(TEXTURES);
 //    layer's committed state, updated via drawImage at wetCommit (GPU-side copy,
 //    no CPU readback). This eliminates the expensive getImageData at stroke start.
 const wet = {
-  canvas:      null,  // colour canvas (rebuilt from maskCanvas at flush)
+  canvas:      null,  // scratch canvas (rebuilt at flush from col+mask)
   ctx:         null,
-  maskCanvas:  null,  // alpha-shape accumulation: stamps drawn with 'lighten' (per-pixel max-alpha)
+  colCanvas:   null,  // accumulates styled coloured stamps (textures, grain, etc.)
+  colCtx:      null,
+  maskCanvas:  null,  // accumulates solid white mask stamps (shape/alpha coverage)
   maskCtx:     null,
-  snapCanvas:  null,  // persistent snapshot of the layer BEFORE the current stroke
+  snapCanvas:  null,  // snapshot of layer at stroke start — never updated mid-stroke
   snapCtx:     null,
   layerCtx:    null,  // ref to the active layer ctx at stroke start
   w: 0, h: 0,
-  // Cumulative dirty rect for this stroke (canvas-space, integer pixels)
   dirtyX1: 0, dirtyY1: 0, dirtyX2: 0, dirtyY2: 0,
   hasDirty: false,
 };
@@ -4665,8 +4666,10 @@ function _ensureWetCanvases(W, H) {
   wet.canvas.width = W; wet.canvas.height = H;
   wet.ctx = wet.canvas.getContext('2d');
 
-  // maskCanvas: accumulates stamp alpha shapes using 'lighten' (per-pixel max).
-  // This merges overlapping dabs into one seamless shape — no stamp rings.
+  wet.colCanvas = document.createElement('canvas');
+  wet.colCanvas.width = W; wet.colCanvas.height = H;
+  wet.colCtx = wet.colCanvas.getContext('2d');
+
   wet.maskCanvas = document.createElement('canvas');
   wet.maskCanvas.width = W; wet.maskCanvas.height = H;
   wet.maskCtx = wet.maskCanvas.getContext('2d');
@@ -4676,7 +4679,6 @@ function _ensureWetCanvases(W, H) {
   wet.snapCtx = wet.snapCanvas.getContext('2d');
 
   wet.w = W; wet.h = H;
-  // Snapshot canvas is now stale — mark it so wetInit will refresh it
   wet._snapStale = true;
 }
 
@@ -4684,8 +4686,9 @@ function wetInit(layerCtx) {
   const W = state.canvasW, H = state.canvasH;
   _ensureWetCanvases(W, H);
 
-  // Clear both accumulation canvases for fresh stroke
+  // Clear all accumulation canvases for fresh stroke
   wet.ctx.clearRect(0, 0, W, H);
+  wet.colCtx.clearRect(0, 0, W, H);
   wet.maskCtx.clearRect(0, 0, W, H);
   wet.hasDirty = false;
   wet.dirtyX1 = 0; wet.dirtyY1 = 0; wet.dirtyX2 = 0; wet.dirtyY2 = 0;
@@ -4729,6 +4732,7 @@ function wetCommit() {
     wet._snapLayerCtx = wet.layerCtx;
     wet._snapStale = false;
   }
+  if (wet.colCtx)  wet.colCtx.clearRect(0, 0, wet.w, wet.h);
   if (wet.maskCtx) wet.maskCtx.clearRect(0, 0, wet.w, wet.h);
   if (wet.ctx)     wet.ctx.clearRect(0, 0, wet.w, wet.h);
 
@@ -4769,24 +4773,25 @@ function _doWetFlush() {
   const { px, py } = getPad();
   const opacity = Math.max(0.001, brush.opacity / 100);
 
-  // Build the coloured stroke canvas from the accumulated mask shape.
-  // maskCanvas has the full stroke coverage since stroke start — never cleared
-  // mid-stroke. This means the full shape is always composited as one piece,
-  // so no seams or rings appear between flush intervals.
-  const {r, g, b} = hexToRgb(state.color);
+  // Build the composited stroke:
+  // 1. colCanvas has all styled stamp pixels (with textures, grain, etc.)
+  // 2. maskCanvas has the solid shape coverage (no semi-transparent rings)
+  // 3. Clip colCanvas through maskCanvas to get the final styled shape
+  // 4. Composite that at brush.opacity over the original snapshot
+  //
+  // colCanvas and maskCanvas are NEVER cleared mid-stroke — always accumulate
+  // the full stroke since stroke start. No seams between flush intervals.
+
+  // Step A: clip colCanvas through maskCanvas into wet.canvas (scratch)
   wet.ctx.clearRect(dx, dy, dw, dh);
   wet.ctx.globalAlpha = 1;
   wet.ctx.globalCompositeOperation = 'source-over';
-  wet.ctx.fillStyle = `rgb(${r},${g},${b})`;
-  wet.ctx.fillRect(dx, dy, dw, dh);
+  wet.ctx.drawImage(wet.colCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.ctx.globalCompositeOperation = 'destination-in';
   wet.ctx.drawImage(wet.maskCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.ctx.globalCompositeOperation = 'source-over';
 
-  // Composite: restore original snapshot (not rolled) then stamp stroke on top.
-  // Using the ORIGINAL snapCanvas (captured at stroke start, never updated
-  // mid-stroke) means the entire accumulated stroke is always rendered as one
-  // clean shape at opacity — no interval seams.
+  // Step B: restore original snapshot then composite stroke at opacity
   wet.layerCtx.save();
   wet.layerCtx.globalAlpha = 1;
   wet.layerCtx.globalCompositeOperation = 'source-over';
@@ -4795,11 +4800,6 @@ function _doWetFlush() {
   wet.layerCtx.globalAlpha = opacity;
   wet.layerCtx.drawImage(wet.canvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.layerCtx.restore();
-
-  // NOTE: We do NOT roll snapCanvas here and do NOT clear maskCanvas.
-  // Both are preserved for the duration of the stroke so subsequent flushes
-  // always composite the FULL accumulated stroke against the ORIGINAL background.
-  // snapCanvas and maskCanvas are only reset in wetCommit() at stroke end.
 }
 
 // Called when the layer contents change outside of a wet stroke
@@ -4925,12 +4925,18 @@ function placeOneDab(brush, ctx, x, y, size, rgb, angleOverride) {
     r = jrgb.r; g = jrgb.g; bv = jrgb.b;
   }
 
-  // buildMaskStamp: solid white stamp for alpha accumulation (no semi-transparent rings)
-  // buildStamp: coloured stamp (used for smear sampling only)
+  // Two parallel accumulations:
+  //  colCanvas  — styled coloured stamp (preserves brush texture/grain/type)
+  //  maskCanvas — solid white shape stamp (drives opacity, prevents rings)
+  // At flush, colCanvas is clipped through maskCanvas, then composited at opacity.
+  const colStamp  = buildStamp(b, size, {r,g,b:bv});
   const maskStamp = buildMaskStamp(b, size);
+  const csw = colStamp.width, csh = colStamp.height;
   const msw = maskStamp.width, msh = maskStamp.height;
   const sx = Math.round(x - msw/2);
   const sy = Math.round(y - msh/2);
+  const csx = Math.round(x - csw/2);
+  const csy = Math.round(y - csh/2);
 
   if (b.type === 'smear') {
     // Smear: sample layer pixels, blend under brush shape
@@ -4946,9 +4952,12 @@ function placeOneDab(brush, ctx, x, y, size, rgb, angleOverride) {
       sc2.width = msw; sc2.height = msh;
       sc2.getContext('2d').putImageData(sampled, 0, 0);
       tc.drawImage(sc2, 0, 0, sampled.width, sampled.height, 0, 0, msw, msh);
+      wet.colCtx.globalAlpha = 1;
+      wet.colCtx.globalCompositeOperation = 'source-over';
+      wet.colCtx.drawImage(tmp, sx, sy);
       wet.maskCtx.globalAlpha = 1;
       wet.maskCtx.globalCompositeOperation = 'source-over';
-      wet.maskCtx.drawImage(tmp, sx, sy);
+      wet.maskCtx.drawImage(maskStamp, sx, sy);
       _wetExpandDirty(sx, sy, msw, msh);
       return;
     }
@@ -4958,28 +4967,42 @@ function placeOneDab(brush, ctx, x, y, size, rgb, angleOverride) {
   if (selState.active && selState.mask) {
     const maskC = (selState.feather || 0) > 0 ? getFeatheredMaskCanvas() : getMaskCanvas();
     if (maskC) {
-      const tmp = document.createElement('canvas');
-      tmp.width = msw; tmp.height = msh;
-      const tc = tmp.getContext('2d');
-      tc.drawImage(maskStamp, 0, 0);
-      tc.globalCompositeOperation = 'destination-in';
-      tc.drawImage(maskC, -sx, -sy);
+      // Clip both stamps through the selection mask
+      const tmpCol = document.createElement('canvas');
+      tmpCol.width = csw; tmpCol.height = csh;
+      const tcc = tmpCol.getContext('2d');
+      tcc.drawImage(colStamp, 0, 0);
+      tcc.globalCompositeOperation = 'destination-in';
+      tcc.drawImage(maskC, -csx, -csy);
+      wet.colCtx.globalAlpha = 1;
+      wet.colCtx.globalCompositeOperation = 'source-over';
+      wet.colCtx.drawImage(tmpCol, csx, csy);
+
+      const tmpMsk = document.createElement('canvas');
+      tmpMsk.width = msw; tmpMsk.height = msh;
+      const tmc = tmpMsk.getContext('2d');
+      tmc.drawImage(maskStamp, 0, 0);
+      tmc.globalCompositeOperation = 'destination-in';
+      tmc.drawImage(maskC, -sx, -sy);
       wet.maskCtx.globalAlpha = 1;
       wet.maskCtx.globalCompositeOperation = 'source-over';
-      wet.maskCtx.drawImage(tmp, sx, sy);
-      _wetExpandDirty(sx, sy, msw, msh);
+      wet.maskCtx.drawImage(tmpMsk, sx, sy);
+
+      _wetExpandDirty(Math.min(sx,csx), Math.min(sy,csy), Math.max(msw,csw), Math.max(msh,csh));
       return;
     }
   }
 
-  // Accumulate solid mask stamp with source-over at alpha=1.
-  // maskStamp reaches full opacity (1.0) at the centre and feathers to 0
-  // at the edge — overlapping stamps flood-fill the interior to solid.
-  // Result: one smooth unified shape, no individual dab rings visible.
+  // Normal: accumulate coloured stamp and solid mask stamp in parallel.
+  wet.colCtx.globalAlpha = 1;
+  wet.colCtx.globalCompositeOperation = 'source-over';
+  wet.colCtx.drawImage(colStamp, csx, csy);
+
   wet.maskCtx.globalAlpha = 1;
   wet.maskCtx.globalCompositeOperation = 'source-over';
   wet.maskCtx.drawImage(maskStamp, sx, sy);
-  _wetExpandDirty(sx, sy, msw, msh);
+
+  _wetExpandDirty(Math.min(sx,csx), Math.min(sy,csy), Math.max(msw,csw), Math.max(msh,csh));
 }
 
 // ── Main stroke functions ─────────────────────────────────────────────────────
@@ -5740,9 +5763,14 @@ canvasContainer.addEventListener('pointerdown', e => {
 
   if (state.tool === 'brush') {
     wetInit(getActiveCtx());
-    // Place one dab immediately so taps and clicks always leave a mark.
+    // Place one dab immediately so taps always leave a mark.
+    // For pressure-sensitive brushes, use a small initial scale (avoids the
+    // unreliable first-contact pressure spike on stylus/Apple Pencil).
     const brush = getActiveBrush();
-    const size = Math.max(0.5, brush.size * sizeScale);
+    const initialSizeScale = (brush.sizePressure && pressureSettings.enabled)
+      ? pressureToScale(0.08)
+      : sizeScale;
+    const size = Math.max(0.5, brush.size * initialSizeScale);
     const {r,g,b} = hexToRgb(state.color);
     stampDabs(brush, getActiveCtx(), x, y, size, {r,g,b}, 0);
     wetFlushToLayer();
