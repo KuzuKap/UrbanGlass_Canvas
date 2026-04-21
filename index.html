@@ -4252,162 +4252,254 @@ function syncBrushToState() {
 const stampCache = new Map();
 const STAMP_CACHE_MAX = 64;
 
-function makeStampKey(brush, size, {r,g,b}, flowAlpha) {
-  return `${brush.type}|${Math.round(size)}|${r},${g},${b}|${Math.round(flowAlpha*100)}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}`;
+// Separate cache for mask stamps (solid alpha, used for max-alpha accumulation)
+const maskStampCache = new Map();
+
+function makeStampKey(brush, size, {r,g,b}) {
+  return `${brush.type}|${Math.round(size)}|${r},${g},${b}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}`;
+}
+
+function makeMaskStampKey(brush, size) {
+  return `mask|${brush.type}|${Math.round(size)}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}`;
+}
+
+// Builds a solid white stamp for alpha-mask accumulation.
+// The stamp is opaque (alpha=1) at the centre, falls off to 0 at the edge
+// based on hardness — but critically there is NO intermediate semi-transparent
+// ring. Hard edge (hardness=100) = sharp cutoff. Soft edge (hardness=0) =
+// smooth feather but still reaching full 1.0 opacity at the centre.
+// When multiple of these stamps are accumulated with 'source-over' at alpha=1,
+// they fill in to solid coverage with no visible individual dab rings.
+function buildMaskStamp(brush, size) {
+  const key = makeMaskStampKey(brush, size);
+  if (maskStampCache.has(key)) return maskStampCache.get(key);
+
+  const PAD_RATIO = brush.type === 'airbrush' ? 1.0 : 0.5;
+  const pad = Math.ceil(size * PAD_RATIO) + 4;
+  const dim = Math.ceil(size * 2 + pad * 2);
+  const oc  = document.createElement('canvas');
+  oc.width  = dim; oc.height = dim;
+  const ctx = oc.getContext('2d');
+  const cx  = dim / 2, cy = dim / 2;
+
+  const hard = Math.min(0.99, (brush.hardness || 80) / 100);
+  // innerR: fully opaque core. outerR: fades to 0.
+  const innerR = hard * size;
+  const outerR = size + (1 - hard) * size * 0.5;
+
+  const needsTransform = (brush.ratio < 100 || (brush.angle || 0) !== 0);
+  let drawCtx = ctx, drawCx = cx, drawCy = cy, tmpCanvas = null;
+
+  if (needsTransform) {
+    tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = dim; tmpCanvas.height = dim;
+    drawCtx = tmpCanvas.getContext('2d');
+  }
+
+  if (brush.type === 'pixel') {
+    // Hard square
+    drawCtx.fillStyle = 'white';
+    const half = Math.max(0.5, size / 2);
+    drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
+  } else {
+    // Radial gradient: fully opaque inside innerR, fades to 0 at outerR
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, innerR, drawCx, drawCy, outerR);
+    grad.addColorStop(0,   'rgba(255,255,255,1)');
+    grad.addColorStop(1,   'rgba(255,255,255,0)');
+    drawCtx.fillStyle = grad;
+    drawCtx.fillRect(0, 0, dim, dim);
+  }
+
+  if (needsTransform && tmpCanvas) {
+    const ratioScale = Math.max(0.01, (brush.ratio || 100) / 100);
+    const angleRad   = ((brush.angle || 0) * Math.PI) / 180;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angleRad);
+    ctx.scale(1, ratioScale);
+    ctx.translate(-cx, -cy);
+    ctx.drawImage(tmpCanvas, 0, 0);
+    ctx.restore();
+  }
+
+  if (maskStampCache.size >= STAMP_CACHE_MAX) {
+    maskStampCache.delete(maskStampCache.keys().next().value);
+  }
+  maskStampCache.set(key, oc);
+  return oc;
 }
 
 // ── Core stamp builder ────────────────────────────────────────────────────────
-// Returns an OffscreenCanvas (or regular canvas) representing one brush dab.
-// All color jitter / scatter is applied in drawStroke before calling this.
-function buildStamp(brush, size, rgb, flowAlpha) {
-  const key = makeStampKey(brush, size, rgb, flowAlpha);
+// Builds a stamp canvas whose pixels encode the brush SHAPE at full strength.
+// Alpha channel = gradient falloff (1 at centre, 0 at edge).
+// RGB = full colour. Flow/opacity are applied at composite time, never here.
+function buildStamp(brush, size, rgb, _unused) {
+  const key = makeStampKey(brush, size, rgb);
   if (stampCache.has(key)) return stampCache.get(key);
 
   const type = brush.type;
   const {r,g,b} = rgb;
-  const alpha = Math.min(1, flowAlpha);
 
-  // canvas dims: stamp needs a bit of pad for soft edges
-  const pad  = type === 'airbrush' ? Math.ceil(size * 0.5) + 4 : Math.ceil(size * 0.25) + 4;
-  const dim  = Math.ceil(size * 2 + pad * 2);
-  const oc   = document.createElement('canvas');
-  oc.width   = dim; oc.height = dim;
-  const ctx  = oc.getContext('2d');
-  const cx   = dim / 2, cy = dim / 2;
+  // Stamp canvas is always larger than the brush so soft gradients can
+  // feather to zero without hitting the canvas edge.
+  const PAD_RATIO = type === 'airbrush' ? 1.0 : 0.5;
+  const pad = Math.ceil(size * PAD_RATIO) + 4;
+  const dim = Math.ceil(size * 2 + pad * 2);
+  const oc  = document.createElement('canvas');
+  oc.width  = dim; oc.height = dim;
+  const ctx = oc.getContext('2d');
+  const cx  = dim / 2, cy = dim / 2;
 
-  // Apply ellipse ratio and angle via transform
-  const ratioScale = brush.ratio / 100;
-  const angleRad   = (brush.angle || 0) * Math.PI / 180;
+  // For ratio/angle brushes we render into an intermediate canvas then
+  // blit it with a transform onto oc so gradients are computed correctly.
+  const needsTransform = (brush.ratio < 100 || (brush.angle || 0) !== 0);
+  let drawCtx = ctx;
+  let drawCx  = cx, drawCy = cy;
+  let tmpCanvas = null;
 
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angleRad);
-  ctx.scale(1, ratioScale);
-  ctx.translate(-cx, -cy);
+  if (needsTransform) {
+    tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = dim; tmpCanvas.height = dim;
+    drawCtx = tmpCanvas.getContext('2d');
+  }
 
+  // ── Draw the dab shape into drawCtx (no transform applied here) ──
   if (type === 'pixel') {
-    // Hard aliased square pixel brush
-    ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+    drawCtx.fillStyle = `rgb(${r},${g},${b})`;
     const half = Math.max(0.5, size / 2);
-    ctx.fillRect(cx - half, cy - half, half * 2, half * 2);
+    drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
 
   } else if (type === 'round' || type === 'ink') {
-    // Smooth round with adjustable hardness
-    const hard  = Math.min(0.99, brush.hardness / 100);
-    const grad  = ctx.createRadialGradient(cx, cy, size * hard, cx, cy, size);
-    grad.addColorStop(0, `rgba(${r},${g},${b},${alpha})`);
-    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.beginPath(); ctx.arc(cx, cy, size, 0, Math.PI*2);
-    ctx.fillStyle = grad; ctx.fill();
+    // Radial gradient: solid core (hardness %), fades to 0 at outer edge.
+    const hard   = Math.min(0.98, (brush.hardness || 80) / 100);
+    // outerR extends slightly beyond size so very soft brushes really feather
+    const outerR = size + (1 - hard) * size * 0.4;
+    const grad   = drawCtx.createRadialGradient(drawCx, drawCy, hard * size, drawCx, drawCy, outerR);
+    grad.addColorStop(0,   `rgb(${r},${g},${b})`);
+    grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = grad;
+    // Fill entire canvas — gradient naturally reaches 0 before the canvas edge
+    drawCtx.fillRect(0, 0, dim, dim);
 
   } else if (type === 'airbrush') {
-    // Very soft wide gradient
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size);
-    grad.addColorStop(0,    `rgba(${r},${g},${b},${alpha})`);
-    grad.addColorStop(0.3,  `rgba(${r},${g},${b},${alpha * 0.6})`);
-    grad.addColorStop(0.65, `rgba(${r},${g},${b},${alpha * 0.2})`);
+    // Wide super-soft gradient, extends 50% beyond nominal size
+    const outerR = size * 1.5;
+    const grad   = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, outerR);
+    grad.addColorStop(0,    `rgb(${r},${g},${b})`);
+    grad.addColorStop(0.2,  `rgba(${r},${g},${b},0.8)`);
+    grad.addColorStop(0.5,  `rgba(${r},${g},${b},0.4)`);
+    grad.addColorStop(0.75, `rgba(${r},${g},${b},0.1)`);
     grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-    ctx.beginPath(); ctx.arc(cx, cy, size, 0, Math.PI*2);
-    ctx.fillStyle = grad; ctx.fill();
+    drawCtx.fillStyle = grad;
+    drawCtx.fillRect(0, 0, dim, dim);
 
   } else if (type === 'pencil') {
-    ctx.restore(); ctx.save(); // reset transform for pencil (handles its own)
-    ctx.translate(cx, cy); ctx.rotate(angleRad); ctx.scale(1, ratioScale); ctx.translate(-cx, -cy);
-    const rng = seededRand(Math.floor(size * 137 + alpha * 999));
-    // Core elliptical deposit
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(0.12 * Math.PI);
+    const rng  = seededRand(Math.floor(size * 137));
+    // Tilted elliptical graphite core
+    drawCtx.save();
+    drawCtx.translate(drawCx, drawCy);
+    drawCtx.rotate(0.12 * Math.PI);
     const coreW = size * 0.62, coreH = size * 0.45;
-    const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, coreW);
-    cg.addColorStop(0, `rgba(${r},${g},${b},${alpha * 0.85})`);
-    cg.addColorStop(0.55, `rgba(${r},${g},${b},${alpha * 0.5})`);
-    cg.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = cg; ctx.beginPath(); ctx.ellipse(0, 0, coreW, coreH, 0, 0, Math.PI*2); ctx.fill();
-    ctx.restore();
-    // Paper grain strokes
+    const cg = drawCtx.createRadialGradient(0, 0, 0, 0, 0, coreW);
+    cg.addColorStop(0,    `rgba(${r},${g},${b},0.85)`);
+    cg.addColorStop(0.55, `rgba(${r},${g},${b},0.5)`);
+    cg.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = cg;
+    drawCtx.beginPath(); drawCtx.ellipse(0, 0, coreW, coreH, 0, 0, Math.PI*2); drawCtx.fill();
+    drawCtx.restore();
+    // Paper grain
     const angle0 = 0.067 * Math.PI;
     const cosA = Math.cos(angle0), sinA = Math.sin(angle0);
     const gN = Math.floor(size * 4);
     for (let i = 0; i < gN; i++) {
       const rr = Math.sqrt(rng()) * size * 0.85;
       const theta = rng() * Math.PI * 2;
-      const px = cx + rr * Math.cos(theta), py = cy + rr * Math.sin(theta);
-      const dist = rr / (size * 0.85);
-      const ga = alpha * (1 - dist*dist) * (0.03 + rng() * 0.12);
+      const px2 = drawCx + rr * Math.cos(theta), py2 = drawCy + rr * Math.sin(theta);
+      const dist2 = rr / (size * 0.85);
+      const ga = (1 - dist2*dist2) * (0.03 + rng() * 0.12);
       const len = (0.4 + rng() * 0.9) * Math.max(0.8, size * 0.12);
-      ctx.beginPath();
-      ctx.moveTo(px - cosA*len*0.5, py - sinA*len*0.5);
-      ctx.lineTo(px + cosA*len*0.5, py + sinA*len*0.5);
-      ctx.strokeStyle = `rgba(${r},${g},${b},${ga})`;
-      ctx.lineWidth = rng() < 0.3 ? 0.4 : 0.8;
-      ctx.stroke();
+      drawCtx.beginPath();
+      drawCtx.moveTo(px2 - cosA*len*0.5, py2 - sinA*len*0.5);
+      drawCtx.lineTo(px2 + cosA*len*0.5, py2 + sinA*len*0.5);
+      drawCtx.strokeStyle = `rgba(${r},${g},${b},${ga})`;
+      drawCtx.lineWidth = rng() < 0.3 ? 0.4 : 0.8;
+      drawCtx.stroke();
     }
 
   } else if (type === 'watercolor') {
-    const rng = seededRand(Math.floor(size * 293 + alpha * 1777));
-    const baseA = alpha * 0.25;
-    // Soft wash
-    const wg = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.72);
+    const rng = seededRand(Math.floor(size * 293));
+    const baseA = 0.25;
+    const wg = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, size * 0.72);
     wg.addColorStop(0,   `rgba(${r},${g},${b},${baseA * 1.2})`);
     wg.addColorStop(0.5, `rgba(${r},${g},${b},${baseA * 0.8})`);
     wg.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(cx, cy, size * 0.72, 0, Math.PI*2); ctx.fill();
-    // Irregular blobs
+    drawCtx.fillStyle = wg;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size * 0.72, 0, Math.PI*2); drawCtx.fill();
     const bN = 6 + Math.floor(rng() * 5);
     for (let i = 0; i < bN; i++) {
       const ang = (i/bN)*Math.PI*2 + rng()*0.6;
       const d2  = size * (0.4 + rng() * 0.5);
-      const bx = cx + Math.cos(ang)*d2, by = cy + Math.sin(ang)*d2;
-      const br = size * (0.15 + rng() * 0.3);
-      const bA = baseA * (0.4 + rng() * 0.7);
-      const bg2 = ctx.createRadialGradient(bx,by,0,bx,by,br);
+      const bx  = drawCx + Math.cos(ang)*d2, by = drawCy + Math.sin(ang)*d2;
+      const br  = size * (0.15 + rng() * 0.3);
+      const bA  = baseA * (0.4 + rng() * 0.7);
+      const bg2 = drawCtx.createRadialGradient(bx,by,0,bx,by,br);
       bg2.addColorStop(0, `rgba(${r},${g},${b},${bA})`);
       bg2.addColorStop(1, `rgba(${r},${g},${b},0)`);
-      ctx.fillStyle = bg2; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI*2); ctx.fill();
+      drawCtx.fillStyle = bg2;
+      drawCtx.beginPath(); drawCtx.arc(bx, by, br, 0, Math.PI*2); drawCtx.fill();
     }
-    // Dark pigment ring
-    const rg2 = ctx.createRadialGradient(cx,cy,size*0.5,cx,cy,size*0.85);
+    const rg2 = drawCtx.createRadialGradient(drawCx,drawCy,size*0.5,drawCx,drawCy,size*0.85);
     rg2.addColorStop(0,   `rgba(${r},${g},${b},0)`);
     rg2.addColorStop(0.5, `rgba(${r},${g},${b},${baseA * 1.5})`);
     rg2.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = rg2; ctx.beginPath(); ctx.arc(cx,cy,size*0.85,0,Math.PI*2); ctx.fill();
+    drawCtx.fillStyle = rg2;
+    drawCtx.beginPath(); drawCtx.arc(drawCx,drawCy,size*0.85,0,Math.PI*2); drawCtx.fill();
 
   } else if (type === 'chalk') {
-    const rng = seededRand(Math.floor(size * 511 + alpha * 333));
-    // Rough fill - many small dots with varying alpha
+    const rng  = seededRand(Math.floor(size * 511));
+    const hard = Math.min(0.99, (brush.hardness || 80) / 100);
     const nDots = Math.floor(size * size * 0.5);
     for (let i = 0; i < nDots; i++) {
-      const rr = Math.sqrt(rng()) * size;
+      const rr    = Math.sqrt(rng()) * size;
       const theta = rng() * Math.PI * 2;
-      const px = cx + rr * Math.cos(theta), py = cy + rr * Math.sin(theta);
-      const dist = rr / size;
-      // Chalk has dusty, uneven coverage
-      const hard = Math.min(0.99, brush.hardness / 100);
-      if (dist > hard && rng() > (1 - dist) * 1.5) continue;
-      const da = alpha * (rng() * 0.6 + 0.1) * Math.max(0, 1 - Math.max(0, dist - hard) * 3);
+      const px2   = drawCx + rr * Math.cos(theta), py2 = drawCy + rr * Math.sin(theta);
+      const dist2 = rr / size;
+      if (dist2 > hard && rng() > (1 - dist2) * 1.5) continue;
+      const da = (rng() * 0.6 + 0.1) * Math.max(0, 1 - Math.max(0, dist2 - hard) * 3);
       if (da <= 0) continue;
-      ctx.fillStyle = `rgba(${r},${g},${b},${da})`;
-      ctx.beginPath(); ctx.arc(px, py, 0.4 + rng() * 1.2, 0, Math.PI*2); ctx.fill();
+      drawCtx.fillStyle = `rgba(${r},${g},${b},${da})`;
+      drawCtx.beginPath(); drawCtx.arc(px2, py2, 0.4 + rng() * 1.2, 0, Math.PI*2); drawCtx.fill();
     }
 
   } else if (type === 'smear') {
-    // Smear is handled at draw time (sample canvas) — stamp is just a soft round mask
-    const hard  = Math.min(0.99, brush.hardness / 100);
-    const grad  = ctx.createRadialGradient(cx, cy, size * hard, cx, cy, size);
-    grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    const hard = Math.min(0.99, (brush.hardness || 80) / 100);
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, hard * size, drawCx, drawCy, size);
+    grad.addColorStop(0, `rgba(255,255,255,1)`);
     grad.addColorStop(1, `rgba(255,255,255,0)`);
-    ctx.beginPath(); ctx.arc(cx, cy, size, 0, Math.PI*2);
-    ctx.fillStyle = grad; ctx.fill();
+    drawCtx.fillStyle = grad;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI*2); drawCtx.fill();
 
   } else {
-    // Fallback: round
-    const grad = ctx.createRadialGradient(cx, cy, size * 0.7, cx, cy, size);
-    grad.addColorStop(0, `rgba(${r},${g},${b},${alpha})`);
+    // Fallback: basic round
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, size * 0.7, drawCx, drawCy, size);
+    grad.addColorStop(0, `rgb(${r},${g},${b})`);
     grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.beginPath(); ctx.arc(cx, cy, size, 0, Math.PI*2);
-    ctx.fillStyle = grad; ctx.fill();
+    drawCtx.fillStyle = grad;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI*2); drawCtx.fill();
   }
 
-  ctx.restore();
+  // Apply ratio/angle transform by blitting tmpCanvas onto oc with transform
+  if (needsTransform && tmpCanvas) {
+    const ratioScale = Math.max(0.01, (brush.ratio || 100) / 100);
+    const angleRad   = ((brush.angle || 0) * Math.PI) / 180;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angleRad);
+    ctx.scale(1, ratioScale);
+    ctx.translate(-cx, -cy);
+    ctx.drawImage(tmpCanvas, 0, 0);
+    ctx.restore();
+  }
 
   // Stamp cache with LRU eviction
   if (stampCache.size >= STAMP_CACHE_MAX) {
@@ -4535,8 +4627,10 @@ const TEXTURE_KEYS = Object.keys(TEXTURES);
 //    layer's committed state, updated via drawImage at wetCommit (GPU-side copy,
 //    no CPU readback). This eliminates the expensive getImageData at stroke start.
 const wet = {
-  canvas:      null,  // accumulation canvas (stamps go here)
+  canvas:      null,  // colour canvas (rebuilt from maskCanvas at flush)
   ctx:         null,
+  maskCanvas:  null,  // alpha-shape accumulation: stamps drawn with 'lighten' (per-pixel max-alpha)
+  maskCtx:     null,
   snapCanvas:  null,  // persistent snapshot of the layer BEFORE the current stroke
   snapCtx:     null,
   layerCtx:    null,  // ref to the active layer ctx at stroke start
@@ -4571,6 +4665,12 @@ function _ensureWetCanvases(W, H) {
   wet.canvas.width = W; wet.canvas.height = H;
   wet.ctx = wet.canvas.getContext('2d');
 
+  // maskCanvas: accumulates stamp alpha shapes using 'lighten' (per-pixel max).
+  // This merges overlapping dabs into one seamless shape — no stamp rings.
+  wet.maskCanvas = document.createElement('canvas');
+  wet.maskCanvas.width = W; wet.maskCanvas.height = H;
+  wet.maskCtx = wet.maskCanvas.getContext('2d');
+
   wet.snapCanvas = document.createElement('canvas');
   wet.snapCanvas.width = W; wet.snapCanvas.height = H;
   wet.snapCtx = wet.snapCanvas.getContext('2d');
@@ -4584,49 +4684,59 @@ function wetInit(layerCtx) {
   const W = state.canvasW, H = state.canvasH;
   _ensureWetCanvases(W, H);
 
+  // Clear both accumulation canvases for fresh stroke
   wet.ctx.clearRect(0, 0, W, H);
+  wet.maskCtx.clearRect(0, 0, W, H);
   wet.hasDirty = false;
+  wet.dirtyX1 = 0; wet.dirtyY1 = 0; wet.dirtyX2 = 0; wet.dirtyY2 = 0;
 
-  // If switching to a different layer, or snapshot is stale, refresh it.
-  // drawImage is a GPU-side blit — no CPU readback, very fast.
-  const needsRefresh = wet._snapStale !== false || wet._snapLayerCtx !== layerCtx;
-  if (needsRefresh) {
-    const { px, py } = getPad();
-    wet.snapCtx.clearRect(0, 0, W, H);
-    wet.snapCtx.drawImage(layerCtx.canvas, px, py, W, H, 0, 0, W, H);
-    wet._snapStale = false;
-    wet._snapLayerCtx = layerCtx;
-  }
+  // Always snapshot the current layer state at stroke start.
+  // This is the reference background the stroke is composited against.
+  // We do NOT update this mid-stroke — the full stroke is always rendered
+  // as one shape against this original background.
+  const { px, py } = getPad();
+  wet.snapCtx.clearRect(0, 0, W, H);
+  wet.snapCtx.drawImage(layerCtx.canvas, px, py, W, H, 0, 0, W, H);
+  wet._snapStale = false;
+  wet._snapLayerCtx = layerCtx;
 
   wet.layerCtx = layerCtx;
 }
 
+// Declared here so wetCommit and wetFlushToLayer can both reference them
+let _wetFlushPending = false;
+let _wetFlushRafId = null;
+
 function wetCommit() {
-  // Final synchronous flush — ensures last dabs are composited before we clear
-  _doWetFlush();
+  // Cancel any pending rAF flush
+  if (_wetFlushRafId) {
+    cancelAnimationFrame(_wetFlushRafId);
+    _wetFlushRafId = null;
+  }
   _wetFlushPending = false;
 
-  // Update the persistent snapshot to reflect the committed stroke.
-  // Use drawImage (GPU copy) — no getImageData needed.
-  if (wet.layerCtx && wet.snapCtx && wet.hasDirty) {
+  // Final flush: composite the complete accumulated stroke onto the layer
+  _doWetFlush();
+
+  // Roll snapCanvas forward to the committed layer state, clear accumulators.
+  // This only happens at stroke END so mid-stroke the full shape always composites
+  // against the original background with no seams.
+  if (wet.layerCtx && wet.snapCtx) {
     const { px, py } = getPad();
-    const dx = wet.dirtyX1, dy = wet.dirtyY1;
-    const dw = wet.dirtyX2 - wet.dirtyX1;
-    const dh = wet.dirtyY2 - wet.dirtyY1;
-    if (dw > 0 && dh > 0) {
-      wet.snapCtx.drawImage(wet.layerCtx.canvas, px + dx, py + dy, dw, dh, dx, dy, dw, dh);
-      wet._snapLayerCtx = wet.layerCtx;
-    }
+    const W = state.canvasW, H = state.canvasH;
+    wet.snapCtx.clearRect(0, 0, W, H);
+    wet.snapCtx.drawImage(wet.layerCtx.canvas, px, py, W, H, 0, 0, W, H);
+    wet._snapLayerCtx = wet.layerCtx;
+    wet._snapStale = false;
   }
+  if (wet.maskCtx) wet.maskCtx.clearRect(0, 0, wet.w, wet.h);
+  if (wet.ctx)     wet.ctx.clearRect(0, 0, wet.w, wet.h);
 
   wet.layerCtx = null;
-  wet.hasDirty = false;
 }
 
 // rAF-based flush: schedule at most one composite per animation frame
-// when stabilizer is OFF. This eliminates the per-dab putImageData cost
-// that causes lag, while still keeping visual output smooth.
-let _wetFlushPending = false;
+// when stabilizer is OFF. Stores the rAF ID so wetCommit can cancel it.
 function wetFlushToLayer() {
   if (!wet.layerCtx) return;
   if (!wet.hasDirty) return;
@@ -4637,8 +4747,9 @@ function wetFlushToLayer() {
   } else {
     if (!_wetFlushPending) {
       _wetFlushPending = true;
-      requestAnimationFrame(() => {
+      _wetFlushRafId = requestAnimationFrame(() => {
         _wetFlushPending = false;
+        _wetFlushRafId = null;
         _doWetFlush();
       });
     }
@@ -4647,7 +4758,6 @@ function wetFlushToLayer() {
 
 function _doWetFlush() {
   if (!wet.layerCtx || !wet.hasDirty) return;
-  const brush = getActiveBrush();
 
   const dx = wet.dirtyX1;
   const dy = wet.dirtyY1;
@@ -4655,17 +4765,41 @@ function _doWetFlush() {
   const dh = wet.dirtyY2 - wet.dirtyY1;
   if (dw <= 0 || dh <= 0) return;
 
-  // Restore the dirty region from the snapshot canvas (GPU blit — no CPU cost).
-  // wet.layerCtx has translate(px,py) so doc coords (dx,dy) land correctly.
+  const brush = getActiveBrush();
+  const { px, py } = getPad();
+  const opacity = Math.max(0.001, brush.opacity / 100);
+
+  // Build the coloured stroke canvas from the accumulated mask shape.
+  // maskCanvas has the full stroke coverage since stroke start — never cleared
+  // mid-stroke. This means the full shape is always composited as one piece,
+  // so no seams or rings appear between flush intervals.
+  const {r, g, b} = hexToRgb(state.color);
+  wet.ctx.clearRect(dx, dy, dw, dh);
+  wet.ctx.globalAlpha = 1;
+  wet.ctx.globalCompositeOperation = 'source-over';
+  wet.ctx.fillStyle = `rgb(${r},${g},${b})`;
+  wet.ctx.fillRect(dx, dy, dw, dh);
+  wet.ctx.globalCompositeOperation = 'destination-in';
+  wet.ctx.drawImage(wet.maskCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
+  wet.ctx.globalCompositeOperation = 'source-over';
+
+  // Composite: restore original snapshot (not rolled) then stamp stroke on top.
+  // Using the ORIGINAL snapCanvas (captured at stroke start, never updated
+  // mid-stroke) means the entire accumulated stroke is always rendered as one
+  // clean shape at opacity — no interval seams.
   wet.layerCtx.save();
   wet.layerCtx.globalAlpha = 1;
   wet.layerCtx.globalCompositeOperation = 'source-over';
+  wet.layerCtx.clearRect(dx, dy, dw, dh);
   wet.layerCtx.drawImage(wet.snapCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
-
-  // Composite accumulated stamps over the restored region
-  wet.layerCtx.globalAlpha = brush.opacity / 100;
+  wet.layerCtx.globalAlpha = opacity;
   wet.layerCtx.drawImage(wet.canvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.layerCtx.restore();
+
+  // NOTE: We do NOT roll snapCanvas here and do NOT clear maskCanvas.
+  // Both are preserved for the duration of the stroke so subsequent flushes
+  // always composite the FULL accumulated stroke against the ORIGINAL background.
+  // snapCanvas and maskCanvas are only reset in wetCommit() at stroke end.
 }
 
 // Called when the layer contents change outside of a wet stroke
@@ -4734,15 +4868,15 @@ function stabilizerTick() {
   if (ctx) {
     const brush = getActiveBrush();
     const size    = Math.max(0.5, brush.size * stabilizer.sizeScale);
-    const flow    = (brush.flow / 100) * stabilizer.opacityScale;
-    const spacing = Math.max(0.5, size * brush.spacing / 100);
+    // flow affects spacing (lower flow = wider spacing = airier stroke)
+    const flowSpacingMult = Math.max(0.2, brush.flow / 100);
+    const spacing = Math.max(0.5, size * brush.spacing / 100 / flowSpacingMult);
     const {r,g,b} = hexToRgb(state.color);
 
     if (lastStampX === null) {
+      // Seed position without stamping — first dab fires on actual movement.
       lastStampX = stabilizer.lazyX;
       lastStampY = stabilizer.lazyY;
-      stampDabs(brush, ctx, stabilizer.lazyX, stabilizer.lazyY, size, {r,g,b}, flow, 0);
-      wetFlushToLayer();
     } else {
       const dx = stabilizer.lazyX - lastStampX;
       const dy = stabilizer.lazyY - lastStampY;
@@ -4752,7 +4886,7 @@ function stabilizerTick() {
         const steps = Math.max(1, Math.ceil(dist / spacing));
         for (let i = 1; i <= steps; i++) {
           const t = i / steps;
-          stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, {r,g,b}, flow, pathAngle);
+          stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, {r,g,b}, pathAngle);
         }
         lastStampX = stabilizer.lazyX;
         lastStampY = stabilizer.lazyY;
@@ -4769,7 +4903,7 @@ function getActiveCtx() {
 }
 
 // ── Stamp placement (single dab) ─────────────────────────────────────────────
-function placeOneDab(brush, ctx, x, y, size, rgb, flowAlpha, angleOverride) {
+function placeOneDab(brush, ctx, x, y, size, rgb, angleOverride) {
   const b = { ...brush };
   if (angleOverride !== undefined) b.angle = angleOverride;
 
@@ -4791,35 +4925,31 @@ function placeOneDab(brush, ctx, x, y, size, rgb, flowAlpha, angleOverride) {
     r = jrgb.r; g = jrgb.g; bv = jrgb.b;
   }
 
-  const stamp = buildStamp(b, size, {r,g,b:bv}, flowAlpha);
-
-  const sw = stamp.width, sh = stamp.height;
-  const sx = Math.round(x - sw/2);
-  const sy = Math.round(y - sh/2);
+  // buildMaskStamp: solid white stamp for alpha accumulation (no semi-transparent rings)
+  // buildStamp: coloured stamp (used for smear sampling only)
+  const maskStamp = buildMaskStamp(b, size);
+  const msw = maskStamp.width, msh = maskStamp.height;
+  const sx = Math.round(x - msw/2);
+  const sy = Math.round(y - msh/2);
 
   if (b.type === 'smear') {
-    // Smear: sample layer pixels under the stamp, blend them
-    const ratio = b.wetRatio / 100;
+    // Smear: sample layer pixels, blend under brush shape
     const sampleCtx = wet.layerCtx || ctx;
     const sampled = sampleLayerAt(sampleCtx, x, y, size * 2);
     if (sampled && sampled.data.some(v => v > 0)) {
       const tmp = document.createElement('canvas');
-      tmp.width = sw; tmp.height = sh;
+      tmp.width = msw; tmp.height = msh;
       const tc = tmp.getContext('2d');
-      // Draw the smear mask
-      tc.drawImage(stamp, 0, 0);
+      tc.drawImage(maskStamp, 0, 0);
       tc.globalCompositeOperation = 'source-in';
-      // Draw the sampled region stretched to stamp size
       const sc2 = document.createElement('canvas');
-      sc2.width = sw; sc2.height = sh;
-      const sc2ctx = sc2.getContext('2d');
-      sc2ctx.putImageData(sampled, 0, 0);
-      tc.drawImage(sc2, 0, 0, sampled.width, sampled.height, 0, 0, sw, sh);
-      tc.globalCompositeOperation = 'source-over';
-      wet.ctx.globalAlpha = flowAlpha * ratio;
-      wet.ctx.drawImage(tmp, sx, sy);
-      wet.ctx.globalAlpha = 1;
-      _wetExpandDirty(sx, sy, sw, sh);
+      sc2.width = msw; sc2.height = msh;
+      sc2.getContext('2d').putImageData(sampled, 0, 0);
+      tc.drawImage(sc2, 0, 0, sampled.width, sampled.height, 0, 0, msw, msh);
+      wet.maskCtx.globalAlpha = 1;
+      wet.maskCtx.globalCompositeOperation = 'source-over';
+      wet.maskCtx.drawImage(tmp, sx, sy);
+      _wetExpandDirty(sx, sy, msw, msh);
       return;
     }
   }
@@ -4829,19 +4959,27 @@ function placeOneDab(brush, ctx, x, y, size, rgb, flowAlpha, angleOverride) {
     const maskC = (selState.feather || 0) > 0 ? getFeatheredMaskCanvas() : getMaskCanvas();
     if (maskC) {
       const tmp = document.createElement('canvas');
-      tmp.width = sw; tmp.height = sh;
+      tmp.width = msw; tmp.height = msh;
       const tc = tmp.getContext('2d');
-      tc.drawImage(stamp, 0, 0);
+      tc.drawImage(maskStamp, 0, 0);
       tc.globalCompositeOperation = 'destination-in';
       tc.drawImage(maskC, -sx, -sy);
-      wet.ctx.drawImage(tmp, sx, sy);
-      _wetExpandDirty(sx, sy, sw, sh);
+      wet.maskCtx.globalAlpha = 1;
+      wet.maskCtx.globalCompositeOperation = 'source-over';
+      wet.maskCtx.drawImage(tmp, sx, sy);
+      _wetExpandDirty(sx, sy, msw, msh);
       return;
     }
   }
 
-  wet.ctx.drawImage(stamp, sx, sy);
-  _wetExpandDirty(sx, sy, sw, sh);
+  // Accumulate solid mask stamp with source-over at alpha=1.
+  // maskStamp reaches full opacity (1.0) at the centre and feathers to 0
+  // at the edge — overlapping stamps flood-fill the interior to solid.
+  // Result: one smooth unified shape, no individual dab rings visible.
+  wet.maskCtx.globalAlpha = 1;
+  wet.maskCtx.globalCompositeOperation = 'source-over';
+  wet.maskCtx.drawImage(maskStamp, sx, sy);
+  _wetExpandDirty(sx, sy, msw, msh);
 }
 
 // ── Main stroke functions ─────────────────────────────────────────────────────
@@ -4853,33 +4991,18 @@ function drawStroke(x, y, sizeScale = 1, opacityScale = 1) {
 
   const brush = getActiveBrush();
   const size = Math.max(0.5, brush.size * sizeScale);
-  const flow = (brush.flow / 100) * opacityScale;
   const {r,g,b} = hexToRgb(state.color);
+  const rgb = {r,g,b};
 
-  // Wet mix: blend brush color with what's on the wet snapshot
-  let rgb = {r,g,b};
-  if (brush.wetMix && wet.snapshot) {
-    const px = Math.max(0, Math.min(state.canvasW-1, Math.round(x)));
-    const py = Math.max(0, Math.min(state.canvasH-1, Math.round(y)));
-    const idx = (py * state.canvasW + px) * 4;
-    const dr = wet.snapshot.data[idx];
-    const dg = wet.snapshot.data[idx+1];
-    const db = wet.snapshot.data[idx+2];
-    const da = wet.snapshot.data[idx+3];
-    if (da > 0) {
-      const mix = brush.wetRatio / 100;
-      rgb = { r: Math.round(r*(1-mix)+dr*mix), g: Math.round(g*(1-mix)+dg*mix), b: Math.round(b*(1-mix)+db*mix) };
-    }
-  }
-
-  // Spacing
+  // Spacing: flow < 100 increases effective spacing (fewer stamps = airier stroke)
+  const flowSpacingMult = Math.max(0.2, (brush.flow / 100));
   const spacingRatio = brush.spacing / 100;
-  const spacing = Math.max(0.5, size * spacingRatio);
+  const spacing = Math.max(0.5, size * spacingRatio / flowSpacingMult);
 
   if (lastStampX === null) {
+    // Just record the start position — don't stamp on first contact.
+    // The first visible dab fires once the pen has moved >= 1 spacing interval.
     lastStampX = x; lastStampY = y;
-    stampDabs(brush, ctx, x, y, size, rgb, flow, 0);
-    wetFlushToLayer();
     return;
   }
 
@@ -4894,13 +5017,13 @@ function drawStroke(x, y, sizeScale = 1, opacityScale = 1) {
   const steps = Math.max(1, Math.ceil(dist / spacing));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, rgb, flow, pathAngle);
+    stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, rgb, pathAngle);
   }
   lastStampX = x; lastStampY = y;
   wetFlushToLayer();
 }
 
-function stampDabs(brush, ctx, x, y, size, rgb, flow, pathAngle) {
+function stampDabs(brush, ctx, x, y, size, rgb, pathAngle) {
   const count = Math.max(1, Math.round(brush.count || 1));
   for (let c = 0; c < count; c++) {
     let sx = x, sy = y;
@@ -4919,7 +5042,7 @@ function stampDabs(brush, ctx, x, y, size, rgb, flow, pathAngle) {
     } else {
       dAngle = brush.angle + (Math.random() - 0.5) * (brush.angleJitter * 2);
     }
-    placeOneDab(brush, ctx, sx, sy, size, rgb, flow, dAngle);
+    placeOneDab(brush, ctx, sx, sy, size, rgb, dAngle);
   }
 }
 
@@ -5234,8 +5357,8 @@ function drawErase(x, y, sizeScale = 1) {
   const spacing = Math.max(1, size * (state.spacing / 100));
 
   if (lastStampX === null) {
+    // Seed position without erasing — first erase dab fires on actual movement.
     lastStampX = x; lastStampY = y;
-    placeErase(ctx, x, y, size);
     return;
   }
 
@@ -5617,16 +5740,21 @@ canvasContainer.addEventListener('pointerdown', e => {
 
   if (state.tool === 'brush') {
     wetInit(getActiveCtx());
+    // Place one dab immediately so taps and clicks always leave a mark.
+    const brush = getActiveBrush();
+    const size = Math.max(0.5, brush.size * sizeScale);
+    const {r,g,b} = hexToRgb(state.color);
+    stampDabs(brush, getActiveCtx(), x, y, size, {r,g,b}, 0);
+    wetFlushToLayer();
+    lastStampX = x; lastStampY = y;
     if (pressureSettings.stabilizer > 0) {
-      // Stabilizer active: seed the lazy point and start the rAF loop
+      // Seed stabilizer and start rAF loop for continued movement.
       stabilizer.active = true;
       stabilizer.lazyX  = x; stabilizer.lazyY  = y;
       stabilizer.realX  = x; stabilizer.realY  = y;
       stabilizer.sizeScale    = sizeScale;
       stabilizer.opacityScale = opacityScale;
       if (!stabilizer.rafId) stabilizer.rafId = requestAnimationFrame(stabilizerTick);
-    } else {
-      drawStroke(x, y, sizeScale, opacityScale);
     }
   } else if (state.tool === 'eraser') drawErase(x, y, sizeScale);
 });
@@ -7601,11 +7729,14 @@ PALETTE_PAGES[0].forEach(c => {
 // ────────────────────────────────────────
 document.getElementById('brush-size').addEventListener('input', e => {
   state.size = +e.target.value;
-  const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); }
+  const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); maskStampCache.clear(); }
 });
 document.getElementById('brush-opacity').addEventListener('input', e => {
   state.opacity = +e.target.value;
-  const b = getActiveBrush(); if (b) b.opacity = state.opacity;
+  const b = getActiveBrush();
+  if (b) b.opacity = state.opacity;
+  // No stampCache.clear() needed — stamps are built at alpha=1.0 always.
+  // Opacity is applied at flush time (brush.opacity/100 globalAlpha).
 });
 
 // ────────────────────────────────────────
@@ -7684,7 +7815,7 @@ function renderBrushPopout() {
       window.activeBrushIdx = idx;
       saveBrushPresets();
       syncBrushToState();
-      stampCache.clear();
+      stampCache.clear(); maskStampCache.clear();
       renderBrushPopout(); // refresh active highlight
       closeAllPopouts();
     });
@@ -9897,13 +10028,13 @@ document.addEventListener('keydown', e => {
 
   if (code === 'BracketLeft') {
     state.size = Math.max(1, state.size - 2);
-    const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); }
+    const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); maskStampCache.clear(); }
     document.getElementById('brush-size').value = state.size;
     if (window._redrawBrushCursor) window._redrawBrushCursor();
   }
   if (code === 'BracketRight') {
     state.size = Math.min(120, state.size + 2);
-    const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); }
+    const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); maskStampCache.clear(); }
     document.getElementById('brush-size').value = state.size;
     if (window._redrawBrushCursor) window._redrawBrushCursor();
   }
@@ -11075,7 +11206,7 @@ function toast(msg) {
     window.activeBrushIdx = editingIdx;
     saveBrushPresets();
     syncBrushToState();
-    stampCache.clear();
+    stampCache.clear(); maskStampCache.clear();
     renderBrushPopout();
     toast('Brush applied: ' + editBrush.name);
     closePanel();
@@ -11296,7 +11427,7 @@ function toast(msg) {
       if (valEl) valEl.textContent = fmt(v);
       if (editBrush) {
         editBrush[key] = v;
-        stampCache.clear();
+        stampCache.clear(); maskStampCache.clear();
         renderPreview();
       }
     });
@@ -11349,7 +11480,7 @@ function toast(msg) {
       tab.classList.add('active');
       if (editBrush) {
         editBrush.type = tab.dataset.type;
-        stampCache.clear();
+        stampCache.clear(); maskStampCache.clear();
         renderPreview();
       }
     });
@@ -11433,7 +11564,7 @@ function toast(msg) {
     const def = DEFAULT_PRESETS.find(d => d.name === editBrush.name) || { ...BRUSH_DEFAULTS };
     editBrush = JSON.parse(JSON.stringify(def));
     loadEditorFromBrush(editBrush);
-    stampCache.clear();
+    stampCache.clear(); maskStampCache.clear();
     renderPreview();
   });
 
@@ -11468,7 +11599,7 @@ function toast(msg) {
         saveBrushPresets();
         renderPresetList();
         loadEditorFromBrush(editBrush);
-        stampCache.clear();
+        stampCache.clear(); maskStampCache.clear();
         renderPreview();
         toast('Imported ' + window.brushPresets.length + ' brushes');
       } catch(err) {
