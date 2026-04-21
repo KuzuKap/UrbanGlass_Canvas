@@ -4274,7 +4274,8 @@ function buildMaskStamp(brush, size) {
   const key = makeMaskStampKey(brush, size);
   if (maskStampCache.has(key)) return maskStampCache.get(key);
 
-  const PAD_RATIO = brush.type === 'airbrush' ? 1.0 : 0.5;
+  const type = brush.type;
+  const PAD_RATIO = type === 'airbrush' ? 1.0 : 0.5;
   const pad = Math.ceil(size * PAD_RATIO) + 4;
   const dim = Math.ceil(size * 2 + pad * 2);
   const oc  = document.createElement('canvas');
@@ -4283,31 +4284,51 @@ function buildMaskStamp(brush, size) {
   const cx  = dim / 2, cy = dim / 2;
 
   const hard = Math.min(0.99, (brush.hardness || 80) / 100);
-  // innerR: fully opaque core. outerR: fades to 0.
-  const innerR = hard * size;
-  const outerR = size + (1 - hard) * size * 0.5;
 
   const needsTransform = (brush.ratio < 100 || (brush.angle || 0) !== 0);
   let drawCtx = ctx, drawCx = cx, drawCy = cy, tmpCanvas = null;
-
   if (needsTransform) {
     tmpCanvas = document.createElement('canvas');
     tmpCanvas.width = dim; tmpCanvas.height = dim;
     drawCtx = tmpCanvas.getContext('2d');
   }
 
-  if (brush.type === 'pixel') {
-    // Hard square
+  if (type === 'pixel') {
     drawCtx.fillStyle = 'white';
     const half = Math.max(0.5, size / 2);
     drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
-  } else {
-    // Radial gradient: fully opaque inside innerR, fades to 0 at outerR
-    const grad = drawCtx.createRadialGradient(drawCx, drawCy, innerR, drawCx, drawCy, outerR);
-    grad.addColorStop(0,   'rgba(255,255,255,1)');
-    grad.addColorStop(1,   'rgba(255,255,255,0)');
+
+  } else if (type === 'airbrush') {
+    // Wide, very soft gradient matching the airbrush stamp exactly.
+    // Starts transparent at centre, builds to a gentle peak, fades to 0.
+    const outerR = size * 1.5;
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, outerR);
+    grad.addColorStop(0,    'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(255,255,255,0.8)');
+    grad.addColorStop(0.65, 'rgba(255,255,255,0.4)');
+    grad.addColorStop(0.85, 'rgba(255,255,255,0.1)');
+    grad.addColorStop(1,    'rgba(255,255,255,0)');
     drawCtx.fillStyle = grad;
     drawCtx.fillRect(0, 0, dim, dim);
+
+  } else {
+    // For all other types: match the actual stamp falloff.
+    // solid core out to (hard * size), then feathers to 0 at the stamp edge.
+    // This ensures destination-in doesn't clip any pixels the stamp actually covers.
+    const innerR = hard * size;
+    const outerR = size + (1 - hard) * size * 0.5;
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, innerR, drawCx, drawCy, outerR);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    drawCtx.fillStyle = grad;
+    drawCtx.fillRect(0, 0, dim, dim);
+    // Also fill the solid core fully opaque
+    if (innerR > 0) {
+      drawCtx.beginPath();
+      drawCtx.arc(drawCx, drawCy, innerR, 0, Math.PI * 2);
+      drawCtx.fillStyle = 'white';
+      drawCtx.fill();
+    }
   }
 
   if (needsTransform && tmpCanvas) {
@@ -4773,32 +4794,34 @@ function _doWetFlush() {
   const { px, py } = getPad();
   const opacity = Math.max(0.001, brush.opacity / 100);
 
-  // Build the composited stroke:
-  // 1. colCanvas has all styled stamp pixels (with textures, grain, etc.)
-  // 2. maskCanvas has the solid shape coverage (no semi-transparent rings)
-  // 3. Clip colCanvas through maskCanvas to get the final styled shape
-  // 4. Composite that at brush.opacity over the original snapshot
-  //
-  // colCanvas and maskCanvas are NEVER cleared mid-stroke — always accumulate
-  // the full stroke since stroke start. No seams between flush intervals.
+  // Soft brushes need their gradient preserved — clipping through maskCanvas
+  // destroys airbrush/watercolor softness. For soft brushes, composite colCanvas
+  // directly. For hard brushes, clip through maskCanvas so overlapping stamp
+  // edges merge into one clean shape (no visible rings).
+  const isSoft = brush.type === 'airbrush' || brush.type === 'watercolor' ||
+                 (brush.hardness || 80) < 40;
 
-  // Step A: clip colCanvas through maskCanvas into wet.canvas (scratch)
-  wet.ctx.clearRect(dx, dy, dw, dh);
-  wet.ctx.globalAlpha = 1;
-  wet.ctx.globalCompositeOperation = 'source-over';
-  wet.ctx.drawImage(wet.colCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
-  wet.ctx.globalCompositeOperation = 'destination-in';
-  wet.ctx.drawImage(wet.maskCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
-  wet.ctx.globalCompositeOperation = 'source-over';
+  let strokeCanvas;
+  if (isSoft) {
+    strokeCanvas = wet.colCanvas;
+  } else {
+    wet.ctx.clearRect(dx, dy, dw, dh);
+    wet.ctx.globalAlpha = 1;
+    wet.ctx.globalCompositeOperation = 'source-over';
+    wet.ctx.drawImage(wet.colCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
+    wet.ctx.globalCompositeOperation = 'destination-in';
+    wet.ctx.drawImage(wet.maskCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
+    wet.ctx.globalCompositeOperation = 'source-over';
+    strokeCanvas = wet.canvas;
+  }
 
-  // Step B: restore original snapshot then composite stroke at opacity
   wet.layerCtx.save();
   wet.layerCtx.globalAlpha = 1;
   wet.layerCtx.globalCompositeOperation = 'source-over';
   wet.layerCtx.clearRect(dx, dy, dw, dh);
   wet.layerCtx.drawImage(wet.snapCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.layerCtx.globalAlpha = opacity;
-  wet.layerCtx.drawImage(wet.canvas, dx, dy, dw, dh, dx, dy, dw, dh);
+  wet.layerCtx.drawImage(strokeCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.layerCtx.restore();
 }
 
