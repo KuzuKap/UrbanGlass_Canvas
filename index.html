@@ -8440,47 +8440,67 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   function drawTransformedContent(targetCtx, snapshot) {
     const snap = snapshot || tx.snapshot;
     if (!snap) return;
-    targetCtx.save();
 
     if (tx.mode === 'skew' && tx.corners) {
-      const N = 8;
+      const N = 16; // more subdivisions = smoother warp
       const c = tx.corners;
       const sw = tx.srcW, sh = tx.srcH;
       const sx = tx.srcX, sy = tx.srcY;
+
+      // Compute bounding box of the warped corners in doc-space so we can
+      // allocate a correctly-sized intermediate canvas.
+      const cxs = [c.tl.x, c.tr.x, c.bl.x, c.br.x];
+      const cys = [c.tl.y, c.tr.y, c.bl.y, c.br.y];
+      const bx = Math.floor(Math.min(...cxs)) - 2;
+      const by = Math.floor(Math.min(...cys)) - 2;
+      const bw = Math.ceil(Math.max(...cxs)) - bx + 4;
+      const bh = Math.ceil(Math.max(...cys)) - by + 4;
+
+      // Draw into a plain (untranslated) intermediate canvas so setTransform
+      // works correctly without fighting the permanent padX/padY translate.
+      const tmp = document.createElement('canvas');
+      tmp.width  = Math.max(1, bw);
+      tmp.height = Math.max(1, bh);
+      const tctx = tmp.getContext('2d');
+
+      const bilerp = (u, v) => ({
+        x: (1-u)*(1-v)*c.tl.x + u*(1-v)*c.tr.x + (1-u)*v*c.bl.x + u*v*c.br.x,
+        y: (1-u)*(1-v)*c.tl.y + u*(1-v)*c.tr.y + (1-u)*v*c.bl.y + u*v*c.br.y,
+      });
 
       for (let row = 0; row < N; row++) {
         for (let col = 0; col < N; col++) {
           const u0 = col / N,       v0 = row / N;
           const u1 = (col + 1) / N, v1 = (row + 1) / N;
 
-          const bilerp = (u, v) => ({
-            x: (1-u)*(1-v)*c.tl.x + u*(1-v)*c.tr.x + (1-u)*v*c.bl.x + u*v*c.br.x,
-            y: (1-u)*(1-v)*c.tl.y + u*(1-v)*c.tr.y + (1-u)*v*c.bl.y + u*v*c.br.y,
-          });
-
+          // Destination in tmp-canvas space (subtract bounding-box origin)
           const dTL = bilerp(u0, v0), dTR = bilerp(u1, v0);
           const dBL = bilerp(u0, v1), dBR = bilerp(u1, v1);
+          const toLocal = p => ({ x: p.x - bx, y: p.y - by });
 
           const sTL = { x: sx + u0*sw, y: sy + v0*sh };
           const sTR = { x: sx + u1*sw, y: sy + v0*sh };
           const sBL = { x: sx + u0*sw, y: sy + v1*sh };
           const sBR = { x: sx + u1*sw, y: sy + v1*sh };
 
-          drawTriangle(targetCtx, snap, sTL, sTR, sBL, dTL, dTR, dBL);
-          drawTriangle(targetCtx, snap, sTR, sBR, sBL, dTR, dBR, dBL);
+          drawTriangle(tctx, snap, sTL, sTR, sBL, toLocal(dTL), toLocal(dTR), toLocal(dBL));
+          drawTriangle(tctx, snap, sTR, sBR, sBL, toLocal(dTR), toLocal(dBR), toLocal(dBL));
         }
       }
+
+      // Blit the intermediate canvas onto targetCtx at the doc-space position.
+      // targetCtx already has translate(padX, padY) so doc-space coords work here.
+      targetCtx.drawImage(tmp, bx, by);
+
     } else {
-      // tx.x/y are doc-space centre offset — targetCtx already has translate(padX,padY)
-      // so drawing at doc-space coords lands at the right physical position.
-      // tx.srcX/Y are in the snapshot's own coordinate space.
+      targetCtx.save();
       const cx = tx.x + tx.w / 2;
       const cy = tx.y + tx.h / 2;
       targetCtx.translate(cx, cy);
       targetCtx.rotate((tx.angle || 0) * Math.PI / 180);
       targetCtx.drawImage(snap, tx.srcX, tx.srcY, tx.srcW, tx.srcH, -tx.w / 2, -tx.h / 2, tx.w, tx.h);
+      targetCtx.restore();
     }
-    targetCtx.restore();
   }
 
   // Draw a textured triangle mapping src coords (s0,s1,s2) → dst coords (d0,d1,d2).
