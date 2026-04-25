@@ -4,7 +4,7 @@
 
 
 
-  // 2. To download the Application and use without the browser UI (Now works locally and offline!):
+  // 2. To download the Application and use without the browser UI (Now works locally and offline after you open it once while online!):
 
 
     // iOS/iPadOS via Safari: Click "..." in bottom right corner (iOS 26) >>>  Share  >>>  Scroll down and click "Add to Home Screen"  >>>  Make sure "Open as Web App" is turned on and press "Add"  >>>  Profit.
