@@ -12211,6 +12211,411 @@ function toast(msg) {
 })(); // end Liquify Engine
 </script>
 
+<script>
+// ════════════════════════════════════════════════════════════
+//  UrbanGlass — Settings Persistence
+//  Saves and restores all user preferences, theme, tool state,
+//  and panel locks across app sessions via localStorage.
+// ════════════════════════════════════════════════════════════
+(function initPersistence() {
+  'use strict';
+
+  // ── Storage keys ─────────────────────────────────────────
+  const K = {
+    PREFS:       'ug_prefs_v1',
+    THEME:       'ug_theme_v1',
+    TOOL:        'ug_tool_v1',
+    PANEL_LOCKS: 'ug_panel_locks_v1',
+    COLOR:       'ug_color_v1',
+    COLOR_HIST:  'ug_color_history_v1',
+    BRUSH_SIZE:  'ug_brush_size_v1',
+    BRUSH_OP:    'ug_brush_opacity_v1',
+  };
+
+  // ── Safe localStorage helpers ─────────────────────────────
+  function lsGet(key) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+    catch(e) { return null; }
+  }
+  function lsSet(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+  }
+
+  // ── Debounce helper: save at most once per 800ms ──────────
+  const _debounced = {};
+  function debounce(key, fn, ms) {
+    ms = ms || 800;
+    if (_debounced[key]) clearTimeout(_debounced[key]);
+    _debounced[key] = setTimeout(fn, ms);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  1. PREFERENCES  (pressureSettings, canvasPrefs, UI prefs)
+  // ══════════════════════════════════════════════════════════
+  function savePrefs() {
+    lsSet(K.PREFS, {
+      // pressureSettings
+      pressureEnabled:  pressureSettings.enabled,
+      smoothStrokes:    pressureSettings.smoothStrokes,
+      stabilizer:       pressureSettings.stabilizer,
+      // canvasPrefs
+      showGrid:         canvasPrefs.showGrid,
+      gridSize:         canvasPrefs.gridSize,
+      darkBg:           canvasPrefs.darkBg,
+      precisionCursor:  canvasPrefs.precisionCursor,
+      // UI pref sliders
+      uiScale:          parseInt(document.getElementById('pref-ui-scale')?.value || 100),
+      sliderSize:       parseInt(document.getElementById('pref-slider-size')?.value || 160),
+      // Handedness
+      rightHanded:      document.getElementById('right-sidebar')?.classList.contains('left-hand') || false,
+      // Touch-to-draw (set by PWA layer, read back on load)
+      touchDraw:        window._ugTouchDraw || false,
+      // Tool state
+      eraserType:       state.eraserType || 'soft',
+      selectType:       state.selectType || 'lasso',
+    });
+  }
+
+  function loadPrefs() {
+    const p = lsGet(K.PREFS);
+    if (!p) return;
+
+    // pressureSettings
+    if (p.pressureEnabled !== undefined) pressureSettings.enabled = p.pressureEnabled;
+    if (p.smoothStrokes   !== undefined) pressureSettings.smoothStrokes = p.smoothStrokes;
+    if (p.stabilizer      !== undefined) pressureSettings.stabilizer = p.stabilizer;
+
+    // canvasPrefs
+    if (p.showGrid        !== undefined) canvasPrefs.showGrid = p.showGrid;
+    if (p.gridSize        !== undefined) canvasPrefs.gridSize = p.gridSize;
+    if (p.darkBg          !== undefined) canvasPrefs.darkBg = p.darkBg;
+    if (p.precisionCursor !== undefined) canvasPrefs.precisionCursor = p.precisionCursor;
+
+    // Touch-to-draw (PWA layer reads window._ugTouchDraw but isn't loaded yet —
+    // stash on window so the PWA script can pick it up when it runs)
+    if (p.touchDraw !== undefined) window._ugTouchDraw = p.touchDraw;
+
+    // Tool type state
+    if (p.eraserType) state.eraserType = p.eraserType;
+    if (p.selectType) state.selectType = p.selectType;
+
+    // Apply UI scale
+    if (p.uiScale) {
+      const el = document.getElementById('pref-ui-scale');
+      const vl = document.getElementById('pref-ui-scale-val');
+      if (el) { el.value = p.uiScale; }
+      if (vl) vl.textContent = p.uiScale + '%';
+      const scale = p.uiScale / 100;
+      const app = document.getElementById('app');
+      if (app && scale !== 1) {
+        app.style.transformOrigin = 'top left';
+        app.style.transform = `scale(${scale})`;
+        app.style.width  = (100 / scale) + '%';
+        app.style.height = (100 / scale) + 'vh';
+      }
+    }
+
+    // Apply sidebar slider size
+    if (p.sliderSize) {
+      const el = document.getElementById('pref-slider-size');
+      const vl = document.getElementById('pref-slider-size-val');
+      if (el) el.value = p.sliderSize;
+      if (vl) vl.textContent = p.sliderSize;
+      document.querySelectorAll('input[type=range].vertical').forEach(r => {
+        r.style.height = p.sliderSize + 'px';
+      });
+    }
+
+    // Apply handedness — sidebar left/right
+    if (p.rightHanded) {
+      const sb = document.getElementById('right-sidebar');
+      if (sb) sb.classList.add('left-hand');
+      const btn = document.getElementById('pref-right-handed');
+      if (btn) { btn.textContent = 'ON'; btn.classList.add('active'); }
+    }
+
+    // Sync preference toggle buttons to loaded values
+    syncPrefToggles();
+
+    // Sync stabilizer slider
+    const stabEl = document.getElementById('pref-stabilizer');
+    const stabVl = document.getElementById('pref-stabilizer-val');
+    if (stabEl) stabEl.value = pressureSettings.stabilizer;
+    if (stabVl) stabVl.textContent = pressureSettings.stabilizer === 0 ? 'Off' : pressureSettings.stabilizer;
+
+    // Sync eraser popout active state
+    if (p.eraserType) {
+      document.querySelectorAll('#eraser-popout .popout-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.eraser === p.eraserType);
+      });
+    }
+
+    // Sync select popout active state
+    if (p.selectType) {
+      document.querySelectorAll('#select-popout .popout-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.select === p.selectType);
+      });
+    }
+  }
+
+  function syncPrefToggles() {
+    // Pressure enabled
+    const peBtn = document.getElementById('pref-pressure-enabled');
+    if (peBtn) {
+      peBtn.textContent = pressureSettings.enabled ? 'ON' : 'OFF';
+      peBtn.classList.toggle('active', pressureSettings.enabled);
+    }
+    // Smooth strokes
+    const ssBtn = document.getElementById('pref-smooth-strokes');
+    if (ssBtn) {
+      ssBtn.textContent = pressureSettings.smoothStrokes ? 'ON' : 'OFF';
+      ssBtn.classList.toggle('active', pressureSettings.smoothStrokes);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  2. THEME  (CSS custom properties on :root)
+  // ══════════════════════════════════════════════════════════
+  // The theme editor sets inline styles on document.documentElement.
+  // We snapshot all overridden inline properties on save, and replay on load.
+  const THEME_VARS = [
+    '--bg', '--surface', '--surface2', '--surface3',
+    '--border', '--border2',
+    '--accent', '--accent2', '--accent-glow',
+    '--text', '--text2', '--text3',
+    '--canvas-bg',
+    '--glass-bg', '--glass-border', '--glass-highlight',
+    '--panel-bg', '--panel-bg-soft',
+    '--topbar-bg', '--statusbar-bg', '--toast-bg',
+    '--canvas-shadow', '--canvas-grid-line',
+    '--green',
+  ];
+
+  function saveTheme() {
+    const out = {};
+    // Capture every inline style that the theme editor may have set on :root
+    const style = document.documentElement.style;
+    THEME_VARS.forEach(v => {
+      const val = style.getPropertyValue(v);
+      if (val) out[v] = val.trim();
+    });
+    // Also save body background-color override (used by bg-opacity slider)
+    const bodyBg = document.body.style.backgroundColor;
+    if (bodyBg) out['__bodyBg'] = bodyBg;
+    lsSet(K.THEME, out);
+  }
+
+  function loadTheme() {
+    const t = lsGet(K.THEME);
+    if (!t || !Object.keys(t).length) return;
+    const style = document.documentElement.style;
+    Object.entries(t).forEach(([k, v]) => {
+      if (k === '__bodyBg') {
+        document.body.style.backgroundColor = v;
+      } else {
+        style.setProperty(k, v);
+      }
+    });
+    // Sync the theme panel's swatches if it has already been built
+    if (typeof syncSwatches === 'function') {
+      try { syncSwatches(); } catch(e) {}
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  3. ACTIVE COLOR + HISTORY
+  // ══════════════════════════════════════════════════════════
+  function saveColor() {
+    lsSet(K.COLOR,      state.color || '#3ecf6e');
+    lsSet(K.COLOR_HIST, colorHistory.slice(0, 14));
+  }
+
+  function loadColor() {
+    const col = lsGet(K.COLOR);
+    if (col && typeof setColor === 'function') setColor(col);
+
+    const hist = lsGet(K.COLOR_HIST);
+    if (Array.isArray(hist)) {
+      hist.forEach(c => {
+        if (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) {
+          colorHistory.push(c);
+        }
+      });
+      if (colorHistory.length && typeof updateColorHistoryUI === 'function') {
+        updateColorHistoryUI();
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  4. BRUSH SIZE + OPACITY SLIDERS
+  // ══════════════════════════════════════════════════════════
+  function saveBrushSliders() {
+    lsSet(K.BRUSH_SIZE, state.size);
+    lsSet(K.BRUSH_OP,   state.opacity);
+  }
+
+  function loadBrushSliders() {
+    const sz = lsGet(K.BRUSH_SIZE);
+    const op = lsGet(K.BRUSH_OP);
+    if (sz !== null && !isNaN(sz)) {
+      state.size = sz;
+      const el = document.getElementById('brush-size');
+      if (el) el.value = sz;
+      // Also update the active brush preset so stamp size matches
+      const b = typeof getActiveBrush === 'function' ? getActiveBrush() : null;
+      if (b) b.size = sz;
+    }
+    if (op !== null && !isNaN(op)) {
+      state.opacity = op;
+      const el = document.getElementById('brush-opacity');
+      if (el) el.value = op;
+      const b = typeof getActiveBrush === 'function' ? getActiveBrush() : null;
+      if (b) b.opacity = op;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  5. PANEL LOCK STATE
+  // ══════════════════════════════════════════════════════════
+  function savePanelLocks() {
+    lsSet(K.PANEL_LOCKS, {
+      color:  panelLock.color,
+      layers: panelLock.layers,
+    });
+  }
+
+  function loadPanelLocks() {
+    const pl = lsGet(K.PANEL_LOCKS);
+    if (!pl) return;
+    if (pl.color  && typeof setPanelLock === 'function') setPanelLock('color',  true);
+    if (pl.layers && typeof setPanelLock === 'function') setPanelLock('layers', true);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  HOOK INTO EXISTING SAVE PATHS
+  //  Instead of monkey-patching every setter, we observe changes
+  //  via event listeners on the elements that already exist,
+  //  and save with a debounce to avoid hammering localStorage.
+  // ══════════════════════════════════════════════════════════
+
+  // Preferences sliders / toggles ─────────────────────────
+  function hookPrefs() {
+    // All preference toggles and sliders — listen for any change inside prefs-dropdown
+    const dd = document.getElementById('prefs-dropdown');
+    if (dd) {
+      dd.addEventListener('click', () => debounce('prefs', savePrefs));
+      dd.addEventListener('input', () => debounce('prefs', savePrefs));
+    }
+    // Right-handed button (outside dropdown)
+    const rhBtn = document.getElementById('pref-right-handed');
+    if (rhBtn) rhBtn.addEventListener('click', () => debounce('prefs', savePrefs));
+    // Touch-draw toggle lives in the PWA layer — we poll via storage event from there
+    // but also hook via MutationObserver on the button once the PWA layer sets it up
+    const observer = new MutationObserver(() => debounce('prefs', savePrefs));
+    const tdBtn = document.getElementById('pref-touch-draw');
+    if (tdBtn) observer.observe(tdBtn, { attributes: true, characterData: true, childList: true });
+  }
+
+  // Theme editor ───────────────────────────────────────────
+  function hookTheme() {
+    // Observe inline style attribute on :root — any theme change triggers a save
+    const obs = new MutationObserver(() => debounce('theme', saveTheme, 600));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    // body background-color (bg-opacity slider)
+    const obs2 = new MutationObserver(() => debounce('theme', saveTheme, 600));
+    obs2.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+  }
+
+  // Active color ───────────────────────────────────────────
+  function hookColor() {
+    // Wrap setColor to auto-save
+    if (typeof setColor === 'function') {
+      const _orig = setColor;
+      window.setColor = function(hex) {
+        _orig(hex);
+        debounce('color', saveColor, 500);
+      };
+    }
+    // Wrap addToColorHistory
+    if (typeof addToColorHistory === 'function') {
+      const _orig2 = addToColorHistory;
+      window.addToColorHistory = function(hex) {
+        _orig2(hex);
+        debounce('colorHist', saveColor, 800);
+      };
+    }
+  }
+
+  // Brush size + opacity sliders ───────────────────────────
+  function hookBrushSliders() {
+    const sizeEl = document.getElementById('brush-size');
+    const opEl   = document.getElementById('brush-opacity');
+    if (sizeEl) sizeEl.addEventListener('input', () => debounce('brushSliders', saveBrushSliders, 600));
+    if (opEl)   opEl.addEventListener('input',   () => debounce('brushSliders', saveBrushSliders, 600));
+  }
+
+  // Panel lock buttons ─────────────────────────────────────
+  function hookPanelLocks() {
+    const colorLock  = document.getElementById('color-lock-btn');
+    const layersLock = document.getElementById('layers-lock-btn');
+    if (colorLock)  colorLock.addEventListener('click',  () => debounce('locks', savePanelLocks));
+    if (layersLock) layersLock.addEventListener('click', () => debounce('locks', savePanelLocks));
+  }
+
+  // Brush presets — already saved by saveBrushPresets(); wrap it ──────────
+  function hookBrushPresets() {
+    if (typeof saveBrushPresets === 'function') {
+      const _orig = saveBrushPresets;
+      window.saveBrushPresets = function() {
+        _orig();
+        // brush presets already go to ug_brushPresets / ug_activeBrush
+        // nothing extra needed; just ensure it's called on panel apply too
+      };
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  LOAD ON STARTUP  (run after the rest of the app init)
+  // ══════════════════════════════════════════════════════════
+  function loadAll() {
+    // Order matters: theme first (visual), then prefs, then color/brush
+    try { loadTheme();       } catch(e) { console.warn('[UG-persist] theme load failed', e); }
+    try { loadPrefs();       } catch(e) { console.warn('[UG-persist] prefs load failed', e); }
+    try { loadColor();       } catch(e) { console.warn('[UG-persist] color load failed', e); }
+    try { loadBrushSliders();} catch(e) { console.warn('[UG-persist] brush sliders load failed', e); }
+    try { loadPanelLocks();  } catch(e) { console.warn('[UG-persist] panel locks load failed', e); }
+  }
+
+  // ── Wire everything up once the DOM is settled ───────────
+  // Use requestAnimationFrame so we run after the app's own init() IIFE
+  // which runs synchronously at parse time and sets up all the DOM.
+  requestAnimationFrame(() => {
+    hookPrefs();
+    hookTheme();
+    hookColor();
+    hookBrushSliders();
+    hookPanelLocks();
+    hookBrushPresets();
+    loadAll();
+    console.log('[UG-persist] Settings persistence active ✓');
+  });
+
+  // ── Also save when the page is about to be hidden/closed ─
+  // 'pagehide' fires reliably on iOS Safari when switching apps / closing tabs.
+  // 'visibilitychange' catches tab-switch on Android Chrome.
+  window.addEventListener('pagehide', () => {
+    savePrefs(); saveTheme(); saveColor(); saveBrushSliders(); savePanelLocks();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      savePrefs(); saveTheme(); saveColor(); saveBrushSliders(); savePanelLocks();
+    }
+  });
+
+})(); // end initPersistence
+</script>
+
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -12230,8 +12635,10 @@ function toast(msg) {
     });
   }
 
-  // ── Touch-to-Draw: OFF by default ───────────────────────
-  window._ugTouchDraw    = false;
+  // ── Touch-to-Draw: restore persisted value, default OFF ─
+  // The persistence layer may have already set window._ugTouchDraw from
+  // localStorage before this script runs. Only default to false if not set.
+  if (window._ugTouchDraw === undefined) window._ugTouchDraw = false;
   window._ugGestureActive = false;
 
   // ── Canvas Rotation patch ────────────────────────────────
@@ -12582,6 +12989,12 @@ function toast(msg) {
         btn.classList.toggle('active', window._ugTouchDraw);
         if (typeof toast === 'function')
           toast(window._ugTouchDraw ? 'Touch drawing enabled' : 'Touch drawing disabled');
+        // Persist the new value immediately
+        try {
+          var stored = JSON.parse(localStorage.getItem('ug_prefs_v1') || '{}');
+          stored.touchDraw = window._ugTouchDraw;
+          localStorage.setItem('ug_prefs_v1', JSON.stringify(stored));
+        } catch(e) {}
       });
     }
 
