@@ -136,26 +136,28 @@
     opacity: 0.75;
   }
 
-  .tool-sep { width: 32px; height: 1px; background: var(--border); margin: 6px 0; }
+  .tool-sep { width: 28px; height: 1px; background: var(--border); margin: 2px 0; flex-shrink: 0; }
 
   .tool-btn {
-    width: var(--touch-min); height: var(--touch-min);
+    width: 38px; height: 30px;
     border-radius: var(--radius-sm);
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--text2);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    transition: background 0.12s ease, color 0.12s ease, transform 0.1s ease;
+    font-size: 17px;
+    transition: background 0.12s ease, color 0.12s ease, transform 0.1s ease,
+                border-color 0.12s ease;
     position: relative;
+    flex-shrink: 0;
   }
-  .tool-btn:hover { background: var(--surface2); color: var(--text); }
+  .tool-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
   .tool-btn:active { transform: scale(0.93); }
   .tool-btn.active {
     background: var(--accent-glow);
+    border-color: rgba(62,207,110,0.35);
     color: var(--accent2);
-    box-shadow: inset 0 0 0 1px rgba(62,207,110,0.35);
   }
 
   /* HIG tooltip — pill-shaped, no borders */
@@ -189,6 +191,8 @@
     position: relative;
     overflow: hidden;
     padding-top: calc(52px + env(safe-area-inset-top));
+    /* Reserve space for the floating sidebar pill on the right */
+    padding-right: 58px;
     touch-action: none;  /* essential: prevent browser scroll/zoom intercepting touch */
   }
 
@@ -311,33 +315,41 @@
     height: 1px;
     background: var(--border);
     flex-shrink: 0;
-    margin: var(--sp-1) 0;
+    margin: 2px 0;
   }
 
   /* ── Right Sidebar — HIG vibrancy panel ── */
   #right-sidebar {
     position: fixed;
-    top: 0; right: 0; bottom: 0;
-    width: var(--rsb-w);
-    background: var(--glass-bg);
+    top: 50%;
+    right: var(--sp-2);
+    transform: translateY(-50%);
+    width: auto;
+    background: var(--topbar-bg);
     backdrop-filter: blur(40px) saturate(2);
     -webkit-backdrop-filter: blur(40px) saturate(2);
-    border-left: 1px solid var(--glass-border);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: calc(var(--sp-3) + env(safe-area-inset-top)) 0 calc(var(--sp-3) + env(safe-area-inset-bottom));
-    gap: 0;
+    padding: var(--sp-1);
+    gap: 2px;
     z-index: 10;
-    transition: left 0.22s cubic-bezier(0.4,0,0.2,1), right 0.22s cubic-bezier(0.4,0,0.2,1);
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1),
+                left 0.22s cubic-bezier(0.4,0,0.2,1),
+                right 0.22s cubic-bezier(0.4,0,0.2,1);
+    /* Never overflow viewport top/bottom */
+    max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
   }
+  #right-sidebar::-webkit-scrollbar { display: none; }
   #right-sidebar.left-hand {
     right: auto;
-    left: 0;
-    border-left: none;
-    border-right: 1px solid var(--glass-border);
-    padding-left: env(safe-area-inset-left);
-    padding-right: 0;
+    left: var(--sp-2);
+    /* transform stays translateY(-50%) — centering is independent of side */
   }
   #right-sidebar.left-hand #layers-trigger[data-tip]:hover::after,
   #right-sidebar.left-hand .rsb-btn[data-tip]:hover::after {
@@ -345,7 +357,7 @@
     left: calc(100% + 10px);
   }
 
-  /* Sliders section in right sidebar */
+  /* Sliders section in right sidebar — inline with the pill, no extra border */
   #rsb-sliders {
     display: flex;
     flex-direction: column;
@@ -353,40 +365,43 @@
     gap: 0;
     padding: var(--sp-2) 0;
     width: 100%;
-    border-top: 1px solid var(--border);
-    margin-top: var(--sp-2);
   }
 
-  /* color trigger in right sidebar — HIG: 44pt touch target */
+  /* color trigger in right sidebar — matches tool-btn sizing for visual consistency */
   #color-trigger {
-    width: 32px; height: 32px;
+    width: 28px; height: 28px;
     border-radius: var(--radius-sm);
     border: 2px solid var(--border2);
     cursor: pointer;
     transition: transform 0.12s ease, border-color 0.12s ease;
     flex-shrink: 0;
     box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-    margin-bottom: var(--sp-2);
+    margin: 2px 0;
   }
   #color-trigger:hover { border-color: var(--accent); transform: scale(1.08); }
   #color-trigger:active { transform: scale(0.94); }
 
-  /* layers trigger button in right sidebar */
+  /* layers trigger button in right sidebar — matches tool-btn exactly */
   #layers-trigger {
-    width: var(--touch-min); height: var(--touch-min);
+    width: 38px; height: 30px;
     border-radius: var(--radius-sm);
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--text2);
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    transition: background 0.12s ease, color 0.12s ease, transform 0.1s ease;
+    transition: background 0.12s ease, color 0.12s ease, transform 0.1s ease,
+                border-color 0.12s ease;
     position: relative;
     flex-shrink: 0;
   }
-  #layers-trigger:hover { background: var(--surface2); color: var(--text); }
+  #layers-trigger:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
   #layers-trigger:active { transform: scale(0.93); }
-  #layers-trigger.active { background: var(--accent-glow); color: var(--accent2); box-shadow: inset 0 0 0 1px rgba(62,207,110,0.35); }
+  #layers-trigger.active {
+    background: var(--accent-glow);
+    border-color: rgba(62,207,110,0.35);
+    color: var(--accent2);
+  }
   #layers-trigger[data-tip]:hover::after,
   .rsb-btn[data-tip]:hover::after {
     content: attr(data-tip);
@@ -2542,30 +2557,31 @@
 
 <!-- Right Sidebar -->
 <div id="right-sidebar">
-  <!-- Color picker trigger -->
+  <!-- Color swatch -->
   <div id="color-trigger" style="background:#3ecf6e;" title="Color Picker"></div>
-  <!-- Layers trigger -->
+  <!-- Layers -->
   <button id="layers-trigger" data-tip="Layers">
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <polygon points="12 2 2 7 12 12 22 7 12 2"/>
       <polyline points="2 17 12 22 22 17"/>
       <polyline points="2 12 12 17 22 12"/>
     </svg>
   </button>
-  <!-- Brush + Eraser tool buttons -->
-  <div class="tool-sep" style="width:28px;"></div>
+  <!-- Separator -->
+  <div style="width:26px;height:1px;background:var(--border);margin:2px 0;flex-shrink:0;"></div>
+  <!-- Tools -->
   <button class="tool-btn rsb-btn active" id="tool-brush" data-tool="brush" data-tip="Brush (B)">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/><path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/><path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
   </button>
   <button class="tool-btn rsb-btn" id="tool-eraser" data-tool="eraser" data-tip="Eraser (E)">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6 11l7 7"/></svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/><path d="M6 11l7 7"/></svg>
   </button>
   <button class="tool-btn rsb-btn" id="tool-select" data-tool="select" data-tip="Select (S)">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M5 3l14 9-7 2-4 7L5 3z"/>
-    </svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-7 2-4 7L5 3z"/></svg>
   </button>
-  <!-- Vertical Sliders (below layers button) -->
+  <!-- Separator -->
+  <div style="width:26px;height:1px;background:var(--border);margin:2px 0;flex-shrink:0;"></div>
+  <!-- Sliders -->
   <div id="rsb-sliders">
     <div class="vslider-group">
       <input type="range" class="vertical" id="brush-size" min="1" max="120" value="12">
@@ -2575,23 +2591,15 @@
       <input type="range" class="vertical" id="brush-opacity" min="1" max="100" value="100">
     </div>
   </div>
-  <!-- Undo + Redo buttons (below sliders) -->
-  <div class="tool-sep" style="width:28px;"></div>
+  <!-- Separator -->
+  <div style="width:26px;height:1px;background:var(--border);margin:2px 0;flex-shrink:0;"></div>
+  <!-- Undo / Redo -->
   <button class="tool-btn rsb-btn" id="btn-undo" data-tip="Undo (Ctrl+Z)">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M6 8H3V5"/>
-      <path d="M3 8C4.5 4.5 8.5 2 13 2a10 10 0 0 1 0 20 10 10 0 0 1-9-5.5"/>
-    </svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8H3V5"/><path d="M3 8C4.5 4.5 8.5 2 13 2a10 10 0 0 1 0 20 10 10 0 0 1-9-5.5"/></svg>
   </button>
   <button class="tool-btn rsb-btn" id="btn-redo" data-tip="Redo (Ctrl+Y)">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 8h3V5"/>
-      <path d="M21 8C19.5 4.5 15.5 2 11 2a10 10 0 0 0 0 20 10 10 0 0 0 9-5.5"/>
-    </svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h3V5"/><path d="M21 8C19.5 4.5 15.5 2 11 2a10 10 0 0 0 0 20 10 10 0 0 0 9-5.5"/></svg>
   </button>
-  <!-- Spacer pushes logo to bottom -->
-  <div style="flex:1;"></div>
-  <div class="logo"><img src="data:image/png;base64,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" alt="UG Logo"></div>
 </div>
 <div id="toast"></div>
 <input type="file" id="file-open" accept="image/*,.ugc" style="display:none">
@@ -3277,14 +3285,21 @@
         </div>
         <!-- Brush type tabs -->
         <div class="bsp-type-tabs" id="bsp-type-tabs">
-          <button class="bsp-type-tab" data-type="pixel">Pixel</button>
           <button class="bsp-type-tab" data-type="round">Round</button>
+          <button class="bsp-type-tab" data-type="ink">Ink</button>
+          <button class="bsp-type-tab" data-type="csp_fill">Fill</button>
           <button class="bsp-type-tab" data-type="airbrush">Airbrush</button>
           <button class="bsp-type-tab" data-type="pencil">Pencil</button>
           <button class="bsp-type-tab" data-type="watercolor">Watercolor</button>
-          <button class="bsp-type-tab" data-type="ink">Ink</button>
+          <button class="bsp-type-tab" data-type="gouache">Gouache</button>
+          <button class="bsp-type-tab" data-type="marker">Marker</button>
           <button class="bsp-type-tab" data-type="chalk">Chalk</button>
+          <button class="bsp-type-tab" data-type="ballpoint">Ballpoint</button>
+          <button class="bsp-type-tab" data-type="csp_turnip">Turnip</button>
+          <button class="bsp-type-tab" data-type="csp_flat">Flat</button>
+          <button class="bsp-type-tab" data-type="csp_blur">Blur</button>
           <button class="bsp-type-tab" data-type="smear">Smear</button>
+          <button class="bsp-type-tab" data-type="pixel">Pixel</button>
         </div>
 
         <!-- Basic section -->
@@ -3325,7 +3340,7 @@
         <!-- Dynamics section -->
         <div class="bsp-section" id="bsp-sec-dynamics">
           <div class="bsp-section-header">
-            <span class="bsp-section-title">Size Dynamics</span>
+            <span class="bsp-section-title">Pressure &amp; Dynamics</span>
             <span class="bsp-section-chevron">▾</span>
           </div>
           <div class="bsp-section-body">
@@ -3347,9 +3362,38 @@
               <input type="range" class="bsp-param-slider" id="bsp-opacity-min" min="0" max="100" step="1" value="20">
               <span class="bsp-param-val" id="bsp-opacity-min-val">20%</span>
             </div>
+            <!-- CSP-style pressure curve selector -->
+            <div class="bsp-param">
+              <label class="bsp-param-label">Pressure Curve</label>
+              <select id="bsp-pressure-curve" style="flex:1; background:var(--surface2); border:1px solid var(--border2); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:11px; padding:3px 6px; outline:none; cursor:pointer;">
+                <option value="0">Linear</option>
+                <option value="1">Heavy Start (G-Pen)</option>
+                <option value="2">Heavy End (Fine Tip)</option>
+                <option value="3">S-Curve</option>
+              </select>
+              <span class="bsp-param-val" id="bsp-pressure-curve-val" style="display:none;"></span>
+            </div>
             <div class="bsp-param-full">
               <input type="checkbox" class="bsp-toggle-check" id="bsp-size-velocity-on">
               <label class="bsp-toggle-label" for="bsp-size-velocity-on">Velocity → Size (faster = smaller)</label>
+            </div>
+            <!-- CSP-specific: Edge Roughness (chalk, pastel, gouache) -->
+            <div class="bsp-param">
+              <label class="bsp-param-label">Edge Roughness</label>
+              <input type="range" class="bsp-param-slider" id="bsp-edge-roughness" min="0" max="100" step="1" value="0">
+              <span class="bsp-param-val" id="bsp-edge-roughness-val">0%</span>
+            </div>
+            <!-- CSP-specific: Ink Bleed (watercolor bloom) -->
+            <div class="bsp-param">
+              <label class="bsp-param-label">Ink Bleed</label>
+              <input type="range" class="bsp-param-slider" id="bsp-ink-bleed" min="0" max="100" step="1" value="0">
+              <span class="bsp-param-val" id="bsp-ink-bleed-val">0%</span>
+            </div>
+            <!-- CSP-specific: Bristles (gouache bristle count) -->
+            <div class="bsp-param">
+              <label class="bsp-param-label">Bristles</label>
+              <input type="range" class="bsp-param-slider" id="bsp-bristles" min="0" max="20" step="1" value="0">
+              <span class="bsp-param-val" id="bsp-bristles-val">0</span>
             </div>
           </div>
         </div>
@@ -4324,30 +4368,43 @@ function seededRand(seed) {
 
 // ── Brush Preset Library ──────────────────────────────────────────────────────
 // Each preset fully describes a brush; the engine reads these at draw time.
+// CSP-inspired brush types:
+//   round | pixel | airbrush | pencil | watercolor | ink | chalk | smear |
+//   gouache | marker | ballpoint | csp_fill | csp_blur | csp_flat | csp_turnip
 const BRUSH_DEFAULTS = {
   name: 'New Brush',
-  type: 'round',         // pixel | round | airbrush | pencil | watercolor | ink | chalk | smear
+  type: 'round',
   size: 20,
   opacity: 100,
-  flow: 100,             // per-stamp opacity multiplier (independent of layer opacity)
-  hardness: 80,          // 0=fully soft, 100=fully hard
-  spacing: 10,           // % of brush diameter
-  angle: 0,              // fixed rotation in degrees
-  ratio: 100,            // x/y axis ratio (ellipse squish), 10–100
+  flow: 100,
+  hardness: 80,
+  spacing: 10,
+  angle: 0,
+  ratio: 100,
   // Scatter
-  scatter: 0,            // position scatter radius as % of size
-  count: 1,              // stamps per spacing interval
-  angleJitter: 0,        // random angle ± degrees
-  sizeJitter: 0,         // random size variation %
-  followPath: false,     // rotate stamp to stroke direction
+  scatter: 0,
+  count: 1,
+  angleJitter: 0,
+  sizeJitter: 0,
+  followPath: false,
   // Pressure
   sizePressure: true,
   opacityPressure: false,
-  sizeMin: 15,           // min size % at zero pressure
+  sizeMin: 15,
   opacityMin: 20,
-  velocitySize: false,   // faster stroke = smaller stamp
+  velocitySize: false,
+  // CSP-specific pressure curve (0=linear, 1=heavy-start, 2=heavy-end, 3=s-curve)
+  pressureCurve: 0,
+  // Tip shape: 'circle'|'soft'|'flat'|'turnip'
+  tipShape: 'circle',
+  // Ink bleed amount (watercolor edge bloom, 0–100)
+  inkBleed: 0,
+  // Bristle count for gouache/flat brushes (0=off)
+  bristles: 0,
+  // Stroke edge roughness 0–100 (for chalk, pastel, gouache)
+  edgeRoughness: 0,
   // Texture
-  texture: 'none',       // 'none' | texture key
+  texture: 'none',
   textureStrength: 50,
   textureScale: 100,
   // Color
@@ -4358,19 +4415,197 @@ const BRUSH_DEFAULTS = {
   wetRatio: 30,
 };
 
+// ── CSP-quality pressure curve remapper ──────────────────────────────────────
+// pressureCurve: 0=linear, 1=heavy-start (concave), 2=heavy-end (convex), 3=s-curve
+function remapPressure(p, curve) {
+  switch (curve) {
+    case 1: return Math.pow(p, 0.45);                          // heavy-start (like CSP G-pen)
+    case 2: return Math.pow(p, 2.2);                          // heavy-end (fine tip)
+    case 3: { const t = p * 2; return t < 1 ? 0.5*t*t : 1-0.5*(2-t)*(2-t); } // s-curve
+    default: return p;                                         // linear
+  }
+}
+
 const DEFAULT_PRESETS = [
-  { ...BRUSH_DEFAULTS, name: 'Basic Round',    type: 'round',      size: 20, hardness: 90, spacing: 8  },
-  { ...BRUSH_DEFAULTS, name: 'Soft Round',     type: 'round',      size: 30, hardness: 20, spacing: 10, flow: 70 },
-  { ...BRUSH_DEFAULTS, name: 'Hard Pixel',     type: 'pixel',      size: 8,  hardness: 100, spacing: 100 },
-  { ...BRUSH_DEFAULTS, name: 'Airbrush',       type: 'airbrush',   size: 60, hardness: 0,  spacing: 5,  flow: 40 },
-  { ...BRUSH_DEFAULTS, name: 'Pencil HB',      type: 'pencil',     size: 10, opacity: 85,  hardness: 65, spacing: 6 },
-  { ...BRUSH_DEFAULTS, name: 'Pencil Soft',    type: 'pencil',     size: 22, opacity: 60,  hardness: 40, spacing: 6 },
-  { ...BRUSH_DEFAULTS, name: 'Watercolor',     type: 'watercolor', size: 40, opacity: 70,  flow: 50,    spacing: 20, wetMix: true, wetRatio: 20 },
-  { ...BRUSH_DEFAULTS, name: 'Ink Pen',        type: 'ink',        size: 6,  hardness: 95, spacing: 4,  sizePressure: true, sizeMin: 5 },
-  { ...BRUSH_DEFAULTS, name: 'Chalk',          type: 'chalk',      size: 28, opacity: 80,  hardness: 60, spacing: 8,  angleJitter: 30 },
-  { ...BRUSH_DEFAULTS, name: 'Smear',          type: 'smear',      size: 30, hardness: 50, spacing: 5,  wetMix: true, wetRatio: 80, flow: 60 },
-  { ...BRUSH_DEFAULTS, name: 'Scatter Stars',  type: 'round',      size: 10, hardness: 90, spacing: 80, scatter: 120, count: 5, sizeJitter: 60, hueJitter: 30 },
-  { ...BRUSH_DEFAULTS, name: 'Calligraphy',    type: 'ink',        size: 18, hardness: 90, spacing: 4,  ratio: 30, angle: 45, sizePressure: true, sizeMin: 20 },
+  // ── Pen category (CSP G-Pen / Mapping Pen / Turnip Pen) ──
+  {
+    ...BRUSH_DEFAULTS, name: 'G-Pen',
+    type: 'ink', tipShape: 'circle',
+    size: 12, hardness: 100, spacing: 3, opacity: 100, flow: 100,
+    sizePressure: true, sizeMin: 2, pressureCurve: 1,
+    opacityPressure: false, edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Mapping Pen',
+    type: 'ink', tipShape: 'circle',
+    size: 6, hardness: 100, spacing: 2, opacity: 100, flow: 100,
+    sizePressure: true, sizeMin: 1, pressureCurve: 2,
+    opacityPressure: false, edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Turnip Pen',
+    type: 'csp_turnip', tipShape: 'turnip',
+    size: 14, hardness: 95, spacing: 3, opacity: 100, flow: 100,
+    sizePressure: true, sizeMin: 3, pressureCurve: 3,
+    ratio: 100, angle: 0, edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Flat Pen',
+    type: 'csp_flat', tipShape: 'flat',
+    size: 16, hardness: 98, spacing: 3, opacity: 100, flow: 100,
+    sizePressure: true, sizeMin: 5, pressureCurve: 1,
+    ratio: 25, angle: 0, followPath: true, edgeRoughness: 0,
+  },
+  // ── Pencil category (CSP Real Pencil / Design Pencil / Rough Pencil) ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Real Pencil',
+    type: 'pencil', tipShape: 'circle',
+    size: 14, hardness: 55, spacing: 5, opacity: 88, flow: 90,
+    sizePressure: true, sizeMin: 20, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 30,
+    texture: 'paper', textureStrength: 45, textureScale: 80,
+    edgeRoughness: 20,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Design Pencil',
+    type: 'pencil', tipShape: 'circle',
+    size: 10, hardness: 75, spacing: 4, opacity: 95, flow: 100,
+    sizePressure: true, sizeMin: 10, pressureCurve: 1,
+    texture: 'grain', textureStrength: 25, textureScale: 60,
+    edgeRoughness: 8,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Rough Pencil',
+    type: 'pencil', tipShape: 'circle',
+    size: 22, hardness: 40, spacing: 6, opacity: 70, flow: 80,
+    sizePressure: true, sizeMin: 30, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 20,
+    texture: 'paper', textureStrength: 65, textureScale: 100,
+    edgeRoughness: 35, angleJitter: 8,
+  },
+  // ── Brush category (CSP Fill In / Round / Soft) ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Fill In Brush',
+    type: 'csp_fill', tipShape: 'circle',
+    size: 30, hardness: 85, spacing: 6, opacity: 100, flow: 100,
+    sizePressure: true, sizeMin: 20, pressureCurve: 1,
+    edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Round Brush',
+    type: 'round', tipShape: 'circle',
+    size: 24, hardness: 80, spacing: 8, opacity: 100, flow: 100,
+    sizePressure: true, sizeMin: 10, pressureCurve: 0,
+    edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Soft Brush',
+    type: 'round', tipShape: 'soft',
+    size: 40, hardness: 0, spacing: 8, opacity: 85, flow: 75,
+    sizePressure: true, sizeMin: 30, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 20, edgeRoughness: 0,
+  },
+  // ── Airbrush category (CSP Spray / Soft Airbrush) ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Soft Airbrush',
+    type: 'airbrush', tipShape: 'circle',
+    size: 70, hardness: 0, spacing: 5, opacity: 60, flow: 35,
+    sizePressure: true, sizeMin: 40, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 10, edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Spray',
+    type: 'airbrush', tipShape: 'circle',
+    size: 50, hardness: 0, spacing: 5, opacity: 50, flow: 25,
+    scatter: 80, count: 6, sizeJitter: 40,
+    sizePressure: true, sizeMin: 30, pressureCurve: 0, edgeRoughness: 0,
+  },
+  // ── Watercolor / Gouache ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Watercolor Fringe',
+    type: 'watercolor', tipShape: 'circle',
+    size: 45, hardness: 0, spacing: 18, opacity: 75, flow: 55,
+    inkBleed: 60, wetMix: true, wetRatio: 15,
+    sizePressure: true, sizeMin: 40, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 25,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Gouache',
+    type: 'gouache', tipShape: 'circle',
+    size: 28, hardness: 70, spacing: 7, opacity: 95, flow: 90,
+    bristles: 8, edgeRoughness: 30,
+    sizePressure: true, sizeMin: 25, pressureCurve: 1,
+    opacityPressure: false,
+  },
+  // ── Marker ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Copic Marker',
+    type: 'marker', tipShape: 'flat',
+    size: 22, hardness: 90, spacing: 4, opacity: 70, flow: 85,
+    ratio: 30, angle: 0, followPath: true,
+    sizePressure: false, opacityPressure: false, edgeRoughness: 0,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Brush Marker',
+    type: 'marker', tipShape: 'circle',
+    size: 18, hardness: 80, spacing: 5, opacity: 80, flow: 90,
+    sizePressure: true, sizeMin: 8, pressureCurve: 1, edgeRoughness: 5,
+  },
+  // ── Chalk / Pastel ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Pastel',
+    type: 'chalk', tipShape: 'circle',
+    size: 32, hardness: 50, spacing: 7, opacity: 80, flow: 80,
+    edgeRoughness: 55, angleJitter: 15,
+    texture: 'paper', textureStrength: 50, textureScale: 90,
+    sizePressure: true, sizeMin: 50, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 30,
+  },
+  {
+    ...BRUSH_DEFAULTS, name: 'Chalk Board',
+    type: 'chalk', tipShape: 'flat',
+    size: 24, hardness: 60, spacing: 6, opacity: 85, flow: 85,
+    ratio: 40, angle: 0, followPath: false,
+    edgeRoughness: 40, angleJitter: 10, sizeJitter: 15,
+    texture: 'grain', textureStrength: 55, textureScale: 80,
+    sizePressure: true, sizeMin: 30, pressureCurve: 0,
+  },
+  // ── Ballpoint Pen ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Ballpoint',
+    type: 'ballpoint', tipShape: 'circle',
+    size: 4, hardness: 95, spacing: 2, opacity: 90, flow: 95,
+    sizePressure: true, sizeMin: 50, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 50,
+    texture: 'grain', textureStrength: 15, textureScale: 50,
+    edgeRoughness: 5,
+  },
+  // ── CSP Blur (soft blend) ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Blur Blend',
+    type: 'csp_blur', tipShape: 'circle',
+    size: 35, hardness: 0, spacing: 6, opacity: 60, flow: 50,
+    wetMix: true, wetRatio: 70,
+    sizePressure: true, sizeMin: 40, pressureCurve: 0,
+    opacityPressure: true, opacityMin: 20,
+  },
+  // ── Calligraphy ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Calligraphy',
+    type: 'ink', tipShape: 'flat',
+    size: 20, hardness: 95, spacing: 3, opacity: 100, flow: 100,
+    ratio: 20, angle: 45, followPath: false,
+    sizePressure: true, sizeMin: 8, pressureCurve: 1, edgeRoughness: 0,
+  },
+  // ── Scatter / FX ──
+  {
+    ...BRUSH_DEFAULTS, name: 'Splatter',
+    type: 'round', tipShape: 'circle',
+    size: 8, hardness: 95, spacing: 100, opacity: 90, flow: 100,
+    scatter: 200, count: 8, sizeJitter: 70, angleJitter: 180,
+    sizePressure: true, sizeMin: 20, pressureCurve: 0,
+    hueJitter: 12, edgeRoughness: 0,
+  },
 ];
 
 // Runtime brush preset state
@@ -4409,36 +4644,43 @@ const STAMP_CACHE_MAX = 64;
 const maskStampCache = new Map();
 
 function makeStampKey(brush, size, {r,g,b}) {
-  return `${brush.type}|${Math.round(size)}|${r},${g},${b}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}`;
+  return `${brush.type}|${brush.tipShape||'circle'}|${Math.round(size)}|${r},${g},${b}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}|${Math.round(brush.edgeRoughness||0)}|${Math.round(brush.bristles||0)}`;
 }
 
 function makeMaskStampKey(brush, size) {
-  return `mask|${brush.type}|${Math.round(size)}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}`;
+  return `mask|${brush.type}|${brush.tipShape||'circle'}|${Math.round(size)}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}|${Math.round(brush.edgeRoughness||0)}`;
 }
 
 // Builds a solid white stamp for alpha-mask accumulation.
-// The stamp is opaque (alpha=1) at the centre, falls off to 0 at the edge
-// based on hardness — but critically there is NO intermediate semi-transparent
-// ring. Hard edge (hardness=100) = sharp cutoff. Soft edge (hardness=0) =
-// smooth feather but still reaching full 1.0 opacity at the centre.
-// When multiple of these stamps are accumulated with 'source-over' at alpha=1,
-// they fill in to solid coverage with no visible individual dab rings.
+// The mask defines WHERE pixels get written; clipped through colCanvas at flush.
+// Hard-edged brushes (ink, ballpoint, pixel, csp_fill, csp_flat, marker, gouache,
+// csp_turnip) get a sharp mask matching their opaque cores.
+// Soft brushes (round, pencil, watercolor, chalk, airbrush, csp_blur) get a
+// feathered mask that preserves their gradients through the destination-in clip.
 function buildMaskStamp(brush, size) {
   const key = makeMaskStampKey(brush, size);
   if (maskStampCache.has(key)) return maskStampCache.get(key);
 
-  const type = brush.type;
-  const PAD_RATIO = type === 'airbrush' ? 1.0 : 0.5;
-  const pad = Math.ceil(size * PAD_RATIO) + 4;
+  const type = brush.type || 'round';
+  const hard = Math.min(0.99, (brush.hardness || 80) / 100);
+
+  // Soft types: the mask IS the gradient — destination-in preserves the falloff.
+  // Hard types: solid core + tiny fringe for AA — gives clean opaque edges.
+  const isSoftType = (type === 'airbrush' || type === 'csp_blur' ||
+                      type === 'watercolor' || type === 'smear');
+  const isHardType = (type === 'ink' || type === 'ballpoint' || type === 'pixel' ||
+                      type === 'csp_fill' || type === 'csp_flat' || type === 'marker' ||
+                      type === 'gouache' || type === 'csp_turnip');
+
+  const PAD_RATIO = isSoftType ? 1.0 : 0.6;
+  const pad = Math.ceil(size * PAD_RATIO) + 6;
   const dim = Math.ceil(size * 2 + pad * 2);
   const oc  = document.createElement('canvas');
   oc.width  = dim; oc.height = dim;
   const ctx = oc.getContext('2d');
   const cx  = dim / 2, cy = dim / 2;
 
-  const hard = Math.min(0.99, (brush.hardness || 80) / 100);
-
-  const needsTransform = (brush.ratio < 100 || (brush.angle || 0) !== 0);
+  const needsTransform = ((brush.ratio || 100) < 100 || (brush.angle || 0) !== 0);
   let drawCtx = ctx, drawCx = cx, drawCy = cy, tmpCanvas = null;
   if (needsTransform) {
     tmpCanvas = document.createElement('canvas');
@@ -4451,31 +4693,48 @@ function buildMaskStamp(brush, size) {
     const half = Math.max(0.5, size / 2);
     drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
 
-  } else if (type === 'airbrush') {
-    // Wide, very soft gradient matching the airbrush stamp exactly.
-    // Starts transparent at centre, builds to a gentle peak, fades to 0.
-    const outerR = size * 1.5;
+  } else if (isSoftType) {
+    // Wide feathered mask — matches soft stamp gradient exactly
+    const outerR = size * (type === 'airbrush' || type === 'csp_blur' ? 1.5 : 1.0);
     const grad = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, outerR);
     grad.addColorStop(0,    'rgba(255,255,255,1)');
-    grad.addColorStop(0.35, 'rgba(255,255,255,0.8)');
-    grad.addColorStop(0.65, 'rgba(255,255,255,0.4)');
-    grad.addColorStop(0.85, 'rgba(255,255,255,0.1)');
+    grad.addColorStop(0.4,  'rgba(255,255,255,0.85)');
+    grad.addColorStop(0.7,  'rgba(255,255,255,0.45)');
+    grad.addColorStop(0.9,  'rgba(255,255,255,0.12)');
     grad.addColorStop(1,    'rgba(255,255,255,0)');
     drawCtx.fillStyle = grad;
     drawCtx.fillRect(0, 0, dim, dim);
 
+  } else if (isHardType) {
+    // Sharp mask: solid core at hardness radius + small AA fringe
+    const coreR   = size * hard;
+    const fringeR = coreR + Math.max(1.5, size * (1 - hard) * 0.4 + 1.5);
+    // Solid core
+    drawCtx.beginPath();
+    drawCtx.arc(drawCx, drawCy, coreR, 0, Math.PI * 2);
+    drawCtx.fillStyle = 'white';
+    drawCtx.fill();
+    // AA fringe
+    if (fringeR > coreR + 0.5) {
+      const fg = drawCtx.createRadialGradient(drawCx, drawCy, coreR, drawCx, drawCy, fringeR);
+      fg.addColorStop(0, 'rgba(255,255,255,1)');
+      fg.addColorStop(1, 'rgba(255,255,255,0)');
+      drawCtx.fillStyle = fg;
+      drawCtx.beginPath();
+      drawCtx.arc(drawCx, drawCy, fringeR, 0, Math.PI * 2);
+      drawCtx.fill();
+    }
+
   } else {
-    // For all other types: match the actual stamp falloff.
-    // solid core out to (hard * size), then feathers to 0 at the stamp edge.
-    // This ensures destination-in doesn't clip any pixels the stamp actually covers.
+    // Default: feathered mask matching soft-core brush types
+    // (round, pencil, chalk, gouache, marker-round, smear, etc.)
     const innerR = hard * size;
-    const outerR = size + (1 - hard) * size * 0.5;
+    const outerR = size * (1 + (1 - hard) * 0.5);
     const grad = drawCtx.createRadialGradient(drawCx, drawCy, innerR, drawCx, drawCy, outerR);
     grad.addColorStop(0, 'rgba(255,255,255,1)');
     grad.addColorStop(1, 'rgba(255,255,255,0)');
     drawCtx.fillStyle = grad;
     drawCtx.fillRect(0, 0, dim, dim);
-    // Also fill the solid core fully opaque
     if (innerR > 0) {
       drawCtx.beginPath();
       drawCtx.arc(drawCx, drawCy, innerR, 0, Math.PI * 2);
@@ -4507,159 +4766,439 @@ function buildMaskStamp(brush, size) {
 // Builds a stamp canvas whose pixels encode the brush SHAPE at full strength.
 // Alpha channel = gradient falloff (1 at centre, 0 at edge).
 // RGB = full colour. Flow/opacity are applied at composite time, never here.
+// Supports all CSP-inspired brush types:
+//   round | pixel | airbrush | pencil | watercolor | ink | chalk | smear |
+//   gouache | marker | ballpoint | csp_fill | csp_blur | csp_flat | csp_turnip
 function buildStamp(brush, size, rgb, _unused) {
   const key = makeStampKey(brush, size, rgb);
   if (stampCache.has(key)) return stampCache.get(key);
 
-  const type = brush.type;
-  const {r,g,b} = rgb;
+  const type      = brush.type || 'round';
+  const tipShape  = brush.tipShape || 'circle';
+  const edgeRough = Math.min(100, Math.max(0, brush.edgeRoughness || 0)) / 100;
+  const {r, g, b} = rgb;
 
-  // Stamp canvas is always larger than the brush so soft gradients can
-  // feather to zero without hitting the canvas edge.
-  const PAD_RATIO = type === 'airbrush' ? 1.0 : 0.5;
-  const pad = Math.ceil(size * PAD_RATIO) + 4;
+  // Pad generously so soft gradients reach zero before canvas edges.
+  const PAD_RATIO = (type === 'airbrush' || type === 'csp_blur') ? 1.0 : 0.6;
+  const pad = Math.ceil(size * PAD_RATIO) + 6;
   const dim = Math.ceil(size * 2 + pad * 2);
   const oc  = document.createElement('canvas');
   oc.width  = dim; oc.height = dim;
   const ctx = oc.getContext('2d');
   const cx  = dim / 2, cy = dim / 2;
 
-  // For ratio/angle brushes we render into an intermediate canvas then
-  // blit it with a transform onto oc so gradients are computed correctly.
-  const needsTransform = (brush.ratio < 100 || (brush.angle || 0) !== 0);
+  // Intermediate canvas for brushes that need ratio/angle transform.
+  const needsTransform = ((brush.ratio || 100) < 100 || (brush.angle || 0) !== 0);
   let drawCtx = ctx;
-  let drawCx  = cx, drawCy = cy;
+  let drawCx = cx, drawCy = cy;
   let tmpCanvas = null;
-
   if (needsTransform) {
     tmpCanvas = document.createElement('canvas');
     tmpCanvas.width = dim; tmpCanvas.height = dim;
     drawCtx = tmpCanvas.getContext('2d');
   }
 
-  // ── Draw the dab shape into drawCtx (no transform applied here) ──
+  // ── Helper: draw a seeded rough edge ring around a base shape ──────────────
+  // Simulates CSP's edge-roughness parameter for chalk/pastel/gouache.
+  // Draws small bumps/notches around the perimeter using a seeded RNG.
+  function addEdgeRoughness(dctx, centerX, centerY, radius, roughness, rng) {
+    if (roughness <= 0) return;
+    const nBumps  = Math.floor(20 + roughness * 60);
+    const bumpAmp = roughness * radius * 0.28;
+    dctx.save();
+    dctx.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < nBumps; i++) {
+      const theta = (i / nBumps) * Math.PI * 2;
+      const noise = (rng() - 0.5) * 2;
+      const rr    = radius + noise * bumpAmp;
+      const bx    = centerX + Math.cos(theta) * rr;
+      const by    = centerY + Math.sin(theta) * rr;
+      const br    = (0.5 + rng() * 1.5) * roughness * radius * 0.15;
+      dctx.beginPath(); dctx.arc(bx, by, br, 0, Math.PI * 2);
+      dctx.fillStyle = `rgba(0,0,0,${0.3 + rng() * 0.5})`;
+      dctx.fill();
+    }
+    dctx.restore();
+  }
+
+  // ── pixel ─────────────────────────────────────────────────────────────────
   if (type === 'pixel') {
     drawCtx.fillStyle = `rgb(${r},${g},${b})`;
     const half = Math.max(0.5, size / 2);
     drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
 
-  } else if (type === 'round' || type === 'ink') {
-    // Radial gradient: solid core (hardness %), fades to 0 at outer edge.
+  // ── round / csp_fill (solid dab, variable edge) ───────────────────────────
+  } else if (type === 'round' || type === 'csp_fill') {
     const hard   = Math.min(0.98, (brush.hardness || 80) / 100);
-    // outerR extends slightly beyond size so very soft brushes really feather
-    const outerR = size + (1 - hard) * size * 0.4;
+    const outerR = size * (1 + (1 - hard) * 0.45);
     const grad   = drawCtx.createRadialGradient(drawCx, drawCy, hard * size, drawCx, drawCy, outerR);
-    grad.addColorStop(0,   `rgb(${r},${g},${b})`);
-    grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+    grad.addColorStop(0, `rgb(${r},${g},${b})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
     drawCtx.fillStyle = grad;
-    // Fill entire canvas — gradient naturally reaches 0 before the canvas edge
     drawCtx.fillRect(0, 0, dim, dim);
+    if (edgeRough > 0) {
+      addEdgeRoughness(drawCtx, drawCx, drawCy, size * (0.88 + hard * 0.1), edgeRough, seededRand(Math.floor(size * 71)));
+    }
 
-  } else if (type === 'airbrush') {
-    // Wide super-soft gradient, extends 50% beyond nominal size
+  // ── airbrush / csp_blur ───────────────────────────────────────────────────
+  // CSP airbrush: very wide, ultra-soft gradient — opacity builds at centre.
+  } else if (type === 'airbrush' || type === 'csp_blur') {
     const outerR = size * 1.5;
     const grad   = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, outerR);
     grad.addColorStop(0,    `rgb(${r},${g},${b})`);
-    grad.addColorStop(0.2,  `rgba(${r},${g},${b},0.8)`);
-    grad.addColorStop(0.5,  `rgba(${r},${g},${b},0.4)`);
-    grad.addColorStop(0.75, `rgba(${r},${g},${b},0.1)`);
+    grad.addColorStop(0.18, `rgba(${r},${g},${b},0.85)`);
+    grad.addColorStop(0.45, `rgba(${r},${g},${b},0.45)`);
+    grad.addColorStop(0.75, `rgba(${r},${g},${b},0.12)`);
     grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
     drawCtx.fillStyle = grad;
     drawCtx.fillRect(0, 0, dim, dim);
 
-  } else if (type === 'pencil') {
-    const rng  = seededRand(Math.floor(size * 137));
-    // Tilted elliptical graphite core
+  // ── ink / G-pen / Mapping Pen ─────────────────────────────────────────────
+  // CSP inking pens: near-solid core with a tiny anti-aliased fringe.
+  // No texture — pure opaque black (or user colour) with crisp edges.
+  } else if (type === 'ink') {
+    const hard    = Math.min(0.99, (brush.hardness || 95) / 100);
+    // Core is always 100% opaque; the fringe band is 2–4 px wide for AA.
+    const coreR   = size * hard;
+    const fringe  = Math.max(1.5, size * (1 - hard) * 0.6 + 1.5);
+    const outerR  = coreR + fringe;
+    drawCtx.beginPath();
+    drawCtx.arc(drawCx, drawCy, coreR, 0, Math.PI * 2);
+    drawCtx.fillStyle = `rgb(${r},${g},${b})`;
+    drawCtx.fill();
+    if (fringe > 0.5) {
+      const grad = drawCtx.createRadialGradient(drawCx, drawCy, coreR, drawCx, drawCy, outerR);
+      grad.addColorStop(0, `rgb(${r},${g},${b})`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      drawCtx.fillStyle = grad;
+      drawCtx.beginPath();
+      drawCtx.arc(drawCx, drawCy, outerR, 0, Math.PI * 2);
+      drawCtx.fill();
+    }
+
+  // ── csp_turnip (Turnip Pen) ───────────────────────────────────────────────
+  // The CSP Turnip Pen has a distinctive teardrop tip that widens dramatically
+  // under pressure. We simulate its cross-section as a soft-edged stadium
+  // (rectangle + round caps) that tapers toward the stroke direction.
+  // Without path-direction info at stamp build time, we build a symmetric
+  // teardrop along the Y axis; followPath rotates it per-dab at draw time.
+  } else if (type === 'csp_turnip') {
+    const hard = Math.min(0.98, (brush.hardness || 95) / 100);
+    // Draw a narrow oval (elongated along Y) for the teardrop body
+    const rx = size * 0.55;
+    const ry = size;
     drawCtx.save();
     drawCtx.translate(drawCx, drawCy);
-    drawCtx.rotate(0.12 * Math.PI);
-    const coreW = size * 0.62, coreH = size * 0.45;
+    const tGrad = drawCtx.createRadialGradient(0, 0, hard * Math.min(rx, ry), 0, 0, Math.max(rx, ry));
+    tGrad.addColorStop(0, `rgb(${r},${g},${b})`);
+    tGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = tGrad;
+    drawCtx.beginPath();
+    drawCtx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    drawCtx.fill();
+    drawCtx.restore();
+
+  // ── csp_flat (Flat brush / Flat Pen) ──────────────────────────────────────
+  // Simulates CSP's flat/chisel-tip brushes: a wide rectangle with hard edges
+  // on the sides and soft caps. tipShape:'flat' + ratio controls the aspect ratio.
+  } else if (type === 'csp_flat') {
+    const hard  = Math.min(0.99, (brush.hardness || 98) / 100);
+    const halfW = size;
+    const halfH = size * 0.3;
+    // Solid fill
+    drawCtx.fillStyle = `rgb(${r},${g},${b})`;
+    drawCtx.beginPath();
+    drawCtx.roundRect(drawCx - halfW, drawCy - halfH, halfW * 2, halfH * 2, halfH * (1 - hard));
+    drawCtx.fill();
+    // Soft AA fringe on long edges
+    const fW = halfW + 1.5, fH = halfH + Math.max(1, size * (1 - hard) * 0.3);
+    const edgeGrad = drawCtx.createRadialGradient(drawCx, drawCy, Math.min(halfW, halfH) * hard, drawCx, drawCy, Math.max(fW, fH));
+    edgeGrad.addColorStop(0, `rgba(${r},${g},${b},0.6)`);
+    edgeGrad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = edgeGrad;
+    drawCtx.beginPath();
+    drawCtx.ellipse(drawCx, drawCy, fW, fH, 0, 0, Math.PI * 2);
+    drawCtx.fill();
+
+  // ── pencil (CSP Real Pencil / Design Pencil / Rough Pencil) ──────────────
+  // Three layers: tilted graphite core + paper tooth grain + optional rough edge.
+  } else if (type === 'pencil') {
+    const rng   = seededRand(Math.floor(size * 137));
+    const hard  = Math.min(0.98, (brush.hardness || 55) / 100);
+
+    // 1. Elliptical graphite core (tilted like real pencil lead)
+    drawCtx.save();
+    drawCtx.translate(drawCx, drawCy);
+    drawCtx.rotate(Math.PI * 0.11);
+    const coreW = size * 0.58, coreH = size * 0.42;
     const cg = drawCtx.createRadialGradient(0, 0, 0, 0, 0, coreW);
-    cg.addColorStop(0,    `rgba(${r},${g},${b},0.85)`);
-    cg.addColorStop(0.55, `rgba(${r},${g},${b},0.5)`);
+    cg.addColorStop(0,    `rgba(${r},${g},${b},${0.78 + hard * 0.2})`);
+    cg.addColorStop(0.5,  `rgba(${r},${g},${b},${0.45 + hard * 0.2})`);
     cg.addColorStop(1,    `rgba(${r},${g},${b},0)`);
     drawCtx.fillStyle = cg;
-    drawCtx.beginPath(); drawCtx.ellipse(0, 0, coreW, coreH, 0, 0, Math.PI*2); drawCtx.fill();
+    drawCtx.beginPath(); drawCtx.ellipse(0, 0, coreW, coreH, 0, 0, Math.PI * 2); drawCtx.fill();
     drawCtx.restore();
-    // Paper grain
-    const angle0 = 0.067 * Math.PI;
+
+    // 2. Outer soft deposit halo (graphite smear beyond tip)
+    const haloGrad = drawCtx.createRadialGradient(drawCx, drawCy, coreW * 0.75, drawCx, drawCy, size * 0.92);
+    haloGrad.addColorStop(0,   `rgba(${r},${g},${b},${0.12 + hard * 0.1})`);
+    haloGrad.addColorStop(0.6, `rgba(${r},${g},${b},${0.04 + hard * 0.04})`);
+    haloGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = haloGrad;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size * 0.92, 0, Math.PI * 2); drawCtx.fill();
+
+    // 3. Paper tooth — directional scratchy strokes (CSP-style grain lines)
+    const angle0 = Math.PI * 0.065;
     const cosA = Math.cos(angle0), sinA = Math.sin(angle0);
-    const gN = Math.floor(size * 4);
-    for (let i = 0; i < gN; i++) {
-      const rr = Math.sqrt(rng()) * size * 0.85;
+    const grainN = Math.floor(size * 5.5);
+    for (let i = 0; i < grainN; i++) {
+      const rr    = Math.sqrt(rng()) * size * 0.88;
       const theta = rng() * Math.PI * 2;
-      const px2 = drawCx + rr * Math.cos(theta), py2 = drawCy + rr * Math.sin(theta);
-      const dist2 = rr / (size * 0.85);
-      const ga = (1 - dist2*dist2) * (0.03 + rng() * 0.12);
-      const len = (0.4 + rng() * 0.9) * Math.max(0.8, size * 0.12);
+      const px2   = drawCx + rr * Math.cos(theta);
+      const py2   = drawCy + rr * Math.sin(theta);
+      const dist  = rr / (size * 0.88);
+      const ga    = (1 - dist * dist) * (0.035 + rng() * 0.13) * (0.5 + hard * 0.5);
+      const len   = (0.35 + rng() * 0.85) * Math.max(0.7, size * 0.11);
+      const jx    = (rng() - 0.5) * 0.5, jy = (rng() - 0.5) * 0.5;
       drawCtx.beginPath();
-      drawCtx.moveTo(px2 - cosA*len*0.5, py2 - sinA*len*0.5);
-      drawCtx.lineTo(px2 + cosA*len*0.5, py2 + sinA*len*0.5);
+      drawCtx.moveTo(px2 - cosA * len * 0.5 + jx, py2 - sinA * len * 0.5 + jy);
+      drawCtx.lineTo(px2 + cosA * len * 0.5 + jx, py2 + sinA * len * 0.5 + jy);
       drawCtx.strokeStyle = `rgba(${r},${g},${b},${ga})`;
-      drawCtx.lineWidth = rng() < 0.3 ? 0.4 : 0.8;
+      drawCtx.lineWidth   = rng() < 0.22 ? 0.35 : (rng() < 0.6 ? 0.65 : 1.05);
       drawCtx.stroke();
     }
 
+    // 4. Specular paper tooth holes (CSP's characteristic white paper showing through)
+    const toothN = Math.floor(size * size * 0.12);
+    for (let i = 0; i < toothN; i++) {
+      const rr    = Math.sqrt(rng()) * size * 0.82;
+      const theta = rng() * Math.PI * 2;
+      const px2   = drawCx + rr * Math.cos(theta);
+      const py2   = drawCy + rr * Math.sin(theta);
+      const dist  = rr / (size * 0.82);
+      const da    = (1 - dist) * rng() * 0.045 * (0.4 + hard * 0.6);
+      drawCtx.fillStyle = `rgba(${r},${g},${b},${da})`;
+      drawCtx.beginPath(); drawCtx.arc(px2, py2, 0.22 + rng() * 0.5, 0, Math.PI * 2); drawCtx.fill();
+    }
+
+    // 5. Edge roughness (for Rough Pencil preset)
+    if (edgeRough > 0) {
+      addEdgeRoughness(drawCtx, drawCx, drawCy, size * 0.85, edgeRough * 0.5, seededRand(Math.floor(size * 43)));
+    }
+
+  // ── watercolor (CSP Watercolor Fringe) ───────────────────────────────────
+  // CSP's watercolor is defined by its fringe/bloom effect: pigment pools at
+  // the edges, leaving a lighter centre. We simulate this with:
+  //  1. Semi-transparent centre wash
+  //  2. Irregular edge blobs (the "cauliflower" bloom)
+  //  3. Dark pigment ring at the boundary
+  //  4. Optional ink bleed (controlled by brush.inkBleed)
   } else if (type === 'watercolor') {
-    const rng = seededRand(Math.floor(size * 293));
-    const baseA = 0.25;
-    const wg = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, size * 0.72);
-    wg.addColorStop(0,   `rgba(${r},${g},${b},${baseA * 1.2})`);
-    wg.addColorStop(0.5, `rgba(${r},${g},${b},${baseA * 0.8})`);
+    const rng   = seededRand(Math.floor(size * 293));
+    const bleed = (brush.inkBleed || 0) / 100;
+    const baseA = 0.22 + bleed * 0.08;
+
+    // Centre wash
+    const washR = size * (0.68 + bleed * 0.1);
+    const wg = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, washR);
+    wg.addColorStop(0,   `rgba(${r},${g},${b},${baseA * 1.15})`);
+    wg.addColorStop(0.55, `rgba(${r},${g},${b},${baseA * 0.85})`);
     wg.addColorStop(1,   `rgba(${r},${g},${b},0)`);
     drawCtx.fillStyle = wg;
-    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size * 0.72, 0, Math.PI*2); drawCtx.fill();
-    const bN = 6 + Math.floor(rng() * 5);
-    for (let i = 0; i < bN; i++) {
-      const ang = (i/bN)*Math.PI*2 + rng()*0.6;
-      const d2  = size * (0.4 + rng() * 0.5);
-      const bx  = drawCx + Math.cos(ang)*d2, by = drawCy + Math.sin(ang)*d2;
-      const br  = size * (0.15 + rng() * 0.3);
-      const bA  = baseA * (0.4 + rng() * 0.7);
-      const bg2 = drawCtx.createRadialGradient(bx,by,0,bx,by,br);
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, washR, 0, Math.PI * 2); drawCtx.fill();
+
+    // Edge blobs (irregular perimeter — CSP cauliflower effect)
+    const blobN = 8 + Math.floor(rng() * 6);
+    for (let i = 0; i < blobN; i++) {
+      const ang  = (i / blobN) * Math.PI * 2 + rng() * 0.55;
+      const dist = size * (0.48 + rng() * 0.42);
+      const bx   = drawCx + Math.cos(ang) * dist;
+      const by   = drawCy + Math.sin(ang) * dist;
+      const br   = size * (0.14 + rng() * 0.26 + bleed * 0.12);
+      const bA   = baseA * (0.55 + rng() * 0.65);
+      const bg2  = drawCtx.createRadialGradient(bx, by, 0, bx, by, br);
       bg2.addColorStop(0, `rgba(${r},${g},${b},${bA})`);
+      bg2.addColorStop(0.65, `rgba(${r},${g},${b},${bA * 0.4})`);
       bg2.addColorStop(1, `rgba(${r},${g},${b},0)`);
       drawCtx.fillStyle = bg2;
-      drawCtx.beginPath(); drawCtx.arc(bx, by, br, 0, Math.PI*2); drawCtx.fill();
+      drawCtx.beginPath(); drawCtx.arc(bx, by, br, 0, Math.PI * 2); drawCtx.fill();
     }
-    const rg2 = drawCtx.createRadialGradient(drawCx,drawCy,size*0.5,drawCx,drawCy,size*0.85);
-    rg2.addColorStop(0,   `rgba(${r},${g},${b},0)`);
-    rg2.addColorStop(0.5, `rgba(${r},${g},${b},${baseA * 1.5})`);
-    rg2.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    drawCtx.fillStyle = rg2;
-    drawCtx.beginPath(); drawCtx.arc(drawCx,drawCy,size*0.85,0,Math.PI*2); drawCtx.fill();
 
+    // Pigment ring (characteristic CSP watercolor dark boundary)
+    const ringR  = size * (0.78 + bleed * 0.08);
+    const ringRg = drawCtx.createRadialGradient(drawCx, drawCy, size * 0.52, drawCx, drawCy, ringR);
+    ringRg.addColorStop(0,    `rgba(${r},${g},${b},0)`);
+    ringRg.addColorStop(0.55, `rgba(${r},${g},${b},${baseA * 1.7})`);
+    ringRg.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = ringRg;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, ringR, 0, Math.PI * 2); drawCtx.fill();
+
+    // Grain texture within the wash
+    const grainN = Math.floor(size * size * 0.08);
+    for (let i = 0; i < grainN; i++) {
+      const rr    = Math.sqrt(rng()) * size * 0.78;
+      const theta = rng() * Math.PI * 2;
+      const px2   = drawCx + rr * Math.cos(theta);
+      const py2   = drawCy + rr * Math.sin(theta);
+      const dist  = rr / (size * 0.78);
+      const ga    = (1 - dist) * rng() * 0.07;
+      drawCtx.fillStyle = `rgba(${r},${g},${b},${ga})`;
+      drawCtx.beginPath(); drawCtx.arc(px2, py2, 0.28 + rng() * 0.55, 0, Math.PI * 2); drawCtx.fill();
+    }
+
+  // ── gouache ───────────────────────────────────────────────────────────────
+  // CSP gouache: opaque flat body with bristle marks at the edge.
+  // Very different from watercolor — fully opaque centre, textured boundary.
+  } else if (type === 'gouache') {
+    const rng      = seededRand(Math.floor(size * 619));
+    const hard     = Math.min(0.98, (brush.hardness || 70) / 100);
+    const nBristle = Math.max(0, Math.round(brush.bristles || 8));
+
+    // Solid opaque core
+    const coreR = size * hard;
+    const coreG = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, coreR);
+    coreG.addColorStop(0,   `rgb(${r},${g},${b})`);
+    coreG.addColorStop(0.8, `rgb(${r},${g},${b})`);
+    coreG.addColorStop(1,   `rgba(${r},${g},${b},0.85)`);
+    drawCtx.fillStyle = coreG;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI * 2); drawCtx.fill();
+
+    // Bristle marks radiating from edge (CSP gouache texture)
+    if (nBristle > 0) {
+      for (let i = 0; i < nBristle * 4; i++) {
+        const ang = (i / (nBristle * 4)) * Math.PI * 2 + rng() * 0.5;
+        const startR = coreR * (0.85 + rng() * 0.15);
+        const endR   = size * (1.05 + rng() * 0.25 * edgeRough);
+        const bx1 = drawCx + Math.cos(ang) * startR;
+        const by1 = drawCy + Math.sin(ang) * startR;
+        const bx2 = drawCx + Math.cos(ang + (rng()-0.5)*0.3) * endR;
+        const by2 = drawCy + Math.sin(ang + (rng()-0.5)*0.3) * endR;
+        const ba  = 0.4 + rng() * 0.55;
+        drawCtx.beginPath();
+        drawCtx.moveTo(bx1, by1); drawCtx.lineTo(bx2, by2);
+        drawCtx.strokeStyle = `rgba(${r},${g},${b},${ba})`;
+        drawCtx.lineWidth   = 0.4 + rng() * 1.1;
+        drawCtx.stroke();
+      }
+    }
+
+    // Edge roughness for gouache
+    if (edgeRough > 0) {
+      addEdgeRoughness(drawCtx, drawCx, drawCy, coreR, edgeRough, seededRand(Math.floor(size * 97)));
+    }
+
+  // ── chalk (CSP Pastel / Chalk Board) ─────────────────────────────────────
+  // CSP's chalk/pastel: very textured, granular, with strong edge roughness.
+  // Particles are denser at the centre, sparse and random at the perimeter.
   } else if (type === 'chalk') {
     const rng  = seededRand(Math.floor(size * 511));
-    const hard = Math.min(0.99, (brush.hardness || 80) / 100);
-    const nDots = Math.floor(size * size * 0.5);
-    for (let i = 0; i < nDots; i++) {
+    const hard = Math.min(0.99, (brush.hardness || 60) / 100);
+
+    // Base haze for soft coverage
+    const hazeG = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, size);
+    hazeG.addColorStop(0,    `rgba(${r},${g},${b},${0.35 + hard * 0.3})`);
+    hazeG.addColorStop(hard, `rgba(${r},${g},${b},${0.2 + hard * 0.2})`);
+    hazeG.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = hazeG;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI * 2); drawCtx.fill();
+
+    // Dense particle layer (fine grit)
+    const nFine = Math.floor(size * size * 0.55);
+    for (let i = 0; i < nFine; i++) {
       const rr    = Math.sqrt(rng()) * size;
       const theta = rng() * Math.PI * 2;
-      const px2   = drawCx + rr * Math.cos(theta), py2 = drawCy + rr * Math.sin(theta);
-      const dist2 = rr / size;
-      if (dist2 > hard && rng() > (1 - dist2) * 1.5) continue;
-      const da = (rng() * 0.6 + 0.1) * Math.max(0, 1 - Math.max(0, dist2 - hard) * 3);
+      const px2   = drawCx + rr * Math.cos(theta);
+      const py2   = drawCy + rr * Math.sin(theta);
+      const dist  = rr / size;
+      // CSP chalk: particles thin out before the boundary, then are clumped at edge
+      const edgeBias = Math.pow(1 - dist, 0.6);
+      if (dist > hard + 0.05 && rng() > edgeBias * 1.8) continue;
+      const da = edgeBias * (0.08 + rng() * 0.22) * (0.6 + hard * 0.4);
       if (da <= 0) continue;
       drawCtx.fillStyle = `rgba(${r},${g},${b},${da})`;
-      drawCtx.beginPath(); drawCtx.arc(px2, py2, 0.4 + rng() * 1.2, 0, Math.PI*2); drawCtx.fill();
+      drawCtx.beginPath();
+      drawCtx.arc(px2, py2, 0.3 + rng() * 1.4, 0, Math.PI * 2);
+      drawCtx.fill();
     }
 
+    // Edge roughness (stronger for chalk than round brushes)
+    if (edgeRough > 0) {
+      addEdgeRoughness(drawCtx, drawCx, drawCy, size * (0.88 + hard * 0.1), edgeRough * 1.3, seededRand(Math.floor(size * 211)));
+    }
+
+  // ── marker (Copic / Brush Marker) ────────────────────────────────────────
+  // CSP marker: semi-transparent, flat body with very slight density variation.
+  // Markers lay color flat — no grain, no bleed, just clean coverage.
+  } else if (type === 'marker') {
+    const hard = Math.min(0.99, (brush.hardness || 85) / 100);
+
+    if (tipShape === 'flat') {
+      // Chisel/broad marker tip: flat rectangle with slightly soft long edges
+      const halfW = size * 0.95;
+      const halfH = size * Math.max(0.08, (1 - hard) * 0.35 + 0.08);
+      drawCtx.fillStyle = `rgba(${r},${g},${b},0.92)`;
+      drawCtx.beginPath();
+      // Use ellipse for rounded chisel tip
+      drawCtx.ellipse(drawCx, drawCy, halfW, halfH, 0, 0, Math.PI * 2);
+      drawCtx.fill();
+      // Soft density variation (streaky marker look)
+      const streakG = drawCtx.createLinearGradient(drawCx - halfW, drawCy, drawCx + halfW, drawCy);
+      streakG.addColorStop(0,   `rgba(${r},${g},${b},0.05)`);
+      streakG.addColorStop(0.2, `rgba(${r},${g},${b},0.0)`);
+      streakG.addColorStop(0.5, `rgba(${r},${g},${b},0.04)`);
+      streakG.addColorStop(0.8, `rgba(${r},${g},${b},0.0)`);
+      streakG.addColorStop(1,   `rgba(${r},${g},${b},0.05)`);
+      drawCtx.fillStyle = streakG;
+      drawCtx.beginPath();
+      drawCtx.ellipse(drawCx, drawCy, halfW, halfH, 0, 0, Math.PI * 2);
+      drawCtx.fill();
+    } else {
+      // Brush marker: round tip, slightly textured
+      const coreG = drawCtx.createRadialGradient(drawCx, drawCy, 0, drawCx, drawCy, size);
+      coreG.addColorStop(0,    `rgba(${r},${g},${b},0.90)`);
+      coreG.addColorStop(hard, `rgba(${r},${g},${b},0.82)`);
+      coreG.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+      drawCtx.fillStyle = coreG;
+      drawCtx.fillRect(0, 0, dim, dim);
+      if (edgeRough > 0) {
+        addEdgeRoughness(drawCtx, drawCx, drawCy, size * 0.9, edgeRough * 0.6, seededRand(Math.floor(size * 167)));
+      }
+    }
+
+  // ── ballpoint ─────────────────────────────────────────────────────────────
+  // CSP ballpoint pen: very small, hard, with slight tonal variation from
+  // ink flow (darker where slower, lighter where faster — simulated as
+  // a slight radial gradient from near-solid centre to transparent edge).
+  } else if (type === 'ballpoint') {
+    const hard  = Math.min(0.99, (brush.hardness || 95) / 100);
+    const coreR = size * hard;
+    // Fully opaque core
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, coreR, 0, Math.PI * 2);
+    drawCtx.fillStyle = `rgb(${r},${g},${b})`; drawCtx.fill();
+    // Very fine AA fringe
+    const fringeR = coreR + Math.max(0.8, size * (1 - hard) * 0.4 + 0.8);
+    const fG = drawCtx.createRadialGradient(drawCx, drawCy, coreR, drawCx, drawCy, fringeR);
+    fG.addColorStop(0, `rgba(${r},${g},${b},0.85)`);
+    fG.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    drawCtx.fillStyle = fG;
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, fringeR, 0, Math.PI * 2); drawCtx.fill();
+
+  // ── smear ─────────────────────────────────────────────────────────────────
   } else if (type === 'smear') {
     const hard = Math.min(0.99, (brush.hardness || 80) / 100);
-    const grad = drawCtx.createRadialGradient(drawCx, drawCy, hard * size, drawCx, drawCy, size);
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, hard * size * 0.5, drawCx, drawCy, size);
     grad.addColorStop(0, `rgba(255,255,255,1)`);
     grad.addColorStop(1, `rgba(255,255,255,0)`);
     drawCtx.fillStyle = grad;
-    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI*2); drawCtx.fill();
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI * 2); drawCtx.fill();
 
+  // ── fallback ──────────────────────────────────────────────────────────────
   } else {
-    // Fallback: basic round
-    const grad = drawCtx.createRadialGradient(drawCx, drawCy, size * 0.7, drawCx, drawCy, size);
+    const grad = drawCtx.createRadialGradient(drawCx, drawCy, size * 0.65, drawCx, drawCy, size);
     grad.addColorStop(0, `rgb(${r},${g},${b})`);
     grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
     drawCtx.fillStyle = grad;
-    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI*2); drawCtx.fill();
+    drawCtx.beginPath(); drawCtx.arc(drawCx, drawCy, size, 0, Math.PI * 2); drawCtx.fill();
   }
 
   // Apply ratio/angle transform by blitting tmpCanvas onto oc with transform
@@ -4675,7 +5214,7 @@ function buildStamp(brush, size, rgb, _unused) {
     ctx.restore();
   }
 
-  // Stamp cache with LRU eviction
+  // LRU eviction
   if (stampCache.size >= STAMP_CACHE_MAX) {
     stampCache.delete(stampCache.keys().next().value);
   }
@@ -4949,10 +5488,16 @@ function _doWetFlush() {
 
   // Soft brushes need their gradient preserved — clipping through maskCanvas
   // destroys airbrush/watercolor softness. For soft brushes, composite colCanvas
-  // directly. For hard brushes, clip through maskCanvas so overlapping stamp
-  // edges merge into one clean shape (no visible rings).
-  const isSoft = brush.type === 'airbrush' || brush.type === 'watercolor' ||
-                 (brush.hardness || 80) < 40;
+  // directly. For hard brushes (ink, ballpoint, pixel, gouache, marker, flat, fill,
+  // turnip), clip through maskCanvas so overlapping stamp edges merge cleanly.
+  const type   = brush.type || 'round';
+  const isHardType = (type === 'ink'       || type === 'ballpoint' || type === 'pixel'     ||
+                      type === 'csp_fill'  || type === 'csp_flat'  || type === 'csp_turnip'||
+                      type === 'marker'    || type === 'gouache');
+  const isSoft = !isHardType && (
+    type === 'airbrush' || type === 'csp_blur' || type === 'watercolor' || type === 'smear' ||
+    (brush.hardness || 80) < 40
+  );
 
   let strokeCanvas;
   if (isSoft) {
@@ -5826,10 +6371,26 @@ function smoothPressure(raw) {
   return pressureState.smoothed;
 }
 
-// Remap 0..1 pressure into a useful brush scale
-function pressureToScale(p) {
-  const min = pressureSettings.minScale;
-  return min + (1 - min) * p;
+// Remap 0..1 pressure into a brush size scale, respecting the active brush's
+// pressureCurve setting and sizeMin (minimum size at zero pressure).
+// Called with the raw 0..1 pressure value from the pointer event.
+function pressureToScale(p, brush) {
+  const b      = brush || getActiveBrush();
+  const curve  = b ? (b.pressureCurve || 0) : 0;
+  const minPct = b ? (b.sizeMin != null ? b.sizeMin : 15) : 15;
+  const min    = minPct / 100;
+  const remapped = remapPressure(Math.max(0, Math.min(1, p)), curve);
+  return min + (1 - min) * remapped;
+}
+
+// Opacity-pressure scale — uses opacityMin (independent of sizeMin)
+function pressureToOpacityScale(p, brush) {
+  const b      = brush || getActiveBrush();
+  const curve  = b ? (b.pressureCurve || 0) : 0;
+  const minPct = b ? (b.opacityMin != null ? b.opacityMin : 20) : 20;
+  const min    = minPct / 100;
+  const remapped = remapPressure(Math.max(0, Math.min(1, p)), curve);
+  return min + (1 - min) * remapped;
 }
 
 function getPressure(e) {
@@ -5934,8 +6495,8 @@ canvasContainer.addEventListener('pointerdown', e => {
 
   const pressure = getPressure(e);
   const brush = getActiveBrush();
-  const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure) : 1;
-  const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToScale(pressure) : 1;
+  const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
+  const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
 
   if (state.tool === 'brush') {
     wetInit(getActiveCtx());
@@ -5944,7 +6505,7 @@ canvasContainer.addEventListener('pointerdown', e => {
     // unreliable first-contact pressure spike on stylus/Apple Pencil).
     const brush = getActiveBrush();
     const initialSizeScale = (brush.sizePressure && pressureSettings.enabled)
-      ? pressureToScale(0.08)
+      ? pressureToScale(0.08, brush)
       : sizeScale;
     const size = Math.max(0.5, brush.size * initialSizeScale);
     const {r,g,b} = hexToRgb(state.color);
@@ -5987,8 +6548,8 @@ canvasContainer.addEventListener('pointermove', e => {
     const {x: cx, y: cy} = clientToCanvas(ce.clientX, ce.clientY);
     const pressure = getPressure(ce);
     const brush = getActiveBrush();
-    const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure) : 1;
-    const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToScale(pressure) : 1;
+    const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
+    const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
 
     if (state.tool === 'brush') {
       if (pressureSettings.stabilizer > 0) {
@@ -6218,7 +6779,17 @@ document.addEventListener('click', e => {
   let rightHanded = false;
   function applyHandedness(val) {
     rightHanded = val;
-    rsbEl.classList.toggle('left-hand', val);
+    if (val) {
+      // Left-hand mode: move sidebar to the left edge
+      rsbEl.classList.add('left-hand');
+      rsbEl.style.right = '';
+      rsbEl.style.left  = 'var(--sp-2)';
+    } else {
+      // Right-hand mode (default): sidebar on the right edge
+      rsbEl.classList.remove('left-hand');
+      rsbEl.style.left  = '';
+      rsbEl.style.right = 'var(--sp-2)';
+    }
     if (rhWrap) {
       rhWrap.classList.toggle('on', val);
       rhWrap.setAttribute('aria-checked', val ? 'true' : 'false');
@@ -6463,7 +7034,7 @@ function applyCanvasCursor() {
         ctx.lineWidth   = 1;
         ctx.strokeRect(-radius, -radius * ratio, radius * 2, radius * 2 * ratio);
 
-      } else if (bType === 'airbrush') {
+      } else if (bType === 'airbrush' || bType === 'csp_blur') {
         const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
         grad.addColorStop(0,   hexToRgba(color, Math.min(opacity * 0.55, 0.65)));
         grad.addColorStop(0.6, hexToRgba(color, Math.min(opacity * 0.18, 0.3)));
@@ -6478,7 +7049,34 @@ function applyCanvasCursor() {
         ctx.lineWidth = 1; ctx.stroke();
         ctx.restore();
 
-      } else if (bType === 'round' || bType === 'ink' || bType === 'watercolor') {
+      } else if (bType === 'ink' || bType === 'ballpoint' || bType === 'csp_fill' ||
+                 bType === 'gouache' || bType === 'marker' || bType === 'csp_turnip') {
+        // Hard-edged ink/pen cursor: solid fill with white outline ring
+        const innerA = Math.min(opacity * 0.9, 0.88);
+        const grad   = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+        grad.addColorStop(0,           hexToRgba(color, innerA));
+        grad.addColorStop(hardness,    hexToRgba(color, innerA));
+        grad.addColorStop(1,           hexToRgba(color, Math.min(opacity * 0.15, 0.15)));
+        ctx.save(); ctx.scale(1, ratio);
+        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.restore();
+        ctx.save(); ctx.scale(1, ratio);
+        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.restore();
+
+      } else if (bType === 'csp_flat') {
+        // Flat/chisel cursor: show as a wide flat rectangle
+        const flatH = radius * Math.max(0.12, (1 - hardness) * 0.3 + 0.12);
+        ctx.fillStyle = hexToRgba(color, Math.min(opacity * 0.82, 0.82));
+        ctx.beginPath(); ctx.ellipse(0, 0, radius, flatH, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(0, 0, radius, flatH, 0, 0, Math.PI * 2); ctx.stroke();
+
+      } else if (bType === 'round' || bType === 'csp_fill' || bType === 'watercolor') {
         const innerA = Math.min(opacity * 0.88, 0.88);
         const edgeA  = hardness > 0.7 ? Math.min(opacity * 0.85, 0.85) : Math.min(opacity * 0.2, 0.35);
         const grad   = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
@@ -6497,7 +7095,7 @@ function applyCanvasCursor() {
         ctx.restore();
 
       } else {
-        // pencil / chalk / smear
+        // pencil / chalk / smear / gouache / ballpoint — textured/soft cursor ring
         const fillAlpha = Math.min(opacity * 0.65, 0.7);
         ctx.save(); ctx.scale(1, ratio);
         ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
@@ -11545,7 +12143,11 @@ function toast(msg) {
     const tc = tmp.getContext('2d');
     let lx = null, ly = null;
     for (const pt of points) {
-      const sizeScale = b.sizePressure ? (b.sizeMin/100 + (1 - b.sizeMin/100) * pt.pressure) : 1;
+      // Apply per-brush pressure curve for accurate preview
+      const curve = b.pressureCurve || 0;
+      const remapped = remapPressure(pt.pressure, curve);
+      const minPct = b.sizeMin != null ? b.sizeMin : 15;
+      const sizeScale = b.sizePressure ? (minPct/100 + (1 - minPct/100) * remapped) : 1;
       const sz = Math.max(0.5, size * sizeScale);
       const pathAngle = lx !== null ? Math.atan2(pt.y - ly, pt.x - lx) * 180 / Math.PI : 0;
 
@@ -11607,6 +12209,15 @@ function toast(msg) {
     setCheck('bsp-follow-path',         b.followPath);
     setCheck('bsp-wet-mix',             b.wetMix);
 
+    // CSP-specific params
+    setSlider('bsp-edge-roughness', b.edgeRoughness || 0, v => v + '%');
+    setSlider('bsp-ink-bleed',      b.inkBleed      || 0, v => v + '%');
+    setSlider('bsp-bristles',       b.bristles      || 0, v => String(Math.round(v)));
+
+    // Pressure curve select
+    const pcSel = document.getElementById('bsp-pressure-curve');
+    if (pcSel) pcSel.value = String(b.pressureCurve != null ? b.pressureCurve : 0);
+
     renderTextureGrid(b.texture || 'none');
   }
 
@@ -11648,6 +12259,12 @@ function toast(msg) {
     editBrush.velocitySize    = document.getElementById('bsp-size-velocity-on').checked;
     editBrush.followPath      = document.getElementById('bsp-follow-path').checked;
     editBrush.wetMix          = document.getElementById('bsp-wet-mix').checked;
+    // CSP-specific
+    editBrush.edgeRoughness   = getSliderVal('bsp-edge-roughness');
+    editBrush.inkBleed        = getSliderVal('bsp-ink-bleed');
+    editBrush.bristles        = getSliderVal('bsp-bristles');
+    const pcSel = document.getElementById('bsp-pressure-curve');
+    editBrush.pressureCurve   = pcSel ? parseInt(pcSel.value) : 0;
   }
   function getSliderVal(id) {
     return parseFloat(document.getElementById(id)?.value || 0);
@@ -11688,6 +12305,21 @@ function toast(msg) {
   bindSliderLive('bsp-wet-ratio',        'wetRatio',        v => v + '%');
   bindSliderLive('bsp-angle',            'angle',           v => v + '°');
   bindSliderLive('bsp-ratio',            'ratio',           v => (v/100).toFixed(1));
+  // CSP-specific sliders
+  bindSliderLive('bsp-edge-roughness',   'edgeRoughness',   v => v + '%');
+  bindSliderLive('bsp-ink-bleed',        'inkBleed',        v => v + '%');
+  bindSliderLive('bsp-bristles',         'bristles',        v => String(Math.round(v)));
+
+  // Pressure curve select — live update
+  const _pcSel = document.getElementById('bsp-pressure-curve');
+  if (_pcSel) {
+    _pcSel.addEventListener('change', () => {
+      if (editBrush) {
+        editBrush.pressureCurve = parseInt(_pcSel.value);
+        renderPreview();
+      }
+    });
+  }
 
   function bindCheckLive(id, key) {
     const el = document.getElementById(id);
