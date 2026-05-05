@@ -2093,7 +2093,7 @@
     background: var(--panel-bg); backdrop-filter: blur(40px) saturate(2);
     -webkit-backdrop-filter: blur(40px) saturate(2);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-xl); padding: var(--sp-6); width: 560px; max-height: 80vh;
+    border-radius: var(--radius-xl); padding: var(--sp-6); width: min(640px, 95vw); max-height: 88vh;
     display: flex; flex-direction: column; gap: var(--sp-4); overflow: hidden;
   }
   .shortcuts-header { display: flex; align-items: center; justify-content: space-between; }
@@ -2108,6 +2108,103 @@
   .shortcuts-close:hover { background: rgba(255,69,58,0.18); color: var(--red); }
   .shortcuts-close:active { transform: scale(0.9); }
   .shortcuts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--sp-6); overflow-y: auto; padding-right: var(--sp-1); }
+  .shortcuts-grid::-webkit-scrollbar { width: 3px; }
+  .shortcuts-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Pen Shortcuts section — full-width inside shortcuts-grid ── */
+  .pen-shortcuts-section {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    margin-top: var(--sp-1);
+    padding-top: var(--sp-3);
+  }
+  .pen-shortcuts-intro {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: var(--sp-3);
+    line-height: 1.4;
+  }
+  .pen-shortcuts-device {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    margin-bottom: var(--sp-2);
+    margin-top: var(--sp-2);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+  .pen-shortcuts-device svg { opacity: 0.7; flex-shrink: 0; }
+  .pen-btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    min-height: 40px;
+    gap: var(--sp-3);
+  }
+  .pen-btn-info { flex: 1; min-width: 0; }
+  .pen-btn-label {
+    font-size: 13px;
+    color: var(--text2);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .pen-btn-sub {
+    font-size: 10px;
+    color: var(--text3);
+    font-family: 'DM Mono', monospace;
+    margin-top: 1px;
+  }
+  .pen-btn-select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 8px;
+    outline: none;
+    cursor: pointer;
+    min-width: 130px;
+    transition: border-color 0.12s;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .pen-btn-select:focus { border-color: var(--accent); }
+  .pen-btn-select:hover { border-color: var(--border2); background: var(--surface3); }
+  /* Active indicator badge shown when a button override is active */
+  #pen-btn-toast {
+    position: fixed;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--surface3);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent2);
+    font-family: 'DM Sans', sans-serif;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s, transform 0.18s;
+    z-index: 10000;
+    white-space: nowrap;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  #pen-btn-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
   .shortcuts-grid::-webkit-scrollbar { width: 3px; }
   .shortcuts-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .shortcuts-section {
@@ -2847,7 +2944,7 @@
 <div id="shortcuts-overlay">
   <div class="shortcuts-box">
     <div class="shortcuts-header">
-      <span class="shortcuts-title">Keyboard Shortcuts</span>
+      <span class="shortcuts-title">Shortcuts &amp; Pen Buttons</span>
       <button class="shortcuts-close" id="shortcuts-close">✕</button>
     </div>
     <div class="shortcuts-grid">
@@ -2873,9 +2970,109 @@
       <div class="shortcuts-section">Transform</div>
       <div class="shortcut-row"><span class="shortcut-label">Apply</span><div class="shortcut-keys"><span class="kbd">Enter</span></div></div>
       <div class="shortcut-row"><span class="shortcut-label">Cancel</span><div class="shortcut-keys"><span class="kbd">Esc</span></div></div>
+
+      <!-- ── Pen Button Shortcuts — spans both columns ── -->
+      <div class="pen-shortcuts-section">
+        <div style="font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--text3); margin-bottom:var(--sp-2);">Pen Button Shortcuts</div>
+        <div class="pen-shortcuts-intro">
+          Hold a barrel button while drawing to temporarily switch tools. Releasing restores your previous tool.<br>
+          Works with Apple Pencil Pro, Wacom Pro Pen 3, and other pressure-sensitive styluses.
+        </div>
+
+        <!-- Apple Pencil Pro -->
+        <div class="pen-shortcuts-device">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+          Apple Pencil Pro
+        </div>
+        <!-- Squeeze (button 1 on Pencil Pro) -->
+        <div class="pen-btn-row">
+          <div class="pen-btn-info">
+            <div class="pen-btn-label">Squeeze (barrel button)</div>
+            <div class="pen-btn-sub">e.button = 1 · while tip touches canvas</div>
+          </div>
+          <select class="pen-btn-select" id="pen-apple-btn1" data-pen-device="apple" data-pen-button="1">
+            <option value="eraser">Eraser</option>
+            <option value="eyedrop">Eyedropper</option>
+            <option value="select">Select</option>
+            <option value="fill">Fill</option>
+            <option value="move">Move</option>
+            <option value="none">No Action</option>
+          </select>
+        </div>
+        <!-- Double-tap (button 2 on Pencil Pro) -->
+        <div class="pen-btn-row">
+          <div class="pen-btn-info">
+            <div class="pen-btn-label">Double-tap (flat side)</div>
+            <div class="pen-btn-sub">e.button = 2 · while tip touches canvas</div>
+          </div>
+          <select class="pen-btn-select" id="pen-apple-btn2" data-pen-device="apple" data-pen-button="2">
+            <option value="eyedrop">Eyedropper</option>
+            <option value="eraser">Eraser</option>
+            <option value="select">Select</option>
+            <option value="fill">Fill</option>
+            <option value="move">Move</option>
+            <option value="none">No Action</option>
+          </select>
+        </div>
+
+        <!-- Wacom Pro Pen 3 -->
+        <div class="pen-shortcuts-device" style="margin-top:var(--sp-4);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="3"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
+          Wacom Pro Pen 3
+        </div>
+        <!-- Bottom barrel button (button 1) -->
+        <div class="pen-btn-row">
+          <div class="pen-btn-info">
+            <div class="pen-btn-label">Bottom barrel button</div>
+            <div class="pen-btn-sub">e.button = 1 · lower button while tip is near tablet</div>
+          </div>
+          <select class="pen-btn-select" id="pen-wacom-btn1" data-pen-device="wacom" data-pen-button="1">
+            <option value="eraser">Eraser</option>
+            <option value="eyedrop">Eyedropper</option>
+            <option value="select">Select</option>
+            <option value="fill">Fill</option>
+            <option value="move">Move</option>
+            <option value="none">No Action</option>
+          </select>
+        </div>
+        <!-- Top barrel button (button 2) -->
+        <div class="pen-btn-row">
+          <div class="pen-btn-info">
+            <div class="pen-btn-label">Top barrel button</div>
+            <div class="pen-btn-sub">e.button = 2 · upper button while tip is near tablet</div>
+          </div>
+          <select class="pen-btn-select" id="pen-wacom-btn2" data-pen-device="wacom" data-pen-button="2">
+            <option value="eyedrop">Eyedropper</option>
+            <option value="eraser">Eraser</option>
+            <option value="select">Select</option>
+            <option value="fill">Fill</option>
+            <option value="move">Move</option>
+            <option value="none">No Action</option>
+          </select>
+        </div>
+        <!-- Eraser end (button 5 / e.buttons & 32) -->
+        <div class="pen-btn-row" style="border-bottom:none;">
+          <div class="pen-btn-info">
+            <div class="pen-btn-label">Eraser end (pen flip)</div>
+            <div class="pen-btn-sub">e.buttons &amp; 32 · physical eraser tip</div>
+          </div>
+          <select class="pen-btn-select" id="pen-wacom-eraser" data-pen-device="wacom" data-pen-button="eraser">
+            <option value="select">Select</option>
+            <option value="eraser">Eraser</option>
+            <option value="eyedrop">Eyedropper</option>
+            <option value="fill">Fill</option>
+            <option value="move">Move</option>
+            <option value="none">No Action</option>
+          </select>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
+
+<!-- Pen button active-tool indicator toast -->
+<div id="pen-btn-toast"></div>
 
 <!-- Canvas Resize Modal -->
 <div id="resize-modal">
@@ -3055,7 +3252,7 @@
   <div class="prefs-row" style="cursor:pointer;" id="btn-show-shortcuts">
     <div class="prefs-row-info">
       <div class="prefs-row-title">Keyboard Shortcuts</div>
-      <div class="prefs-row-sub">View all shortcuts</div>
+      <div class="prefs-row-sub">View all shortcuts &amp; pen buttons</div>
     </div>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text3);flex-shrink:0;opacity:0.7"><polyline points="9 18 15 12 9 6"/></svg>
   </div>
@@ -10315,7 +10512,11 @@ function mergeLayerDown(idx) {
 (function() {
   const overlay = document.getElementById('shortcuts-overlay');
 
-  function open()  { overlay.classList.add('open'); }
+  function open() {
+    overlay.classList.add('open');
+    // Sync pen button selects with current saved config each time the overlay opens
+    if (typeof window._syncPenSelects === 'function') window._syncPenSelects();
+  }
   function close() { overlay.classList.remove('open'); }
 
   document.getElementById('shortcuts-close').addEventListener('click', close);
@@ -10875,6 +11076,251 @@ document.addEventListener('keydown', e => {
   if (k === '+' || k === '=') zoomIn();
   if (k === '-') zoomOut();
 });
+
+// ────────────────────────────────────────
+//  PEN BUTTON SHORTCUTS ENGINE
+//  Intercepts barrel button events (e.pointerType === 'pen', e.button > 0)
+//  and temporarily switches the active tool while the button is held.
+//  On button release, the previous tool is restored automatically.
+//  Configurable per-button via selects in the Shortcuts overlay.
+// ────────────────────────────────────────
+(function initPenButtonShortcuts() {
+
+  // ── Default mappings ─────────────────────────────────────────────────────
+  // These match the defaults shown in the HTML selects.
+  // Key format: `device_button` where:
+  //   device = 'wacom' | 'apple'   (we use a heuristic — see detectDevice())
+  //   button = '1' | '2' | 'eraser'
+  const PEN_DEFAULTS = {
+    'apple_1':      'eraser',    // Apple Pencil Pro squeeze → Eraser
+    'apple_2':      'eyedrop',   // Apple Pencil Pro double-tap → Eyedropper
+    'wacom_1':      'eraser',    // Wacom bottom barrel → Eraser
+    'wacom_2':      'eyedrop',   // Wacom top barrel → Eyedropper
+    'wacom_eraser': 'select',    // Wacom eraser end → Select
+  };
+
+  // Load saved settings from localStorage (fallback to defaults)
+  const PEN_STORAGE_KEY = 'ug_penButtons';
+  function loadPenConfig() {
+    try {
+      const raw = localStorage.getItem(PEN_STORAGE_KEY);
+      return raw ? { ...PEN_DEFAULTS, ...JSON.parse(raw) } : { ...PEN_DEFAULTS };
+    } catch(e) { return { ...PEN_DEFAULTS }; }
+  }
+  function savePenConfig(cfg) {
+    try { localStorage.setItem(PEN_STORAGE_KEY, JSON.stringify(cfg)); } catch(e) {}
+  }
+
+  let penConfig = loadPenConfig();
+
+  // ── Track active button overrides ────────────────────────────────────────
+  // Map from pointerId → { originalTool, buttonKey }
+  // We can have at most one active pen tip at a time, but track by ID for safety.
+  const activeOverrides = new Map();
+
+  // Tool name → label for the toast indicator
+  const TOOL_LABELS = {
+    eraser:  '✕ Eraser',
+    eyedrop: '✦ Eyedropper',
+    select:  '⬡ Select',
+    fill:    '◈ Fill',
+    move:    '✥ Move',
+    none:    '',
+  };
+
+  // ── Pen device detection heuristic ───────────────────────────────────────
+  // The Web Pointer Events API doesn't expose device model names.
+  // We differentiate Apple Pencil Pro from Wacom by the presence of
+  // twist support — Apple Pencil Pro reports e.twist > 0 when rolled,
+  // while Wacom pens report tiltX/tiltY. In practice, both brands send
+  // pointerType === 'pen' so we use a simple last-seen approach:
+  // If the browser is running on iOS/iPadOS we assume Apple Pencil Pro,
+  // otherwise we assume Wacom. This can be overridden by the user's
+  // selection in the config UI.
+  //
+  // For button mapping purposes, both Apple Pencil Pro squeeze and Wacom
+  // lower barrel button fire e.button === 1; Wacom upper barrel and Apple
+  // Pencil Pro double-tap fire e.button === 2. The physical eraser end on
+  // Wacom pens fires e.button === 0 but with e.buttons === 32.
+  function detectDevice() {
+    const ua = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))) {
+      return 'apple';
+    }
+    return 'wacom';
+  }
+
+  // ── Toast indicator for active pen button override ────────────────────────
+  const penToast = document.getElementById('pen-btn-toast');
+  let _penToastTimer = null;
+
+  function showPenToast(toolName) {
+    if (!penToast) return;
+    const label = TOOL_LABELS[toolName];
+    if (!label) return; // 'none' or unknown — no toast
+    penToast.textContent = label;
+    penToast.classList.add('show');
+    clearTimeout(_penToastTimer);
+  }
+  function hidePenToast() {
+    if (!penToast) return;
+    penToast.classList.remove('show');
+    clearTimeout(_penToastTimer);
+  }
+
+  // ── Apply a pen button tool override ─────────────────────────────────────
+  // Called when a barrel button is pressed while the pen tip is drawing or hovering.
+  // We capture the current tool, switch to the button's assigned tool, and track it.
+  function applyPenOverride(e, buttonKey) {
+    const device  = detectDevice();
+    const cfgKey  = device + '_' + buttonKey;
+    const newTool = penConfig[cfgKey] || 'none';
+
+    if (newTool === 'none') return; // this button has no assigned action
+
+    const pointerId = e.pointerId;
+
+    // If we already have an override for this pointer (shouldn't happen normally),
+    // restore first before applying the new one.
+    if (activeOverrides.has(pointerId)) {
+      restorePenOverride(pointerId, false);
+    }
+
+    const originalTool = state.tool;
+    activeOverrides.set(pointerId, { originalTool, cfgKey });
+
+    // For eyedrop: set the pre-eyedrop tool so it restores correctly after picking
+    if (newTool === 'eyedrop') {
+      state._preEyedropTool = originalTool;
+    }
+
+    activateTool(newTool);
+    showPenToast(newTool);
+  }
+
+  // ── Restore the pre-button tool ───────────────────────────────────────────
+  function restorePenOverride(pointerId, doHideToast) {
+    const rec = activeOverrides.get(pointerId);
+    if (!rec) return;
+    activeOverrides.delete(pointerId);
+
+    // Only restore if the tool hasn't been changed by something else
+    // (e.g. user tapped a tool button while the pen button was held —
+    //  in that case we respect their explicit choice and don't clobber it).
+    const rec_device_btn_tool = (penConfig[rec.cfgKey] || 'none');
+    if (state.tool === rec_device_btn_tool) {
+      // Still on the overridden tool — restore original
+      activateTool(rec.originalTool);
+    }
+
+    if (doHideToast) hidePenToast();
+  }
+
+  // ── Main document-level pen button interceptor ────────────────────────────
+  // We use CAPTURE phase so we run before the canvas drawing handlers.
+  // This is critical: when the user holds a barrel button and touches the tip,
+  // a pointerdown fires with e.button === 0 (tip) AND e.buttons includes the
+  // barrel button bitmask. So we need to intercept at the right time.
+  //
+  // Wacom barrel buttons fire pointerdown/up with e.button = 1 or 2
+  // REGARDLESS of whether the tip is touching — they can fire in mid-air hover.
+  // Apple Pencil Pro squeeze fires similarly.
+  //
+  // Physical Wacom eraser end: e.button === 0 but e.buttons & 32 === 32
+  // (browser maps the eraser as a separate "button 5" in the buttons bitmask).
+  //
+  // Strategy:
+  //   1. On EVERY pointerdown from a pen with e.button >= 1 → apply override.
+  //   2. On EVERY pointerdown from a pen with e.button === 0 AND e.buttons & 32 → eraser-end override.
+  //   3. On pointerup/pointercancel with matching button → restore override.
+  //   4. We do NOT block drawing — the barrel button override co-exists with normal
+  //      drawing so the user can switch tools mid-stroke.
+
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'pen') return;
+
+    // ── Wacom physical eraser end (e.buttons bit 5 = 32) ──
+    // This fires with e.button === 0 but the eraser bit is set.
+    // We only check this when the pen is NOT pressing a barrel button
+    // (barrel buttons would set e.button to 1 or 2).
+    if (e.button === 0 && (e.buttons & 32) !== 0) {
+      applyPenOverride(e, 'eraser');
+      return;
+    }
+
+    // ── Barrel buttons (button 1 or 2) ──
+    // button 1 = lower barrel / Apple Pencil Pro squeeze
+    // button 2 = upper barrel / Apple Pencil Pro double-tap / top button
+    if (e.button === 1) {
+      applyPenOverride(e, '1');
+      return;
+    }
+    if (e.button === 2) {
+      applyPenOverride(e, '2');
+      return;
+    }
+  }, { capture: true, passive: true });
+
+  document.addEventListener('pointerup', e => {
+    if (e.pointerType !== 'pen') return;
+
+    // ── Wacom eraser end release ──
+    if (e.button === 0 && (e.buttons & 32) === 0) {
+      // buttons mask has cleared bit 32 — eraser lifted
+      restorePenOverride(e.pointerId, true);
+      return;
+    }
+
+    // ── Barrel button release ──
+    // On button release e.button matches the button that was released.
+    if (e.button === 1 || e.button === 2) {
+      restorePenOverride(e.pointerId, true);
+    }
+  }, { capture: true, passive: true });
+
+  document.addEventListener('pointercancel', e => {
+    if (e.pointerType !== 'pen') return;
+    restorePenOverride(e.pointerId, true);
+  }, { capture: true, passive: true });
+
+  // ── Sync select dropdowns with loaded config ────────────────────────────
+  function syncSelectsToConfig() {
+    document.querySelectorAll('.pen-btn-select').forEach(sel => {
+      const device = sel.dataset.penDevice;
+      const btn    = sel.dataset.penButton;
+      const key    = device + '_' + btn;
+      const val    = penConfig[key];
+      if (val !== undefined) {
+        sel.value = val;
+      }
+    });
+  }
+
+  // ── Wire up select change events ────────────────────────────────────────
+  // We delegate to a single handler via event bubbling from the overlay.
+  const shortcutsOverlay = document.getElementById('shortcuts-overlay');
+  if (shortcutsOverlay) {
+    shortcutsOverlay.addEventListener('change', e => {
+      const sel = e.target;
+      if (!sel.classList.contains('pen-btn-select')) return;
+      const device = sel.dataset.penDevice;
+      const btn    = sel.dataset.penButton;
+      const key    = device + '_' + btn;
+      penConfig[key] = sel.value;
+      savePenConfig(penConfig);
+      toast('Pen button updated');
+    });
+  }
+
+  // ── Wire up the shortcuts overlay open/close ────────────────────────────
+  // Sync selects each time the overlay opens so they reflect current config.
+  const origShortcutsInit = window._shortcutsOverlayOpen;
+  window._syncPenSelects = syncSelectsToConfig;
+
+  // Sync on DOMContentLoaded to catch the initial state
+  syncSelectsToConfig();
+
+})(); // end initPenButtonShortcuts
 
 // ────────────────────────────────────────
 //  HELPERS
