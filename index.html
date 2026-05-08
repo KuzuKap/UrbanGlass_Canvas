@@ -11079,28 +11079,48 @@ document.addEventListener('keydown', e => {
 });
 
 // ────────────────────────────────────────
-//  PEN BUTTON SHORTCUTS ENGINE  v6
+//  PEN BUTTON SHORTCUTS ENGINE  v7
 //
-//  Uses e.button (which button changed) not e.buttons (bitmask).
-//  Per W3C Pointer Events spec and Wacom's own documentation:
-//    e.button === 1  → barrel button 1  (Wacom Pro Pen 3: TOP button)
-//    e.button === 2  → barrel button 2  (Wacom Pro Pen 3: MIDDLE button)
-//    e.button === 5  → eraser button    (Wacom Pro Pen 3: BOTTOM button)
-//  These fire as discrete pointerdown/pointerup events with e.button set
-//  correctly on ALL platforms including Android Chrome + Wacom Movink.
+//  Rewritten to reliably work with Wacom Pro Pen 3 on Wacom Movink
+//  (Android Chrome) and Apple Pencil Pro (iOS/iPadOS Safari).
 //
-//  The tool-reverts-on-touch bug was caused by pen barrel pointerdown events
-//  (e.button=1/2/5) reaching the canvasContainer drawing handler and starting
-//  a phantom brush stroke. Fixed by blocking e.button!==0 pen events there.
+//  Root problems solved vs v6:
 //
-//  Default mapping (Wacom Pro Pen 3, as requested):
-//    TOP button    (e.button=1) → Eraser
-//    MIDDLE button (e.button=2) → Eyedropper
-//    BOTTOM button (e.button=5) → Select
+//  1. MISSED POINTERUP: On Android/Wacom, barrel-button pointerup events
+//     sometimes arrive with e.button===0 (tip) instead of the barrel button
+//     number, so heldButtonNums never cleared → tool stuck in override.
+//     Fix: cross-check e.buttons bitmask on every pointermove to detect
+//     buttons that have been silently released.
+//
+//  2. DEVICE-AGNOSTIC LOOKUP: v6 used isApple() to pick 'apple_' vs 'wacom_'
+//     prefix, but on an Android tablet with a Wacom pen the prefix was wrong
+//     and nothing matched. Fix: look up config by raw button number (1/2/5)
+//     against both device namespaces and take the first match found.
+//
+//  3. SAFETY TIMEOUT: If the pen leaves proximity without firing pointerout/
+//     pointercancel, the override stays active forever. Fix: a 2-second idle
+//     timer auto-releases the override if no pen events arrive.
+//
+//  4. EYEDROP RESTORE: When the eyedrop tool is used via barrel button,
+//     eyedrop() must NOT call activateTool(prev) — the pen engine owns
+//     the restore. The existing _penBtnActive guard handles this correctly.
+//
+//  Wacom Pro Pen 3 button mapping (Pointer Events spec):
+//    e.button === 1  → Top barrel button     → Eraser   (default)
+//    e.button === 2  → Middle barrel button  → Eyedrop  (default)
+//    e.button === 5  → Bottom/eraser button  → Select   (default)
+//
+//  e.buttons bitmask for those buttons (used for release detection):
+//    bit 2  (value  4) → button 1 held
+//    bit 4  (value 16) → button 2 held
+//    bit 32 (value 32) → button 5 held  (eraser tip on some drivers)
 // ────────────────────────────────────────
 (function initPenButtonShortcuts() {
   'use strict';
 
+  // ── Config keys use the raw button number — no device prefix ──────────────
+  // The UI selects use data-pen-device/data-pen-button, so we keep the same
+  // key format for storage but look up BOTH device prefixes on each event.
   const PEN_DEFAULTS = {
     'wacom_1':   'eraser',    // top barrel button    → Eraser
     'wacom_2':   'eyedrop',   // middle barrel button → Eyedropper
@@ -11109,17 +11129,33 @@ document.addEventListener('keydown', e => {
     'apple_2':   'eyedrop',   // Pencil Pro double-tap → Eyedropper
   };
 
-  const PEN_STORAGE_KEY = 'ug_penButtons_v6';
+  const PEN_STORAGE_KEY = 'ug_penButtons_v7';
   function loadPenConfig() {
     try {
       const raw = localStorage.getItem(PEN_STORAGE_KEY);
-      return raw ? { ...PEN_DEFAULTS, ...JSON.parse(raw) } : { ...PEN_DEFAULTS };
+      // Also migrate from v6 storage key
+      if (!raw) {
+        const old = localStorage.getItem('ug_penButtons_v6');
+        return old ? { ...PEN_DEFAULTS, ...JSON.parse(old) } : { ...PEN_DEFAULTS };
+      }
+      return { ...PEN_DEFAULTS, ...JSON.parse(raw) };
     } catch(e) { return { ...PEN_DEFAULTS }; }
   }
   function savePenConfig(cfg) {
     try { localStorage.setItem(PEN_STORAGE_KEY, JSON.stringify(cfg)); } catch(e) {}
   }
   let penConfig = loadPenConfig();
+
+  // ── Tool lookup: check wacom_ prefix first, then apple_ ──────────────────
+  // This makes the engine device-agnostic: it works on any pen regardless of
+  // whether the OS/driver reports it as Apple Pencil or Wacom.
+  function toolForButton(btnNum) {
+    // Try wacom_ prefix first (Wacom Movink on Android), then apple_ (iOS)
+    const wacomKey = 'wacom_' + btnNum;
+    const appleKey = 'apple_' + btnNum;
+    const tool = penConfig[wacomKey] || penConfig[appleKey] || 'none';
+    return tool;
+  }
 
   const TOOL_LABELS = {
     eraser:'✕ Eraser', eyedrop:'✦ Eyedropper',
@@ -11136,25 +11172,39 @@ document.addEventListener('keydown', e => {
   function hidePenToast() { if (penToast) penToast.classList.remove('show'); }
 
   // ── State ─────────────────────────────────────────────────────────────────
-  // Track which e.button values are currently held, independent of pointerId
-  const heldButtonNums = new Set(); // set of e.button numbers currently pressed
-  let originalTool = null;
-  let overrideTool = null;
+  const heldButtonNums = new Set(); // e.button values currently held
+  let originalTool  = null;
+  let overrideTool  = null;
   window._penBtnActive = false;
 
-  // ── Device detection ──────────────────────────────────────────────────────
-  function isApple() {
-    const ua = navigator.userAgent || '';
-    return /iPad|iPhone|iPod/.test(ua) ||
-           (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+  // Safety timeout — auto-release if pen goes quiet for 2 s
+  let _safetyTimer = null;
+  function _resetSafetyTimer() {
+    clearTimeout(_safetyTimer);
+    if (heldButtonNums.size > 0) {
+      _safetyTimer = setTimeout(() => {
+        if (heldButtonNums.size > 0) {
+          heldButtonNums.clear();
+          applyBestOverride();
+        }
+      }, 2000);
+    }
   }
 
-  function buttonToKey(btn) {
-    const prefix = isApple() ? 'apple' : 'wacom';
-    return prefix + '_' + btn;
+  // ── e.buttons bitmask → set of logical button numbers ────────────────────
+  // Maps the e.buttons bitmask bits back to e.button numbers so we can
+  // cross-check which buttons are still physically held on pointermove.
+  // Per W3C spec: bit 0=tip(1), bit 1=barrel1(2), bit 2=barrel2(4), bit 5=eraser(32)
+  // e.button numbers:  0=tip,        1=barrel1,     2=barrel2,      5=eraser
+  function buttonsMaskToSet(mask) {
+    const held = new Set();
+    if (mask & 2)  held.add(1);  // barrel button 1
+    if (mask & 4)  held.add(2);  // barrel button 2
+    if (mask & 32) held.add(5);  // eraser/bottom button
+    return held;
   }
 
-  // ── Apply the best active override ───────────────────────────────────────
+  // ── Apply the highest-priority active override ────────────────────────────
   function applyBestOverride() {
     if (heldButtonNums.size === 0) {
       if (overrideTool !== null) {
@@ -11164,38 +11214,72 @@ document.addEventListener('keydown', e => {
         originalTool = null;
         hidePenToast();
       }
+      clearTimeout(_safetyTimer);
       return;
     }
 
-    // Pick the first held button in insertion order
-    const btn    = [...heldButtonNums][0];
-    const cfgKey = buttonToKey(btn);
-    const newTool = penConfig[cfgKey] || 'none';
+    // Use the lowest button number held (top button takes priority)
+    const btn     = Math.min(...heldButtonNums);
+    const newTool = toolForButton(btn);
 
     if (newTool === 'none') return;
     if (newTool === overrideTool) return;
 
+    // First activation — capture the tool we'll restore to
     if (overrideTool === null) originalTool = state.tool;
     overrideTool = newTool;
     window._penBtnActive = true;
     if (newTool === 'eyedrop') state._preEyedropTool = originalTool;
     activateTool(newTool);
     showPenToast(newTool);
+    _resetSafetyTimer();
+  }
+
+  // ── Cross-check held buttons against e.buttons bitmask ───────────────────
+  // Called on every pen pointermove. If a button we thought was held is no
+  // longer in the bitmask, it was released silently — clean it up.
+  function reconcileButtons(e) {
+    if (e.pointerType !== 'pen') return;
+    const stillHeld = buttonsMaskToSet(e.buttons || 0);
+    let changed = false;
+    for (const btn of [...heldButtonNums]) {
+      if (!stillHeld.has(btn)) {
+        heldButtonNums.delete(btn);
+        changed = true;
+      }
+    }
+    if (changed) applyBestOverride();
   }
 
   // ── Event handlers ────────────────────────────────────────────────────────
   function onPenButtonDown(e) {
     if (e.pointerType !== 'pen') return;
-    if (e.button === 0) return; // tip — not a barrel button
+    if (e.button === 0) {
+      // Tip touch while barrel held — just reconcile in case buttons changed
+      reconcileButtons(e);
+      return;
+    }
     heldButtonNums.add(e.button);
     applyBestOverride();
   }
 
   function onPenButtonUp(e) {
     if (e.pointerType !== 'pen') return;
-    if (e.button === 0) return; // tip lift — not a barrel button release
+    if (e.button === 0) {
+      // Tip lift — reconcile bitmask to catch silently released barrel buttons
+      reconcileButtons(e);
+      return;
+    }
     heldButtonNums.delete(e.button);
+    // Also reconcile full bitmask in case driver reported multiple releases at once
+    reconcileButtons(e);
     applyBestOverride();
+  }
+
+  function onPenMove(e) {
+    if (e.pointerType !== 'pen') return;
+    reconcileButtons(e);
+    if (heldButtonNums.size > 0) _resetSafetyTimer();
   }
 
   function onPenCancel(e) {
@@ -11205,23 +11289,33 @@ document.addEventListener('keydown', e => {
   }
 
   // ── Attach listeners ──────────────────────────────────────────────────────
-  // capture:true so we run before canvasContainer's bubble-phase listeners.
-  // passive:true — we never call preventDefault (no need to).
-  const OPTS = { capture: true, passive: true };
+  // capture:true — run before canvasContainer's bubble-phase draw handlers.
+  // passive:true — no preventDefault needed; barrel buttons don't scroll.
+  const OPTS_CAP  = { capture: true, passive: true };
+  const OPTS_BUB  = { passive: true };
 
-  document.addEventListener('pointerdown',   onPenButtonDown, OPTS);
-  document.addEventListener('pointerup',     onPenButtonUp,   OPTS);
-  document.addEventListener('pointercancel', onPenCancel,     OPTS);
+  document.addEventListener('pointerdown',   onPenButtonDown, OPTS_CAP);
+  document.addEventListener('pointerup',     onPenButtonUp,   OPTS_CAP);
+  document.addEventListener('pointermove',   onPenMove,       OPTS_BUB);
+  document.addEventListener('pointercancel', onPenCancel,     OPTS_CAP);
 
-  // When pen leaves proximity entirely, release all held buttons
+  // Release all buttons when pen leaves proximity (pen hover → out of range)
+  document.addEventListener('pointerleave', e => {
+    if (e.pointerType !== 'pen') return;
+    heldButtonNums.clear();
+    applyBestOverride();
+  }, OPTS_CAP);
+
+  // pointerout fires on every child element exit; only clear when leaving document
   document.addEventListener('pointerout', e => {
     if (e.pointerType !== 'pen') return;
-    // pointerout fires on every element exit — only act when the pen
-    // leaves the document entirely (relatedTarget === null)
-    if (e.relatedTarget === null) onPenCancel(e);
-  }, OPTS);
+    if (e.relatedTarget === null || e.relatedTarget === document.documentElement) {
+      heldButtonNums.clear();
+      applyBestOverride();
+    }
+  }, OPTS_CAP);
 
-  // ── Sync dropdowns ────────────────────────────────────────────────────────
+  // ── Sync dropdowns to current config ─────────────────────────────────────
   function syncSelectsToConfig() {
     document.querySelectorAll('.pen-btn-select').forEach(sel => {
       const key = sel.dataset.penDevice + '_' + sel.dataset.penButton;
