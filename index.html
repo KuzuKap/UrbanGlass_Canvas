@@ -3153,18 +3153,6 @@
 
   <div class="prefs-sep"></div>
 
-  <!-- UI Scale — consolidated: removed separate sidebar slider size -->
-  <div class="prefs-row">
-    <div class="prefs-row-info">
-      <div class="prefs-row-title">UI Scale</div>
-      <div class="prefs-row-sub">Scale the entire interface</div>
-    </div>
-    <div class="pref-slider-wrap">
-      <input type="range" class="pref-slider" id="pref-ui-scale" min="70" max="130" value="100" step="5">
-      <span class="pref-slider-val" id="pref-ui-scale-val">100%</span>
-    </div>
-  </div>
-
   <!-- Sidebar slider height -->
   <div class="prefs-row">
     <div class="prefs-row-info">
@@ -6992,41 +6980,7 @@ document.addEventListener('click', e => {
     rhWrap.addEventListener('click', () => { applyHandedness(!rightHanded); positionPanels(); });
   }
 
-  // ── INTERFACE: UI Scale ──
-  const uiScalePref = document.getElementById('pref-ui-scale');
-  const uiScaleVal  = document.getElementById('pref-ui-scale-val');
-  function applyUIScale(pct) {
-    document.documentElement.style.fontSize = (pct / 100) + 'rem';
-    document.documentElement.style.setProperty('--ui-scale', pct / 100);
-    const scale = pct / 100;
-    const app = document.getElementById('app');
-    if (app) {
-      app.style.transformOrigin = 'top left';
-      app.style.transform = scale !== 1 ? `scale(${scale})` : '';
-      app.style.width  = scale !== 1 ? (100 / scale) + '%' : '';
-      app.style.height = scale !== 1 ? (100 / scale) + 'vh' : '';
-    }
-    if (uiScaleVal) uiScaleVal.textContent = pct + '%';
-  }
-  if (uiScalePref) {
-    uiScalePref.addEventListener('input', () => { applyUIScale(parseInt(uiScalePref.value)); });
-    applyUIScale(parseInt(uiScalePref.value));
-  }
-
-  // ── INTERFACE: Sidebar slider size ──
-  const sliderSizePref = document.getElementById('pref-slider-size');
-  const sliderSizeVal  = document.getElementById('pref-slider-size-val');
-  function applySliderSize(px) {
-    document.querySelectorAll('input[type=range].vertical').forEach(el => { el.style.height = px + 'px'; });
-    if (sliderSizeVal) sliderSizeVal.textContent = px;
-  }
-  if (sliderSizePref) {
-    sliderSizePref.addEventListener('input', () => { applySliderSize(parseInt(sliderSizePref.value)); });
-    applySliderSize(parseInt(sliderSizePref.value));
-  }
-
-})();
-
+ 
 // ────────────────────────────────────────
 //  GRID OVERLAY
 // ────────────────────────────────────────
