@@ -7905,6 +7905,10 @@ function initSelectionEvents() {
   canvasContainer.addEventListener('pointerdown', e => {
     if (state.tool !== 'select') return;
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    // Block pen barrel button events — only tip contact (e.button===0) should
+    // start a selection. Without this guard, barrel pointerdown (e.button=5)
+    // would call setPointerCapture and freeze the pointer in place.
+    if (e.button !== 0 && e.pointerType === 'pen') return;
     if (window._txActive && window._txActive()) return; // block during transform
     canvasContainer.setPointerCapture(e.pointerId);
 
@@ -11074,67 +11078,58 @@ document.addEventListener('keydown', e => {
 });
 
 // ────────────────────────────────────────
-//  PEN BUTTON SHORTCUTS ENGINE  v10
+//  PEN BUTTON SHORTCUTS ENGINE  v11
 //
 //  Wacom Pro Pen 3 — 3 barrel buttons, no eraser end.
 //  Platform: Android Chrome on Wacom Movink Pro 14.
 //
-//  HOW BARREL BUTTONS ARE REPORTED ON ANDROID CHROME + WACOM:
+//  ROOT CAUSE OF ALL PREVIOUS FAILURES:
 //
-//  All Wacom Pro Pen 3 events (tip and barrel) fire with pointerType='pen'.
-//  The e.buttons bitmask on every pen event reflects ALL currently-held
-//  input sources simultaneously — tip AND barrels are OR-ed together:
-//    bit 1  (value 1)  — pen tip is pressed
-//    bit 2  (value 2)  — top barrel button is held       (e.button = 1 on down/up)
-//    bit 4  (value 4)  — middle barrel button is held    (e.button = 2 on down/up)
-//    bit 32 (value 32) — bottom barrel button is held    (e.button = 5 on down/up)
+//  Relying on e.buttons from tip-contact events to carry barrel bits is
+//  unreliable. Android Chrome does NOT guarantee that e.buttons on a tip
+//  pointerdown includes bits for simultaneously-held barrel buttons.
+//  In practice, tip pointerdown fires e.buttons=1 (just the tip), losing
+//  the barrel bits — so any bitmask-only approach clears the override the
+//  moment the pen touches.
 //
-//  W3C PointerEvents spec §10, MDN "Determining button states" table confirms
-//  these bit values for pen stylus barrel buttons 1, 2, and 5.
+//  CORRECT APPROACH:
 //
-//  SOURCE OF BUG 1 (eraser reverts when tip touches):
-//    canvasContainer.setPointerCapture() routes all subsequent pointermove
-//    events for that pointer to canvasContainer, not document. The document-
-//    level listener from v9 stops receiving pen moves mid-stroke. Fix: also
-//    listen on canvasContainer (with capture:true so it fires before the
-//    drawing handler) for pointermove.
+//  Track barrel state separately using a Set, updated ONLY from barrel-
+//  specific pointerdown/pointerup events (e.button = 1, 2, or 5 with
+//  pointerType='pen'). The tip touching/lifting (e.button=0) never touches
+//  this set. The set is the single source of truth for "which barrels held".
 //
-//  SOURCE OF BUG 2 (third button does nothing):
-//    v9 only called updateFromButtons() from pointermove. If the user presses
-//    a barrel button while the pen is stationary (no move events), it is never
-//    detected. Fix: also call updateFromButtons() from pen pointerdown events.
-//    The canvas draw guard (e.button !== 0 → return) already prevents phantom
-//    strokes from barrel pointerdown — we just need to read the bitmask.
+//  Barrel press:   pen pointerdown, e.button > 0  → add to set, apply
+//  Barrel release: pen pointerup,   e.button > 0  → remove from set, apply
+//  Tip down/move:  e.button = 0                   → ignored by barrel tracking
+//  Pen out of range:                               → clear set, restore
 //
-//  APPROACH:
-//    Read e.buttons on every pen event (pointerdown, pointermove, pointerup,
-//    pointercancel) at document capture phase AND canvasContainer capture phase.
-//    The bitmask is always current hardware state. No timers, no stale sets.
+//  This matches how CSP/Krita handle barrel state on Android.
+//
+//  ALSO FIXES: select tool freeze — barrel pointerdown events (e.button=5)
+//  were reaching the select handler, capturing the pointer, and freezing it.
+//  stopImmediatePropagation() on barrel pointerdown prevents this entirely.
+//
+//  Wacom Pro Pen 3 barrel → e.button mapping (W3C spec + MDN):
+//    Top barrel:    e.button = 1
+//    Middle barrel: e.button = 2
+//    Bottom barrel: e.button = 5
 // ────────────────────────────────────────
 (function initPenButtonShortcuts() {
   'use strict';
 
   // ── Configuration ─────────────────────────────────────────────────────────
-  // W3C bitmask values for Wacom Pro Pen 3 barrel buttons:
-  //   bit2  = top barrel button    (e.button 1 on press/release)
-  //   bit4  = middle barrel button (e.button 2 on press/release)
-  //   bit32 = bottom barrel button (e.button 5 on press/release)
   const CFG_DEFAULTS = {
-    bit2:  'eraser',   // top barrel button    → Eraser
-    bit4:  'eyedrop',  // middle barrel button → Eyedropper
-    bit32: 'select',   // bottom barrel button → Select
+    btn1: 'eraser',   // top barrel (e.button=1)    → Eraser
+    btn2: 'eyedrop',  // middle barrel (e.button=2) → Eyedropper
+    btn5: 'select',   // bottom barrel (e.button=5) → Select
   };
 
-  const STORAGE_KEY = 'ug_penButtons_v10';
+  const STORAGE_KEY = 'ug_penButtons_v11';
   function loadCfg() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      // Migrate from v9 storage (same key names, just update version key)
-      if (!raw) {
-        const old = localStorage.getItem('ug_penButtons_v9');
-        return old ? { ...CFG_DEFAULTS, ...JSON.parse(old) } : { ...CFG_DEFAULTS };
-      }
-      return { ...CFG_DEFAULTS, ...JSON.parse(raw) };
+      return raw ? { ...CFG_DEFAULTS, ...JSON.parse(raw) } : { ...CFG_DEFAULTS };
     } catch(e) { return { ...CFG_DEFAULTS }; }
   }
   function saveCfg(c) {
@@ -11142,10 +11137,13 @@ document.addEventListener('keydown', e => {
   }
   let cfg = loadCfg();
 
-  // ── State ─────────────────────────────────────────────────────────────────
-  let originalTool = null;   // tool active before any barrel press
-  let currentOverride = null; // tool currently forced by a barrel button
-  window._penBtnActive = false; // read by eyedrop() to skip tool restore
+  // ── State — barrel Set is the only truth ──────────────────────────────────
+  // Keys are e.button values (1, 2, 5). Updated ONLY from barrel events.
+  // Tip events (e.button=0) never touch this set.
+  const heldBarrels = new Set();
+  let originalTool   = null;
+  let currentOverride = null;
+  window._penBtnActive = false;
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   const penToast = document.getElementById('pen-btn-toast');
@@ -11162,24 +11160,22 @@ document.addEventListener('keydown', e => {
     if (penToast) penToast.classList.remove('show');
   }
 
-  // ── Map bitmask to tool name ───────────────────────────────────────────────
-  // Priority: top (bit2) > middle (bit4) > bottom (bit32).
-  // Bit 1 = tip — excluded so drawing alone never triggers an override.
-  function toolFromButtons(buttons) {
-    // Strip the tip bit (1) — only barrel bits matter here.
-    const barrels = buttons & ~1;
-    if (barrels & 2)  { const t = cfg.bit2;  if (t && t !== 'none') return t; }
-    if (barrels & 4)  { const t = cfg.bit4;  if (t && t !== 'none') return t; }
-    if (barrels & 32) { const t = cfg.bit32; if (t && t !== 'none') return t; }
+  // ── Resolve highest-priority held barrel's tool ───────────────────────────
+  function resolveToolFromSet() {
+    for (const btnNum of [1, 2, 5]) {
+      if (heldBarrels.has(btnNum)) {
+        const t = cfg['btn' + btnNum];
+        if (t && t !== 'none') return t;
+      }
+    }
     return null;
   }
 
-  // ── Apply the desired state derived from live e.buttons ───────────────────
-  function updateFromButtons(buttons) {
-    const wanted = toolFromButtons(buttons);
+  // ── Apply current held state ───────────────────────────────────────────────
+  function applyState() {
+    const wanted = resolveToolFromSet();
 
     if (!wanted) {
-      // No barrel held — restore if we were overriding.
       if (currentOverride !== null) {
         const restore = originalTool || 'brush';
         currentOverride = null;
@@ -11191,11 +11187,9 @@ document.addEventListener('keydown', e => {
       return;
     }
 
-    // A barrel is held and we want a specific tool.
-    if (currentOverride === wanted) return; // already correct — nothing to do
+    if (currentOverride === wanted) return;
 
     if (currentOverride === null) {
-      // First barrel press this session — save the current tool.
       originalTool = state.tool;
     }
     currentOverride = wanted;
@@ -11205,60 +11199,49 @@ document.addEventListener('keydown', e => {
     showToast(wanted);
   }
 
-  // ── Pen event handler — called from all pen listeners below ───────────────
-  function onPenEvent(e) {
+  // ── Barrel pointerdown ─────────────────────────────────────────────────────
+  // Non-passive capture: must stopImmediatePropagation so barrel events never
+  // reach the canvas draw handler or the select handler (which would capture
+  // the pointer and freeze the cursor).
+  document.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'pen') return;
-    updateFromButtons(e.buttons);
-  }
+    if (e.button === 0) return; // tip contact — ignore for barrel tracking
+    // Barrel button pressed. Record it and activate the mapped tool.
+    heldBarrels.add(e.button);
+    applyState();
+    // Block this event from ALL downstream handlers.
+    // Without this, the canvas draw handler and select handler both receive
+    // barrel pointerdown events and start strokes / capture the pointer.
+    e.stopImmediatePropagation();
+  }, { capture: true, passive: false });
 
-  // ── Document-level listeners (capture phase) ──────────────────────────────
-  // Capture phase fires BEFORE any element-level handlers — this ensures we
-  // read the bitmask before the drawing engine processes the event.
-  const OPTS = { capture: true, passive: true };
-  document.addEventListener('pointerdown',   onPenEvent, OPTS);
-  document.addEventListener('pointermove',   onPenEvent, OPTS);
-  document.addEventListener('pointerup',     onPenEvent, OPTS);
-  document.addEventListener('pointercancel', function(e) {
+  // ── Barrel pointerup ───────────────────────────────────────────────────────
+  document.addEventListener('pointerup', function(e) {
     if (e.pointerType !== 'pen') return;
-    updateFromButtons(0); // treat cancel as all-released
-  }, OPTS);
+    if (e.button === 0) return; // tip lift — ignore
+    heldBarrels.delete(e.button);
+    applyState();
+  }, { capture: true, passive: true });
 
-  // ── canvasContainer listeners — survive setPointerCapture ─────────────────
-  // When canvasContainer.setPointerCapture() is called during a stroke, all
-  // subsequent pen pointer events are redirected to canvasContainer. They no
-  // longer bubble up to document for our capture-phase listeners above.
-  // Adding the same listener on canvasContainer (also capture phase) ensures
-  // we always see every pen event regardless of capture state.
-  //
-  // We defer attaching until the DOM is ready since canvasContainer is
-  // defined later in the same script block via `const canvasContainer = ...`.
-  setTimeout(function() {
-    const cc = document.getElementById('canvas-container');
-    if (!cc) return;
-    cc.addEventListener('pointermove',   onPenEvent, OPTS);
-    cc.addEventListener('pointerup',     onPenEvent, OPTS);
-    cc.addEventListener('pointercancel', function(e) {
-      if (e.pointerType !== 'pen') return;
-      updateFromButtons(0);
-    }, OPTS);
-  }, 0);
-
-  // ── Pen leaves digitizer range — clear override ───────────────────────────
-  // pointerout on document with relatedTarget===null means the pen went fully
-  // out of range. Different from pointerleave which fires element-to-element.
+  // ── Pen leaves digitizer entirely ─────────────────────────────────────────
   document.addEventListener('pointerout', function(e) {
     if (e.pointerType !== 'pen') return;
-    if (e.relatedTarget !== null) return; // still on-screen, ignore
-    updateFromButtons(0);
-  }, OPTS);
+    if (e.relatedTarget !== null) return; // moved to child, not out of range
+    if (heldBarrels.size > 0) { heldBarrels.clear(); applyState(); }
+  }, { capture: true, passive: true });
+
+  document.addEventListener('pointercancel', function(e) {
+    if (e.pointerType !== 'pen') return;
+    if (heldBarrels.size > 0) { heldBarrels.clear(); applyState(); }
+  }, { capture: true, passive: true });
 
   // ── UI: sync shortcuts overlay selects ────────────────────────────────────
   const SELECT_MAP = {
-    'pen-wacom-top':    'bit2',
-    'pen-wacom-middle': 'bit4',
-    'pen-wacom-bottom': 'bit32',
-    'pen-apple-btn1':   'bit2',
-    'pen-apple-btn2':   'bit4',
+    'pen-wacom-top':    'btn1',
+    'pen-wacom-middle': 'btn2',
+    'pen-wacom-bottom': 'btn5',
+    'pen-apple-btn1':   'btn1',
+    'pen-apple-btn2':   'btn2',
   };
 
   function syncSelectsToConfig() {
