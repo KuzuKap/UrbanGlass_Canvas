@@ -6988,7 +6988,19 @@ document.addEventListener('click', e => {
     document.documentElement.style.setProperty('--ui-scale', pct / 100);
     const scale = pct / 100;
     const app = document.getElementById('app');
-  
+    if (app) {
+      app.style.transformOrigin = 'top left';
+      app.style.transform = scale !== 1 ? `scale(${scale})` : '';
+      app.style.width  = scale !== 1 ? (100 / scale) + '%' : '';
+      app.style.height = scale !== 1 ? (100 / scale) + 'vh' : '';
+    }
+    if (uiScaleVal) uiScaleVal.textContent = pct + '%';
+  }
+  if (uiScalePref) {
+    uiScalePref.addEventListener('input', () => { applyUIScale(parseInt(uiScalePref.value)); });
+    applyUIScale(parseInt(uiScalePref.value));
+  }
+
   // ── INTERFACE: Sidebar slider size ──
   const sliderSizePref = document.getElementById('pref-slider-size');
   const sliderSizeVal  = document.getElementById('pref-slider-size-val');
