@@ -2093,10 +2093,10 @@
     background: var(--panel-bg); backdrop-filter: blur(40px) saturate(2);
     -webkit-backdrop-filter: blur(40px) saturate(2);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-xl); padding: var(--sp-6); width: min(640px, 95vw); max-height: 88vh;
-    display: flex; flex-direction: column; gap: var(--sp-4); overflow: hidden;
+    border-radius: var(--radius-xl); width: min(640px, 95vw); max-height: 88vh;
+    display: flex; flex-direction: column; gap: 0; overflow: hidden;
   }
-  .shortcuts-header { display: flex; align-items: center; justify-content: space-between; }
+  .shortcuts-header { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-6) var(--sp-6) var(--sp-4); flex-shrink: 0; }
   .shortcuts-title { font-size: 17px; font-weight: 600; color: var(--text); font-family: 'DM Sans', sans-serif; letter-spacing: -0.01em; }
   .shortcuts-close {
     width: 28px; height: 28px; border-radius: 50%;
@@ -2107,7 +2107,7 @@
   }
   .shortcuts-close:hover { background: rgba(255,69,58,0.18); color: var(--red); }
   .shortcuts-close:active { transform: scale(0.9); }
-  .shortcuts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--sp-6); overflow-y: auto; padding-right: var(--sp-1); }
+  .shortcuts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--sp-6); overflow-y: auto; padding: 0 var(--sp-6) var(--sp-4); flex: 1; min-height: 0; }
   .shortcuts-grid::-webkit-scrollbar { width: 3px; }
   .shortcuts-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
@@ -2213,13 +2213,13 @@
     padding: var(--sp-3) 0 var(--sp-1); grid-column: 1 / -1;
     border-top: 1px solid var(--border); margin-top: var(--sp-1);
   }
-  .shortcuts-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .shortcuts-section:first-child { border-top: none; margin-top: 0; padding-top: var(--sp-2); }
   .shortcut-row {
     display: flex; align-items: center; justify-content: space-between;
     padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
-    min-height: 36px;
+    min-height: 36px; gap: var(--sp-2);
   }
-  .shortcut-label { font-size: 13px; color: var(--text2); font-family: 'DM Sans', sans-serif; }
+  .shortcut-label { font-size: 13px; color: var(--text2); font-family: 'DM Sans', sans-serif; flex: 1; min-width: 0; }
   .shortcut-keys { display: flex; gap: var(--sp-1); align-items: center; }
   /* HIG keyboard key badge */
   .kbd {
@@ -2231,6 +2231,69 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   }
   .kbd-sep { font-size: 10px; color: var(--text3); padding: 0 1px; }
+
+  /* ── Editable shortcut key chips ── */
+  .shortcut-keys-wrap {
+    display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+    cursor: pointer; border-radius: 6px; padding: 2px 3px;
+    transition: background 0.12s;
+    position: relative;
+  }
+  .shortcut-keys-wrap:hover { background: rgba(62,207,110,0.08); }
+  .shortcut-keys-wrap.capturing {
+    background: rgba(62,207,110,0.18);
+    outline: 1.5px solid var(--accent);
+    outline-offset: 1px;
+    animation: sc-pulse 1s ease-in-out infinite;
+  }
+  @keyframes sc-pulse {
+    0%, 100% { outline-color: var(--accent); }
+    50%       { outline-color: var(--accent2); }
+  }
+  .shortcut-keys-wrap .kbd.capturing-hint {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    color: var(--accent2);
+    font-style: italic;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px;
+    padding: 0 8px;
+  }
+  /* non-editable shortcuts (Space+Drag, Enter, Esc) */
+  .shortcut-keys-wrap.no-edit { cursor: default; }
+  .shortcut-keys-wrap.no-edit:hover { background: transparent; }
+
+  /* ── Shortcuts overlay footer ── */
+  #shortcuts-footer {
+    display: flex; gap: var(--sp-2); align-items: center;
+    padding: var(--sp-4) var(--sp-6);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #shortcuts-save-btn {
+    flex: 1; height: 36px; border-radius: var(--radius-md);
+    border: none; background: var(--accent); color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background 0.12s, transform 0.08s;
+  }
+  #shortcuts-save-btn:hover { background: var(--accent2); }
+  #shortcuts-save-btn:active { transform: scale(0.97); }
+  #shortcuts-reset-btn {
+    height: 36px; padding: 0 var(--sp-4); border-radius: var(--radius-md);
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text2); font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: background 0.12s, color 0.12s, transform 0.08s;
+    white-space: nowrap;
+  }
+  #shortcuts-reset-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border2); }
+  #shortcuts-reset-btn:active { transform: scale(0.97); }
+  #shortcuts-capture-hint {
+    font-size: 11px; color: var(--text3); text-align: center;
+    padding: var(--sp-2) var(--sp-4) 0;
+    font-family: 'DM Sans', sans-serif;
+    flex-shrink: 0;
+  }
 
   /* ── Canvas Resize Modal — HIG sheet ── */
   #resize-modal {
@@ -2502,6 +2565,56 @@
     inset: 0;
     pointer-events: none;
     z-index: 6;
+  }
+
+  /* ── Gradient map stop markers ── */
+  .gm-bar-wrap {
+    position: relative;
+    padding-bottom: 12px; /* room for stop markers */
+  }
+  .gm-stop-marker {
+    position: absolute;
+    bottom: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    transform: translateX(-50%);
+    cursor: grab;
+    touch-action: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    transition: border-color 0.1s, box-shadow 0.1s;
+  }
+  .gm-stop-marker:active { cursor: grabbing; }
+  .gm-stop-marker.gm-selected {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1.5px rgba(110,230,160,0.4), 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .gm-stop-color-btn {
+    width: 28px; height: 20px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border2);
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.12s, transform 0.08s;
+  }
+  .gm-stop-color-btn:hover { border-color: var(--accent); transform: scale(1.06); }
+  .gm-stop-color-btn input[type=color] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+  .gm-stop-preview {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
 </style>
 </head>
@@ -2947,29 +3060,11 @@
       <span class="shortcuts-title">Shortcuts &amp; Pen Buttons</span>
       <button class="shortcuts-close" id="shortcuts-close">✕</button>
     </div>
-    <div class="shortcuts-grid">
-      <div class="shortcuts-section">Tools</div>
-      <div class="shortcut-row"><span class="shortcut-label">Brush</span><div class="shortcut-keys"><span class="kbd">B</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Eraser</span><div class="shortcut-keys"><span class="kbd">E</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Fill</span><div class="shortcut-keys"><span class="kbd">F</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Eyedropper</span><div class="shortcut-keys"><span class="kbd">I</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Move</span><div class="shortcut-keys"><span class="kbd">M</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Crop</span><div class="shortcut-keys"><span class="kbd">C</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Select</span><div class="shortcut-keys"><span class="kbd">S</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Pan canvas</span><div class="shortcut-keys"><span class="kbd">Space</span><span class="kbd-sep">+</span><span class="kbd">Drag</span></div></div>
-      <div class="shortcuts-section">Brush</div>
-      <div class="shortcut-row"><span class="shortcut-label">Decrease size</span><div class="shortcut-keys"><span class="kbd">[</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Increase size</span><div class="shortcut-keys"><span class="kbd">]</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Zoom in</span><div class="shortcut-keys"><span class="kbd">+</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Zoom out</span><div class="shortcut-keys"><span class="kbd">−</span></div></div>
-      <div class="shortcuts-section">Edit</div>
-      <div class="shortcut-row"><span class="shortcut-label">Undo</span><div class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd-sep">+</span><span class="kbd">Z</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Redo</span><div class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd-sep">+</span><span class="kbd">Y</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Save project</span><div class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd-sep">+</span><span class="kbd">S</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Export</span><div class="shortcut-keys"><span class="kbd">Ctrl</span><span class="kbd-sep">+</span><span class="kbd">E</span></div></div>
-      <div class="shortcuts-section">Transform</div>
-      <div class="shortcut-row"><span class="shortcut-label">Apply</span><div class="shortcut-keys"><span class="kbd">Enter</span></div></div>
-      <div class="shortcut-row"><span class="shortcut-label">Cancel</span><div class="shortcut-keys"><span class="kbd">Esc</span></div></div>
+    <div id="shortcuts-capture-hint" style="display:none;">Tap a shortcut key to edit it, then press your new key combo</div>
+    <div class="shortcuts-grid" id="shortcuts-grid-body">
+      <!-- Dynamically populated by initShortcutsSystem() below.
+           The pen select elements below exist for initial page-load pen engine
+           initialization and are replaced when the overlay first opens. -->
 
       <!-- ── Pen Button Shortcuts — spans both columns ── -->
       <div class="pen-shortcuts-section">
@@ -3056,6 +3151,11 @@
         </div>
       </div>
 
+    </div>
+    <!-- ── Shortcuts footer ── -->
+    <div id="shortcuts-footer">
+      <button id="shortcuts-reset-btn">↺ Reset to Defaults</button>
+      <button id="shortcuts-save-btn">Save Shortcuts</button>
     </div>
   </div>
 </div>
@@ -3152,18 +3252,6 @@
   </div>
 
   <div class="prefs-sep"></div>
-
-  <!-- UI Scale — consolidated: removed separate sidebar slider size -->
-  <div class="prefs-row">
-    <div class="prefs-row-info">
-      <div class="prefs-row-title">UI Scale</div>
-      <div class="prefs-row-sub">Scale the entire interface</div>
-    </div>
-    <div class="pref-slider-wrap">
-      <input type="range" class="pref-slider" id="pref-ui-scale" min="70" max="130" value="100" step="5">
-      <span class="pref-slider-val" id="pref-ui-scale-val">100%</span>
-    </div>
-  </div>
 
   <!-- Sidebar slider height -->
   <div class="prefs-row">
@@ -6529,6 +6617,14 @@ const pressureState = {
   raw: 1,        // latest raw value from the pointer event
   smoothed: 1,   // exponentially smoothed value used for rendering
   active: false, // whether a real stylus/pen with variable pressure is detected
+  outSize: null,    // second-stage smoothed SIZE scale (post pressure-curve), null = not yet seeded this stroke
+  outOpacity: null, // second-stage smoothed OPACITY scale (post pressure-curve), null = not yet seeded this stroke
+  strokeStart: true, // true for the first pressure sample of a stroke. Forces every
+                      // smoothing stage to hard-seed from the real starting value instead
+                      // of blending from whatever the PREVIOUS stroke ended on — that stale
+                      // blend was the cause of the visible pressure "jump" right as a new
+                      // stroke begins, especially noticeable on brushes like G-Pen whose
+                      // heavy-start curve + very low sizeMin make any mismatch highly visible.
 };
 
 // Pressure affects size and/or opacity depending on user settings
@@ -6552,6 +6648,13 @@ const canvasPrefs = {
 
 // Smooth incoming pressure with a low-pass filter (avoids jitter)
 function smoothPressure(raw) {
+  // First sample of a new stroke: seed directly, never blend from whatever
+  // value the previous stroke (or pointer) left behind.
+  if (pressureState.strokeStart) {
+    pressureState.smoothed = raw;
+    pressureState.strokeStart = false;
+    return raw;
+  }
   if (!pressureSettings.smoothStrokes) {
     pressureState.smoothed = raw;
     return raw;
@@ -6581,6 +6684,52 @@ function pressureToOpacityScale(p, brush) {
   const min    = minPct / 100;
   const remapped = remapPressure(Math.max(0, Math.min(1, p)), curve);
   return min + (1 - min) * remapped;
+}
+
+// Second-stage smoothing applied to the FINAL (post pressure-curve) size/opacity
+// scale, on top of the raw-pressure smoothing in smoothPressure() above.
+//
+// Why two stages: steep low-end curves — e.g. G-Pen's "Heavy Start" curve
+// (p^0.45) combined with its very low sizeMin (2%) — have a derivative that
+// approaches infinity near zero pressure. That means even a perfectly smooth,
+// tiny fluctuation in raw pressure gets amplified into a large, visible swing
+// in line width after the curve is applied. Smoothing the curve's OUTPUT as
+// well keeps width changes continuous regardless of how steep the curve is,
+// without adding noticeable input lag (this stage is still a fast EMA).
+const SCALE_SMOOTH = 0.30;
+
+// Computes the pressure-driven size/opacity scale for a brush from an
+// already-smoothed 0..1 pressure value. Call once per pointer sample (down
+// or move). pressureState.outSize / outOpacity are reset to null at the start
+// of every stroke so the first sample is seeded directly — never blended
+// from the previous stroke's leftover scale.
+function getPressureScales(p, brush) {
+  const sizeOn    = brush.sizePressure    && pressureSettings.enabled;
+  const opacityOn = brush.opacityPressure && pressureSettings.enabled;
+
+  let sizeScale = 1;
+  if (sizeOn) {
+    const target = pressureToScale(p, brush);
+    sizeScale = (pressureState.outSize == null)
+      ? target
+      : pressureState.outSize * SCALE_SMOOTH + target * (1 - SCALE_SMOOTH);
+    pressureState.outSize = sizeScale;
+  } else {
+    pressureState.outSize = null;
+  }
+
+  let opacityScale = 1;
+  if (opacityOn) {
+    const target = pressureToOpacityScale(p, brush);
+    opacityScale = (pressureState.outOpacity == null)
+      ? target
+      : pressureState.outOpacity * SCALE_SMOOTH + target * (1 - SCALE_SMOOTH);
+    pressureState.outOpacity = opacityScale;
+  } else {
+    pressureState.outOpacity = null;
+  }
+
+  return { sizeScale, opacityScale };
 }
 
 function getPressure(e) {
@@ -6666,7 +6815,12 @@ canvasContainer.addEventListener('pointerdown', e => {
   canvasContainer.setPointerCapture(e.pointerId);
 
   const {x, y} = clientToCanvas(e.clientX, e.clientY);
-  pressureState.smoothed = getPressure(e);
+  // Mark this as the first pressure sample of a new stroke. smoothPressure()
+  // and getPressureScales() below will hard-seed from this stroke's real
+  // starting pressure instead of blending from the previous stroke's value.
+  pressureState.strokeStart = true;
+  pressureState.outSize     = null;
+  pressureState.outOpacity  = null;
 
   if (state.tool === 'move') {
     state.drawing = true;
@@ -6693,15 +6847,11 @@ canvasContainer.addEventListener('pointerdown', e => {
 
   const pressure = getPressure(e);
   const brush = getActiveBrush();
-  const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
-  const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
+  const { sizeScale, opacityScale } = getPressureScales(pressure, brush);
 
   if (state.tool === 'brush') {
     wetInit(getActiveCtx());
-    const initialSizeScale = (brush.sizePressure && pressureSettings.enabled)
-      ? pressureToScale(0.08, brush)
-      : sizeScale;
-    const size = Math.max(0.5, brush.size * initialSizeScale);
+    const size = Math.max(0.5, brush.size * sizeScale);
     const {r,g,b} = hexToRgb(state.color);
     stampDabs(brush, getActiveCtx(), x, y, size, {r,g,b}, 0);
     wetFlushToLayer();
@@ -6741,8 +6891,7 @@ canvasContainer.addEventListener('pointermove', e => {
     const {x: cx, y: cy} = clientToCanvas(ce.clientX, ce.clientY);
     const pressure = getPressure(ce);
     const brush = getActiveBrush();
-    const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
-    const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
+    const { sizeScale, opacityScale } = getPressureScales(pressure, brush);
 
     if (state.tool === 'brush') {
       if (pressureSettings.stabilizer > 0) {
@@ -6776,7 +6925,13 @@ canvasContainer.addEventListener('pointerup', e => {
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
   state.drawing = false;
   lastStampX = null; lastStampY = null;
-  pressureState.smoothed = 1;
+  // Don't force pressureState.smoothed to a fixed value here — that stale
+  // value previously got blended into the START of the next stroke and
+  // caused a visible pressure jump. Just flag that the next stroke's first
+  // sample should hard-seed instead of blend.
+  pressureState.strokeStart = true;
+  pressureState.outSize     = null;
+  pressureState.outOpacity  = null;
   stabilizer.active = false;
 });
 
@@ -6790,7 +6945,9 @@ canvasContainer.addEventListener('pointercancel', () => {
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
   state.drawing = false;
   lastStampX = null; lastStampY = null;
-  pressureState.smoothed = 1;
+  pressureState.strokeStart = true;
+  pressureState.outSize     = null;
+  pressureState.outOpacity  = null;
   stabilizer.active = false;
 });
 
@@ -7128,12 +7285,19 @@ function applyCanvasCursor() {
 
 // ────────────────────────────────────────
 //  BRUSH CURSOR OVERLAY
+//  CSP-style: empty ring outline + centre dot.
+//  Pen: hidden when stylus is out of digitizer range.
+//  Mouse: always visible while over the canvas.
 // ────────────────────────────────────────
 (function() {
   const overlay = document.getElementById('brush-cursor-overlay');
   const ctx     = overlay.getContext('2d');
   let cursorX = -9999, cursorY = -9999;
   let visible = false;
+
+  // Track whether the most recent pointer is a pen — so we can hide
+  // the cursor when the pen leaves the digitizer range entirely.
+  let lastPointerType = 'mouse';
 
   function resizeOverlay() {
     const wrap = document.getElementById('canvas-wrap');
@@ -7149,25 +7313,23 @@ function applyCanvasCursor() {
     return state.tool === 'brush' || state.tool === 'eraser';
   }
 
-  function hexToRgba(hex, alpha) {
-    const r = parseInt(hex.slice(1,3),16);
-    const g = parseInt(hex.slice(3,5),16);
-    const b = parseInt(hex.slice(5,7),16);
-    return `rgba(${r},${g},${b},${Math.max(0,Math.min(1,alpha)).toFixed(3)})`;
-  }
-
+  // ── CSP-style precision cursor ────────────────────────────
+  // One consistent look for all brush/eraser types:
+  //   • Outer ring  — thin circle at brush radius (white with dark shadow)
+  //   • Centre dot  — 1.5 px filled circle (white with dark shadow)
+  //   • Eraser      — dashed ring instead (same shape, visually distinct)
+  //
+  // This matches the Clip Studio Paint "display in circle" precision cursor.
   function drawCursor() {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     if (!visible || !isBrushTool()) return;
 
-    const brush  = getActiveBrush();
-    const zoom   = state.zoom;
+    const brush = getActiveBrush();
+    const zoom  = state.zoom;
 
-    // In buildStamp, brush.size is used directly as the arc radius.
-    // So the drawn radius in canvas-px = brush.size (or state.size for eraser).
-    // On screen that becomes radius * zoom.
+    // Radius in screen pixels — matches the stamp radius used by the engine.
     const logicalRadius = state.tool === 'eraser' ? state.size : brush.size;
-    const radius = Math.max(1, logicalRadius * zoom);
+    const radius = Math.max(2, logicalRadius * zoom);
 
     const x = cursorX;
     const y = cursorY;
@@ -7175,141 +7337,60 @@ function applyCanvasCursor() {
     ctx.save();
 
     if (state.tool === 'eraser') {
-      // ── Eraser cursor: dashed outline only ──
+      // ── Eraser: single dashed ring in white ──
+      // White is used because erasers have no meaningful colour.
       const eType = state.eraserType || 'soft';
-
+      ctx.strokeStyle = 'rgba(255,255,255,0.90)';
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([4, 3]);
       if (eType === 'square') {
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.lineWidth   = 1.5;
-        ctx.setLineDash([3, 3]);
-        ctx.strokeRect(x - radius, y - radius, radius * 2, radius * 2);
-        ctx.setLineDash([]);
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-        ctx.lineWidth   = 1;
         ctx.strokeRect(x - radius, y - radius, radius * 2, radius * 2);
       } else {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.lineWidth   = 1.5;
-        ctx.setLineDash([4, 3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-        ctx.lineWidth   = 1;
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
       }
-      // centre crosshair
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-      ctx.lineWidth   = 1;
       ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(x-4,y); ctx.lineTo(x+4,y); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x,y-4); ctx.lineTo(x,y+4); ctx.stroke();
 
     } else {
-      // ── Brush cursor ──
-      const color    = state.color || '#3ecf6e';
-      const opacity  = (brush.opacity / 100) * (brush.flow / 100);
-      const hardness = (brush.hardness || 80) / 100;
-      const angle    = (brush.angle || 0) * Math.PI / 180;
-      const ratio    = (brush.ratio  || 100) / 100;
-      const bType    = brush.type || 'round';
+      // ── Brush: single ring in the current brush colour ──
+      // Parse the hex colour into an rgba string at full opacity so the ring
+      // is clearly identifiable as the active colour on any background.
+      const hex = state.color || '#ffffff';
+      const r   = parseInt(hex.slice(1, 3), 16);
+      const g   = parseInt(hex.slice(3, 5), 16);
+      const b   = parseInt(hex.slice(5, 7), 16);
+      const ringColor = `rgba(${r},${g},${b},0.90)`;
 
-      ctx.translate(x, y);
-      ctx.rotate(angle);
+      // Respect ratio/angle for flat/turnip tips — draw an ellipse instead.
+      const ratio = (brush.ratio || 100) / 100;
+      const angle = (brush.angle || 0) * Math.PI / 180;
+      const bType = brush.type || 'round';
+      const useEllipse = ratio < 0.98 && (
+        bType === 'csp_flat' || bType === 'csp_turnip' ||
+        bType === 'marker'   || (brush.followPath && ratio < 0.85)
+      );
 
-      if (bType === 'pixel') {
-        ctx.fillStyle   = hexToRgba(color, Math.min(opacity * 0.9, 0.88));
-        ctx.fillRect(-radius, -radius * ratio, radius * 2, radius * 2 * ratio);
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth   = 1;
-        ctx.strokeRect(-radius, -radius * ratio, radius * 2, radius * 2 * ratio);
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth   = 1.5;
 
-      } else if (bType === 'airbrush' || bType === 'csp_blur') {
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-        grad.addColorStop(0,   hexToRgba(color, Math.min(opacity * 0.55, 0.65)));
-        grad.addColorStop(0.6, hexToRgba(color, Math.min(opacity * 0.18, 0.3)));
-        grad.addColorStop(1,   hexToRgba(color, 0));
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = grad; ctx.fill();
-        ctx.restore();
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = hexToRgba(color, 0.45);
-        ctx.lineWidth = 1; ctx.stroke();
-        ctx.restore();
-
-      } else if (bType === 'ink' || bType === 'ballpoint' || bType === 'csp_fill' ||
-                 bType === 'gouache' || bType === 'marker' || bType === 'csp_turnip') {
-        // Hard-edged ink/pen cursor: solid fill with white outline ring
-        const innerA = Math.min(opacity * 0.9, 0.88);
-        const grad   = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-        grad.addColorStop(0,           hexToRgba(color, innerA));
-        grad.addColorStop(hardness,    hexToRgba(color, innerA));
-        grad.addColorStop(1,           hexToRgba(color, Math.min(opacity * 0.15, 0.15)));
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = grad; ctx.fill();
-        ctx.restore();
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-        ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.restore();
-
-      } else if (bType === 'csp_flat') {
-        // Flat/chisel cursor: show as a wide flat rectangle
-        const flatH = radius * Math.max(0.12, (1 - hardness) * 0.3 + 0.12);
-        ctx.fillStyle = hexToRgba(color, Math.min(opacity * 0.82, 0.82));
-        ctx.beginPath(); ctx.ellipse(0, 0, radius, flatH, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.65)';
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.ellipse(0, 0, radius, flatH, 0, 0, Math.PI * 2); ctx.stroke();
-
-      } else if (bType === 'round' || bType === 'csp_fill' || bType === 'watercolor') {
-        const innerA = Math.min(opacity * 0.88, 0.88);
-        const edgeA  = hardness > 0.7 ? Math.min(opacity * 0.85, 0.85) : Math.min(opacity * 0.2, 0.35);
-        const grad   = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-        grad.addColorStop(0,        hexToRgba(color, innerA));
-        grad.addColorStop(hardness, hexToRgba(color, edgeA));
-        grad.addColorStop(1,        hexToRgba(color, 0));
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = grad; ctx.fill();
-        ctx.restore();
-        // Outline ring
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-        ctx.lineWidth = 1.2; ctx.stroke();
-        ctx.restore();
-
+      ctx.save();
+      if (useEllipse) {
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.beginPath(); ctx.ellipse(0, 0, radius, radius * ratio, 0, 0, Math.PI * 2);
       } else {
-        // pencil / chalk / smear / gouache / ballpoint — textured/soft cursor ring
-        const fillAlpha = Math.min(opacity * 0.65, 0.7);
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = hexToRgba(color, fillAlpha); ctx.fill();
-        ctx.restore();
-        ctx.save(); ctx.scale(1, ratio);
-        ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 1; ctx.stroke();
-        ctx.restore();
+        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
       }
-
-      // Centre dot when brush is large
-      ctx.setTransform(1,0,0,1,0,0);
-      if (radius > 10) {
-        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
-        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.stroke();
-      }
+      ctx.stroke();
+      ctx.restore();
     }
+
+    // ── Centre dot — always drawn, in the brush colour (or white for eraser) ──
+    const dotHex  = state.tool === 'eraser' ? '#ffffff' : (state.color || '#ffffff');
+    const dr = parseInt(dotHex.slice(1, 3), 16);
+    const dg = parseInt(dotHex.slice(3, 5), 16);
+    const db = parseInt(dotHex.slice(5, 7), 16);
+    ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${dr},${dg},${db},0.95)`; ctx.fill();
 
     ctx.restore();
   }
@@ -7376,14 +7457,28 @@ function applyCanvasCursor() {
   opacitySlider.addEventListener('pointerup',    hidePopout);
   opacitySlider.addEventListener('pointerleave', hidePopout);
 
-  // Track mouse over the canvas-wrap area
+  // ── Pointer tracking on the canvas-wrap ──────────────────
+  // Strategy:
+  //   Mouse — show cursor whenever the mouse is over the wrap.
+  //   Pen   — show cursor on hover AND while drawing (pressure > 0).
+  //           Hide immediately when the pen leaves digitizer range:
+  //           pointerleave with pointerType='pen' means the stylus
+  //           has moved away from the screen entirely (not just lifted),
+  //           because a lifted-but-hovering pen still fires pointermove.
   const wrap = document.getElementById('canvas-wrap');
 
   wrap.addEventListener('pointermove', e => {
+    lastPointerType = e.pointerType;
+
+    // Gestures suppress the cursor
     if (e.pointerType === 'touch' && window._ugGestureActive) {
       visible = false; drawCursor(); return;
     }
+    // Touch (non-gesture) never shows the precision cursor
+    if (e.pointerType === 'touch') return;
+
     if (!isBrushTool()) { visible = false; drawCursor(); return; }
+
     const wr = overlay.getBoundingClientRect();
     cursorX = e.clientX - wr.left;
     cursorY = e.clientY - wr.top;
@@ -7391,12 +7486,27 @@ function applyCanvasCursor() {
     drawCursor();
   });
 
-  wrap.addEventListener('pointerleave', () => {
+  // pointerleave fires when the pointer exits the element's bounds.
+  // For a pen, this includes moving the stylus out of hover range.
+  // For a mouse, it means the cursor left the wrap area.
+  wrap.addEventListener('pointerleave', e => {
+    lastPointerType = e.pointerType;
     visible = false;
     drawCursor();
   });
 
+  // pointerout can fire when the pen goes completely out of digitizer range
+  // (relatedTarget === null). Cover this case explicitly.
+  wrap.addEventListener('pointerout', e => {
+    if (e.pointerType === 'pen' && e.relatedTarget === null) {
+      visible = false;
+      drawCursor();
+    }
+  });
+
   wrap.addEventListener('pointerenter', e => {
+    lastPointerType = e.pointerType;
+    if (e.pointerType === 'touch') return;
     if (!isBrushTool()) return;
     const wr = overlay.getBoundingClientRect();
     cursorX = e.clientX - wr.left;
@@ -10066,7 +10176,7 @@ function addFxLayer(fxType, fxLabel) {
     id: Date.now() + Math.random(),
     fxParams: fxType === 'curves'  ? { shadows: 0, midtones: 0, highlights: 0 }
              : fxType === 'huesat' ? { hue: 0, saturation: 0, lightness: 0 }
-             : /* gradmap */         { preset: 'bw', opacity: 100 },
+             : /* gradmap */         { preset: 'bw', opacity: 100, customStops: [{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}] },
   };
   state.layers.push(layer);
   state.activeLayer = state.layers.length - 1;
@@ -10139,60 +10249,271 @@ function buildFxEditor(wrap, l, _idx) {
     });
 
   } else if (l.fxType === 'gradmap') {
-    const lbl = document.createElement('div');
-    lbl.className = 'fx-row-label';
-    lbl.style.marginBottom = '4px';
-    lbl.textContent = 'Gradient Preset';
-    wrap.appendChild(lbl);
 
-    const presets = [
-      { key: 'bw',       label: 'B&W',       stops: ['#000', '#fff'] },
-      { key: 'warm',     label: 'Warm',      stops: ['#1a0a00', '#ff8800', '#fff5cc'] },
-      { key: 'cool',     label: 'Cool',      stops: ['#000d1a', '#0055ff', '#aaddff'] },
-      { key: 'sunset',   label: 'Sunset',    stops: ['#0d001a', '#cc0055', '#ff9900', '#fffacc'] },
-      { key: 'forest',   label: 'Forest',    stops: ['#000a00', '#003300', '#33aa44', '#ccffcc'] },
+    // ── Preset data ──────────────────────────────────────────
+    const GM_PRESETS = [
+      { key:'bw',     label:'B&W',    stops:[{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}] },
+      { key:'warm',   label:'Warm',   stops:[{pos:0,color:'#1a0a00'},{pos:0.5,color:'#ff8800'},{pos:1,color:'#fff5cc'}] },
+      { key:'cool',   label:'Cool',   stops:[{pos:0,color:'#000d1a'},{pos:0.5,color:'#0055ff'},{pos:1,color:'#aaddff'}] },
+      { key:'sunset', label:'Sunset', stops:[{pos:0,color:'#0d001a'},{pos:0.33,color:'#cc0055'},{pos:0.66,color:'#ff9900'},{pos:1,color:'#fffacc'}] },
+      { key:'forest', label:'Forest', stops:[{pos:0,color:'#000a00'},{pos:0.33,color:'#003300'},{pos:0.66,color:'#33aa44'},{pos:1,color:'#ccffcc'}] },
+      { key:'chrome', label:'Chrome', stops:[{pos:0,color:'#000000'},{pos:0.25,color:'#888888'},{pos:0.5,color:'#ffffff'},{pos:0.75,color:'#888888'},{pos:1,color:'#000000'}] },
+      { key:'heat',   label:'Heat',   stops:[{pos:0,color:'#000000'},{pos:0.33,color:'#7c0000'},{pos:0.66,color:'#ff6600'},{pos:1,color:'#ffff88'}] },
     ];
 
-    const chipsRow = document.createElement('div');
-    chipsRow.className = 'fx-btn-row';
-    presets.forEach(p => {
+    // ── Migrate legacy fxParams ──────────────────────────────
+    if (!l.fxParams.customStops) {
+      const found = GM_PRESETS.find(p => p.key === l.fxParams.preset);
+      l.fxParams.customStops = (found ? found.stops : GM_PRESETS[0].stops).map(s => ({...s}));
+    }
+    if (l.fxParams.opacity === undefined) l.fxParams.opacity = 100;
+
+    // ── Helpers ──────────────────────────────────────────────
+    function gmHexToRgb(hex) {
+      const h = hex.replace('#','');
+      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+    }
+    function gmRgbToHex(r,g,b) {
+      return '#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+    }
+    function gmStopsToCSS(stops) {
+      return 'linear-gradient(to right,'+[...stops].sort((a,b)=>a.pos-b.pos).map(s=>`${s.color} ${(s.pos*100).toFixed(1)}%`).join(',')+')';
+    }
+
+    let gmSelectedIdx = 0; // which stop is selected
+
+    // ── Preset chips row (text-only, existing fx-chip style) ─
+    const presetRow = document.createElement('div');
+    presetRow.className = 'fx-btn-row';
+    const presetChips = {};
+    GM_PRESETS.forEach(p => {
       const chip = document.createElement('button');
       chip.className = 'fx-chip' + (l.fxParams.preset === p.key ? ' active' : '');
       chip.textContent = p.label;
       chip.addEventListener('click', e => {
         e.stopPropagation();
         l.fxParams.preset = p.key;
-        chipsRow.querySelectorAll('.fx-chip').forEach(c => c.classList.remove('active'));
+        l.fxParams.customStops = p.stops.map(s => ({...s}));
+        gmSelectedIdx = 0;
+        Object.values(presetChips).forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        bar.style.background = `linear-gradient(to right, ${p.stops.join(', ')})`;
+        gmRefresh();
         applyFxLayer(l, currentIdx());
       });
-      chipsRow.appendChild(chip);
+      presetChips[p.key] = chip;
+      presetRow.appendChild(chip);
     });
-    wrap.appendChild(chipsRow);
+    wrap.appendChild(presetRow);
 
-    const barRow = document.createElement('div');
-    barRow.className = 'fx-row';
-    barRow.style.marginTop = '4px';
+    // ── Gradient bar + stop markers ──────────────────────────
+    const barWrap = document.createElement('div');
+    barWrap.className = 'gm-bar-wrap';
+
     const bar = document.createElement('div');
     bar.className = 'fx-gradient-bar';
-    const currentPreset = presets.find(p => p.key === l.fxParams.preset) || presets[0];
-    bar.style.background = `linear-gradient(to right, ${currentPreset.stops.join(', ')})`;
-    barRow.appendChild(bar);
-    wrap.appendChild(barRow);
+    bar.style.cursor = 'crosshair';
+    bar.title = 'Click to add a stop';
+    barWrap.appendChild(bar);
 
+    // Stop marker container — overlays bar bottom
+    const markerLayer = document.createElement('div');
+    markerLayer.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:12px;pointer-events:none;';
+    barWrap.appendChild(markerLayer);
+
+    wrap.appendChild(barWrap);
+
+    // ── Selected-stop controls (fx-row style) ────────────────
+    // Row: [color swatch] [pos label flex] [× delete]
+    const selRow = document.createElement('div');
+    selRow.className = 'fx-row';
+
+    const colorBtn = document.createElement('div');
+    colorBtn.className = 'gm-stop-color-btn';
+    const colorPreview = document.createElement('div');
+    colorPreview.className = 'gm-stop-preview';
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorBtn.appendChild(colorPreview);
+    colorBtn.appendChild(colorInput);
+
+    const posLbl = document.createElement('span');
+    posLbl.className = 'fx-val';
+    posLbl.style.cssText = 'flex:1;text-align:left;min-width:0;';
+
+    const delBtn = document.createElement('button');
+    delBtn.title = 'Delete stop';
+    delBtn.style.cssText = 'width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.12s,color 0.12s,border-color 0.12s;';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('mouseenter', () => { delBtn.style.background='rgba(255,69,58,0.12)'; delBtn.style.borderColor='var(--red)'; delBtn.style.color='var(--red)'; });
+    delBtn.addEventListener('mouseleave', () => { delBtn.style.background='var(--surface2)'; delBtn.style.borderColor='var(--border)'; delBtn.style.color='var(--text3)'; });
+
+    selRow.appendChild(colorBtn);
+    selRow.appendChild(posLbl);
+    selRow.appendChild(delBtn);
+    wrap.appendChild(selRow);
+
+    // ── Hint line ────────────────────────────────────────────
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:10px;color:var(--text3);font-family:"DM Sans",sans-serif;text-align:center;opacity:0.75;';
+    hint.textContent = 'Click bar to add · Drag to move · × to delete';
+    wrap.appendChild(hint);
+
+    // ── Reverse row (fx-row label + button) ──────────────────
+    const revRow = document.createElement('div');
+    revRow.className = 'fx-row';
+    const revLbl = document.createElement('span');
+    revLbl.className = 'fx-row-label';
+    revLbl.textContent = 'Reverse';
+    const revBtn = document.createElement('button');
+    revBtn.className = 'fx-chip';
+    revBtn.textContent = '⇆ Flip';
+    revBtn.style.marginLeft = 'auto';
+    revRow.appendChild(revLbl);
+    revRow.appendChild(revBtn);
+    wrap.appendChild(revRow);
+
+    // ── Strength row (matches Hue/Sat style exactly) ─────────
     const opRow = document.createElement('div');
     opRow.className = 'fx-row';
-    opRow.style.marginTop = '2px';
     const opLbl = document.createElement('span');
     opLbl.className = 'fx-row-label';
     opLbl.textContent = 'Strength';
     const opSlider = document.createElement('input');
-    opSlider.type = 'range'; opSlider.className = 'fx-slider';
-    opSlider.min = 0; opSlider.max = 100; opSlider.value = l.fxParams.opacity;
+    opSlider.type = 'range';
+    opSlider.className = 'fx-slider';
+    opSlider.min = 0; opSlider.max = 100;
+    opSlider.value = l.fxParams.opacity;
+    opSlider.style.touchAction = 'none';
     const opVal = document.createElement('span');
     opVal.className = 'fx-val';
     opVal.textContent = l.fxParams.opacity + '%';
+    opRow.appendChild(opLbl);
+    opRow.appendChild(opSlider);
+    opRow.appendChild(opVal);
+    wrap.appendChild(opRow);
+
+    // ── Refresh: rebuild bar + markers + sel controls ─────────
+    function gmRefresh() {
+      const stops = l.fxParams.customStops;
+      bar.style.background = gmStopsToCSS(stops);
+
+      // Rebuild markers
+      markerLayer.innerHTML = '';
+      markerLayer.style.pointerEvents = 'all';
+      stops.forEach((stop, idx) => {
+        const mk = document.createElement('div');
+        mk.className = 'gm-stop-marker' + (idx === gmSelectedIdx ? ' gm-selected' : '');
+        mk.style.left = (stop.pos * 100).toFixed(2) + '%';
+        mk.style.background = stop.color;
+        mk.addEventListener('pointerdown', e => {
+          e.stopPropagation();
+          e.preventDefault();
+          // Capture before DOM rebuild
+          gmStartDrag(e, idx, mk);
+          gmSelectedIdx = idx;
+          gmRefresh();
+        }, { passive: false });
+        markerLayer.appendChild(mk);
+      });
+
+      // Update selected-stop controls
+      const sel = stops[gmSelectedIdx] || stops[0];
+      if (sel) {
+        colorPreview.style.background = sel.color;
+        colorInput.value = sel.color;
+        posLbl.textContent = Math.round(sel.pos * 100) + '%';
+      }
+      delBtn.style.opacity = stops.length > 2 ? '1' : '0.35';
+      delBtn.style.pointerEvents = stops.length > 2 ? 'all' : 'none';
+    }
+
+    // ── Drag stop ─────────────────────────────────────────────
+    function gmStartDrag(startEvt, stopIdx, markerEl) {
+      const barRect = bar.getBoundingClientRect();
+      try { markerEl.setPointerCapture(startEvt.pointerId); } catch(_) {}
+      function onMove(e) {
+        e.stopPropagation();
+        const pos = Math.min(1, Math.max(0, (e.clientX - barRect.left) / barRect.width));
+        l.fxParams.customStops[stopIdx].pos = pos;
+        l.fxParams.preset = 'custom';
+        gmRefresh();
+        applyFxLayer(l, currentIdx());
+      }
+      function onUp(e) {
+        e.stopPropagation();
+        document.removeEventListener('pointermove', onMove, true);
+        document.removeEventListener('pointerup',   onUp,   true);
+        try { markerEl.releasePointerCapture(startEvt.pointerId); } catch(_) {}
+      }
+      document.addEventListener('pointermove', onMove, { capture:true, passive:false });
+      document.addEventListener('pointerup',   onUp,   { capture:true, passive:false });
+    }
+
+    // ── Click bar to add stop ─────────────────────────────────
+    bar.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const barRect = bar.getBoundingClientRect();
+      const pos = Math.min(1, Math.max(0, (e.clientX - barRect.left) / barRect.width));
+      const stops = l.fxParams.customStops;
+      if (stops.some(s => Math.abs(s.pos - pos) < 0.025)) return;
+      // Interpolate color at click position
+      const sorted = [...stops].sort((a,b) => a.pos - b.pos);
+      let color = sorted[0].color;
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (pos >= sorted[i].pos && pos <= sorted[i+1].pos) {
+          const t = (pos - sorted[i].pos) / Math.max(0.0001, sorted[i+1].pos - sorted[i].pos);
+          const c0 = gmHexToRgb(sorted[i].color), c1 = gmHexToRgb(sorted[i+1].color);
+          color = gmRgbToHex(c0[0]*(1-t)+c1[0]*t, c0[1]*(1-t)+c1[1]*t, c0[2]*(1-t)+c1[2]*t);
+          break;
+        }
+      }
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      stops.push({ pos, color });
+      gmSelectedIdx = stops.length - 1;
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    }, { passive: false });
+
+    // ── Color picker ─────────────────────────────────────────
+    colorInput.addEventListener('input', e => {
+      e.stopPropagation();
+      const stops = l.fxParams.customStops;
+      const sel = stops[gmSelectedIdx];
+      if (!sel) return;
+      sel.color = colorInput.value;
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    });
+    colorInput.addEventListener('click', e => e.stopPropagation());
+
+    // ── Delete selected stop ──────────────────────────────────
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const stops = l.fxParams.customStops;
+      if (stops.length <= 2) return;
+      stops.splice(gmSelectedIdx, 1);
+      gmSelectedIdx = Math.min(gmSelectedIdx, stops.length - 1);
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    });
+
+    // ── Reverse ───────────────────────────────────────────────
+    revBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      l.fxParams.customStops.forEach(s => { s.pos = 1 - s.pos; });
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    });
+
+    // ── Strength slider ───────────────────────────────────────
     opSlider.addEventListener('input', e => {
       e.stopPropagation();
       l.fxParams.opacity = +opSlider.value;
@@ -10200,10 +10521,11 @@ function buildFxEditor(wrap, l, _idx) {
       applyFxLayer(l, currentIdx());
     });
     opSlider.addEventListener('click', e => e.stopPropagation());
-    opRow.appendChild(opLbl); opRow.appendChild(opSlider); opRow.appendChild(opVal);
-    wrap.appendChild(opRow);
+
+    // Initial render
+    gmRefresh();
   }
-}
+} // end buildFxEditor
 
 // ── Apply all FX layers (call after any paint or param change) ──
 function applyAllFxLayers() {
@@ -10289,34 +10611,56 @@ function applyFxLayer(l, idx) {
     l.ctx.putImageData(imgData, px, py);
 
   } else if (l.fxType === 'gradmap') {
-    const GRADIENT_PRESETS = {
-      bw:     [[0,0,0],       [255,255,255]],
-      warm:   [[26,10,0],     [255,136,0],   [255,245,204]],
-      cool:   [[0,13,26],     [0,85,255],    [170,221,255]],
-      sunset: [[13,0,26],     [204,0,85],    [255,153,0],   [255,250,204]],
-      forest: [[0,10,0],      [0,51,0],      [51,170,68],   [204,255,204]],
-    };
-    const stops = GRADIENT_PRESETS[l.fxParams.preset] || GRADIENT_PRESETS.bw;
-    const strength = (l.fxParams.opacity || 100) / 100;
+    // Migrate legacy (no customStops)
+    if (!l.fxParams.customStops) {
+      const LEGACY = {
+        bw:     [{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}],
+        warm:   [{pos:0,color:'#1a0a00'},{pos:0.5,color:'#ff8800'},{pos:1,color:'#fff5cc'}],
+        cool:   [{pos:0,color:'#000d1a'},{pos:0.5,color:'#0055ff'},{pos:1,color:'#aaddff'}],
+        sunset: [{pos:0,color:'#0d001a'},{pos:0.33,color:'#cc0055'},{pos:0.66,color:'#ff9900'},{pos:1,color:'#fffacc'}],
+        forest: [{pos:0,color:'#000a00'},{pos:0.33,color:'#003300'},{pos:0.66,color:'#33aa44'},{pos:1,color:'#ccffcc'}],
+      };
+      l.fxParams.customStops = (LEGACY[l.fxParams.preset] || LEGACY.bw).map(s=>({...s}));
+    }
+    const strength = (l.fxParams.opacity !== undefined ? l.fxParams.opacity : 100) / 100;
+    const sorted = [...l.fxParams.customStops].sort((a,b) => a.pos - b.pos);
+
+    function apHex(hex) {
+      const h = hex.replace('#','');
+      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+    }
+    const stopRGB = sorted.map(s => apHex(s.color));
+
     const lutR = new Uint8ClampedArray(256);
     const lutG = new Uint8ClampedArray(256);
     const lutB = new Uint8ClampedArray(256);
     for (let v = 0; v < 256; v++) {
-      const t = v / 255 * (stops.length - 1);
-      const lo = Math.floor(t), hi = Math.min(stops.length - 1, lo + 1);
-      const f  = t - lo;
-      lutR[v] = Math.round(stops[lo][0] * (1-f) + stops[hi][0] * f);
-      lutG[v] = Math.round(stops[lo][1] * (1-f) + stops[hi][1] * f);
-      lutB[v] = Math.round(stops[lo][2] * (1-f) + stops[hi][2] * f);
+      const t = v / 255;
+      let r, g, b;
+      if (t <= sorted[0].pos) {
+        [r,g,b] = stopRGB[0];
+      } else if (t >= sorted[sorted.length-1].pos) {
+        [r,g,b] = stopRGB[sorted.length-1];
+      } else {
+        let seg = 0;
+        while (seg < sorted.length-2 && sorted[seg+1].pos <= t) seg++;
+        const span = sorted[seg+1].pos - sorted[seg].pos;
+        const f = span > 0 ? (t - sorted[seg].pos) / span : 0;
+        const c0 = stopRGB[seg], c1 = stopRGB[seg+1];
+        r = c0[0]*(1-f)+c1[0]*f; g = c0[1]*(1-f)+c1[1]*f; b = c0[2]*(1-f)+c1[2]*f;
+      }
+      lutR[v] = Math.min(255, Math.max(0, Math.round(r)));
+      lutG[v] = Math.min(255, Math.max(0, Math.round(g)));
+      lutB[v] = Math.min(255, Math.max(0, Math.round(b)));
     }
     l.ctx.drawImage(below, 0, 0);
     const imgData = l.ctx.getImageData(px, py, W, H);
     const d = imgData.data;
     for (let p = 0; p < d.length; p += 4) {
-      const lum = Math.round(0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2]);
-      d[p]   = Math.round(d[p]   * (1 - strength) + lutR[lum] * strength);
-      d[p+1] = Math.round(d[p+1] * (1 - strength) + lutG[lum] * strength);
-      d[p+2] = Math.round(d[p+2] * (1 - strength) + lutB[lum] * strength);
+      const lum = Math.round(0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2]);
+      d[p]   = Math.round(d[p]   * (1-strength) + lutR[lum] * strength);
+      d[p+1] = Math.round(d[p+1] * (1-strength) + lutG[lum] * strength);
+      d[p+2] = Math.round(d[p+2] * (1-strength) + lutB[lum] * strength);
     }
     l.ctx.putImageData(imgData, px, py);
   }
@@ -10507,30 +10851,378 @@ function mergeLayerDown(idx) {
 })();
 
 // ────────────────────────────────────────
-//  KEYBOARD SHORTCUTS OVERLAY
+//  KEYBOARD SHORTCUTS SYSTEM (editable, persisted)
 // ────────────────────────────────────────
 (function() {
-  const overlay = document.getElementById('shortcuts-overlay');
+  'use strict';
 
-  function open() {
-    overlay.classList.add('open');
-    // Sync pen button selects with current saved config each time the overlay opens
+  // ── Default shortcut definitions ──────────────────────────────────────────
+  // Each entry: { id, label, section, default: {ctrl,shift,key,code}, editable }
+  // key = the display/match key (lowercase letter or symbol)
+  // code = e.code for layout-independent keys (brackets, etc.)
+  // Non-editable entries (Space+Drag, Enter, Esc) are shown but cannot be changed.
+  const SHORTCUT_DEFAULTS = [
+    // Tools
+    { id:'tool-brush',    label:'Brush',          section:'Tools',     def:{ ctrl:false, shift:false, key:'b',   code:'KeyB'         } },
+    { id:'tool-eraser',   label:'Eraser',          section:'Tools',     def:{ ctrl:false, shift:false, key:'e',   code:'KeyE'         } },
+    { id:'tool-fill',     label:'Fill',            section:'Tools',     def:{ ctrl:false, shift:false, key:'f',   code:'KeyF'         } },
+    { id:'tool-eyedrop',  label:'Eyedropper',      section:'Tools',     def:{ ctrl:false, shift:false, key:'i',   code:'KeyI'         } },
+    { id:'tool-move',     label:'Move',            section:'Tools',     def:{ ctrl:false, shift:false, key:'m',   code:'KeyM'         } },
+    { id:'tool-crop',     label:'Crop',            section:'Tools',     def:{ ctrl:false, shift:false, key:'c',   code:'KeyC'         } },
+    { id:'tool-select',   label:'Select',          section:'Tools',     def:{ ctrl:false, shift:false, key:'s',   code:'KeyS'         } },
+    { id:'pan-canvas',    label:'Pan Canvas',      section:'Tools',     def:null, editable:false, display:'Space + Drag' },
+    // Brush
+    { id:'brush-smaller', label:'Decrease Size',   section:'Brush',     def:{ ctrl:false, shift:false, key:'[',   code:'BracketLeft'  } },
+    { id:'brush-larger',  label:'Increase Size',   section:'Brush',     def:{ ctrl:false, shift:false, key:']',   code:'BracketRight' } },
+    { id:'zoom-in',       label:'Zoom In',         section:'Brush',     def:{ ctrl:false, shift:false, key:'+',   code:''             } },
+    { id:'zoom-out',      label:'Zoom Out',        section:'Brush',     def:{ ctrl:false, shift:false, key:'-',   code:'Minus'        } },
+    // Edit
+    { id:'edit-undo',     label:'Undo',            section:'Edit',      def:{ ctrl:true,  shift:false, key:'z',   code:'KeyZ'         } },
+    { id:'edit-redo',     label:'Redo',            section:'Edit',      def:{ ctrl:true,  shift:false, key:'y',   code:'KeyY'         } },
+    { id:'edit-save',     label:'Save Project',    section:'Edit',      def:{ ctrl:true,  shift:false, key:'s',   code:'KeyS'         } },
+    { id:'edit-export',   label:'Export',          section:'Edit',      def:{ ctrl:true,  shift:false, key:'e',   code:'KeyE'         } },
+    { id:'sel-invert',    label:'Invert Selection',section:'Edit',      def:{ ctrl:true,  shift:true,  key:'i',   code:'KeyI'         } },
+    // Transform
+    { id:'tx-apply',      label:'Apply Transform', section:'Transform', def:null, editable:false, display:'Enter' },
+    { id:'tx-cancel',     label:'Cancel Transform',section:'Transform', def:null, editable:false, display:'Esc'   },
+  ];
+
+  const STORAGE_KEY = 'ug_shortcuts_v1';
+
+  // ── Load saved shortcuts, merging with defaults ───────────────────────────
+  function loadShortcuts() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      return SHORTCUT_DEFAULTS.map(def => {
+        if (!def.def) return { ...def }; // non-editable: keep as-is
+        const override = saved[def.id];
+        return { ...def, current: override || { ...def.def } };
+      });
+    } catch(e) {
+      return SHORTCUT_DEFAULTS.map(d => ({ ...d, current: d.def ? { ...d.def } : null }));
+    }
+  }
+
+  function saveShortcuts(shortcuts) {
+    const out = {};
+    shortcuts.forEach(sc => {
+      if (sc.current) out[sc.id] = sc.current;
+    });
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(out)); } catch(e) {}
+  }
+
+  // Working copy — always in sync with what's shown in the UI.
+  // Saved to localStorage only when the user hits Save.
+  let shortcuts = loadShortcuts();
+
+  // ── Expose shortcut lookup for the keydown handler ────────────────────────
+  window._getShortcut = function(id) {
+    const sc = shortcuts.find(s => s.id === id);
+    return sc ? sc.current : null;
+  };
+
+  // ── Key display helpers ───────────────────────────────────────────────────
+  function keyLabel(key) {
+    const MAP = {
+      ' ': 'Space', 'arrowup': '↑', 'arrowdown': '↓',
+      'arrowleft': '←', 'arrowright': '→',
+      'escape': 'Esc', 'enter': 'Enter', 'backspace': '⌫',
+      'delete': 'Del', 'tab': 'Tab',
+      '[': '[', ']': ']', '+': '+', '-': '−', '=': '=',
+    };
+    if (!key) return '?';
+    return MAP[key.toLowerCase()] || key.toUpperCase();
+  }
+
+  function shortcutToChips(sc) {
+    // Returns array of {label, sep} objects for rendering
+    const chips = [];
+    if (sc.ctrl)  { chips.push({ label: 'Ctrl' }); chips.push({ sep: true }); }
+    if (sc.shift) { chips.push({ label: 'Shift' }); chips.push({ sep: true }); }
+    chips.push({ label: keyLabel(sc.key) });
+    return chips;
+  }
+
+  // ── Render the shortcuts grid ─────────────────────────────────────────────
+  let capturingId = null; // id of shortcut currently being captured
+  let captureWrap = null; // the .shortcut-keys-wrap element in capture mode
+
+  function renderShortcutsGrid() {
+    const grid = document.getElementById('shortcuts-grid-body');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    let lastSection = null;
+    shortcuts.forEach(sc => {
+      // Section header
+      if (sc.section !== lastSection) {
+        const sec = document.createElement('div');
+        sec.className = 'shortcuts-section';
+        sec.textContent = sc.section;
+        grid.appendChild(sec);
+        lastSection = sc.section;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'shortcut-row';
+
+      const label = document.createElement('span');
+      label.className = 'shortcut-label';
+      label.textContent = sc.label;
+      row.appendChild(label);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'shortcut-keys-wrap';
+      wrap.dataset.scId = sc.id;
+
+      const editable = sc.editable !== false && sc.def !== null;
+
+      if (!editable) {
+        // Non-editable: plain display
+        wrap.classList.add('no-edit');
+        if (sc.display) {
+          // e.g. "Space + Drag"
+          const parts = sc.display.split('+').map(p => p.trim());
+          parts.forEach((p, i) => {
+            const chip = document.createElement('span');
+            chip.className = 'kbd';
+            chip.textContent = p;
+            wrap.appendChild(chip);
+            if (i < parts.length - 1) {
+              const sep = document.createElement('span');
+              sep.className = 'kbd-sep';
+              sep.textContent = '+';
+              wrap.appendChild(sep);
+            }
+          });
+        }
+      } else {
+        // Editable: show chips, click to capture
+        const current = sc.current || sc.def;
+        const chips = shortcutToChips(current);
+        chips.forEach(c => {
+          if (c.sep) {
+            const sep = document.createElement('span');
+            sep.className = 'kbd-sep';
+            sep.textContent = '+';
+            wrap.appendChild(sep);
+          } else {
+            const chip = document.createElement('span');
+            chip.className = 'kbd';
+            chip.textContent = c.label;
+            wrap.appendChild(chip);
+          }
+        });
+
+        wrap.title = 'Click to change shortcut';
+        wrap.addEventListener('click', e => {
+          e.stopPropagation();
+          startCapture(sc.id, wrap);
+        });
+      }
+
+      row.appendChild(wrap);
+      grid.appendChild(row);
+    });
+
+    // Pen shortcuts section (spans both columns)
+    const penSection = buildPenSection();
+    grid.appendChild(penSection);
+  }
+
+  // ── Build pen shortcuts section (moved from static HTML, same content) ────
+  function buildPenSection() {
+    const sec = document.createElement('div');
+    sec.className = 'pen-shortcuts-section';
+    sec.innerHTML = `
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3);margin-bottom:var(--sp-2);">Pen Button Shortcuts</div>
+      <div class="pen-shortcuts-intro">
+        Hold a barrel button to temporarily switch tools — releasing restores your previous tool. Works while hovering or drawing. Compatible with Wacom Pro Pen 3, Apple Pencil Pro, and other Pointer Events styluses. Android (Wacom Movink) is fully supported via e.buttons tracking.
+      </div>
+
+      <div class="pen-shortcuts-device" style="margin-top:var(--sp-3);">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+        Apple Pencil Pro
+      </div>
+      <div class="pen-btn-row">
+        <div class="pen-btn-info"><div class="pen-btn-label">Squeeze</div></div>
+        <select class="pen-btn-select" id="pen-apple-btn1" data-pen-device="apple" data-pen-button="1">
+          <option value="eraser" selected>Eraser</option><option value="eyedrop">Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+        </select>
+      </div>
+      <div class="pen-btn-row">
+        <div class="pen-btn-info"><div class="pen-btn-label">Double-tap (flat side)</div></div>
+        <select class="pen-btn-select" id="pen-apple-btn2" data-pen-device="apple" data-pen-button="2">
+          <option value="eraser">Eraser</option><option value="eyedrop" selected>Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+        </select>
+      </div>
+
+      <div class="pen-shortcuts-device" style="margin-top:var(--sp-4);">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 C10 2 8 3 8 6 L8 18 C8 21 10 22 12 22 C14 22 16 21 16 18 L16 6 C16 3 14 2 12 2Z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+        Wacom Pro Pen 3
+      </div>
+      <div class="pen-btn-row">
+        <div class="pen-btn-info"><div class="pen-btn-label">Top button</div></div>
+        <select class="pen-btn-select" id="pen-wacom-top" data-pen-device="wacom" data-pen-button="1">
+          <option value="eraser" selected>Eraser</option><option value="eyedrop">Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+        </select>
+      </div>
+      <div class="pen-btn-row">
+        <div class="pen-btn-info"><div class="pen-btn-label">Middle button</div></div>
+        <select class="pen-btn-select" id="pen-wacom-middle" data-pen-device="wacom" data-pen-button="2">
+          <option value="eraser">Eraser</option><option value="eyedrop" selected>Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+        </select>
+      </div>
+      <div class="pen-btn-row" style="border-bottom:none;">
+        <div class="pen-btn-info"><div class="pen-btn-label">Bottom button</div></div>
+        <select class="pen-btn-select" id="pen-wacom-bottom" data-pen-device="wacom" data-pen-button="5">
+          <option value="eraser">Eraser</option><option value="eyedrop">Eyedropper</option><option value="select" selected>Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+        </select>
+      </div>
+    `;
+    return sec;
+  }
+
+  // ── Capture mode ──────────────────────────────────────────────────────────
+  function startCapture(id, wrapEl) {
+    // Cancel any existing capture first
+    if (capturingId) cancelCapture();
+
+    capturingId = id;
+    captureWrap = wrapEl;
+    wrapEl.classList.add('capturing');
+
+    // Replace content with "Press key…" hint
+    wrapEl.innerHTML = '';
+    const hint = document.createElement('span');
+    hint.className = 'kbd capturing-hint';
+    hint.textContent = 'Press key…';
+    wrapEl.appendChild(hint);
+
+    // Show the capture hint bar
+    const hintBar = document.getElementById('shortcuts-capture-hint');
+    if (hintBar) hintBar.style.display = 'block';
+  }
+
+  function cancelCapture() {
+    capturingId = null;
+    captureWrap = null;
+    const hintBar = document.getElementById('shortcuts-capture-hint');
+    if (hintBar) hintBar.style.display = 'none';
+    renderShortcutsGrid();
+    // Re-sync pen selects since renderShortcutsGrid rebuilds the pen section
     if (typeof window._syncPenSelects === 'function') window._syncPenSelects();
   }
-  function close() { overlay.classList.remove('open'); }
 
-  document.getElementById('shortcuts-close').addEventListener('click', close);
-  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && overlay.classList.contains('open')) close();
-  });
+  function commitCapture(newBinding) {
+    const sc = shortcuts.find(s => s.id === capturingId);
+    if (sc) sc.current = newBinding;
+    cancelCapture();
+  }
+
+  // ── Keydown handler for capture mode ─────────────────────────────────────
+  // This runs in CAPTURE phase so it intercepts before the main keydown handler.
+  document.addEventListener('keydown', function(e) {
+    if (!capturingId) return;
+
+    // Escape = cancel capture without changing anything
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      cancelCapture();
+      return;
+    }
+
+    // Ignore standalone modifier keys
+    const modOnly = ['Control','Shift','Alt','Meta','CapsLock','NumLock','ScrollLock'];
+    if (modOnly.includes(e.key)) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    // Build the new binding
+    const newBinding = {
+      ctrl:  e.ctrlKey || e.metaKey,
+      shift: e.shiftKey,
+      key:   e.key.toLowerCase(),
+      code:  e.code,
+    };
+
+    // Reject single-letter keys that would conflict with typing
+    // (allow them — users can set any key they like, just like CSP)
+    commitCapture(newBinding);
+  }, { capture: true });
+
+  // Click outside = cancel capture
+  document.addEventListener('click', function(e) {
+    if (!capturingId) return;
+    if (!captureWrap || !captureWrap.contains(e.target)) {
+      cancelCapture();
+    }
+  }, { capture: false });
+
+  // ── Overlay open/close ────────────────────────────────────────────────────
+  const overlay = document.getElementById('shortcuts-overlay');
+
+  function openOverlay() {
+    shortcuts = loadShortcuts(); // always reload from storage on open
+    renderShortcutsGrid();
+    overlay.classList.add('open');
+    if (typeof window._syncPenSelects === 'function') window._syncPenSelects();
+  }
+
+  function closeOverlay() {
+    if (capturingId) cancelCapture();
+    overlay.classList.remove('open');
+  }
+
+  document.getElementById('shortcuts-close').addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
 
   document.getElementById('btn-show-shortcuts').addEventListener('click', () => {
-    // Close prefs dropdown first
     closeAllTopMenus();
-    open();
+    openOverlay();
   });
-})();
+
+  // ── Save button ───────────────────────────────────────────────────────────
+  document.getElementById('shortcuts-save-btn').addEventListener('click', () => {
+    if (capturingId) cancelCapture();
+    saveShortcuts(shortcuts);
+    toast('Shortcuts saved ✓');
+  });
+
+  // ── Reset to Defaults button ──────────────────────────────────────────────
+  document.getElementById('shortcuts-reset-btn').addEventListener('click', () => {
+    shortcuts = SHORTCUT_DEFAULTS.map(d => ({
+      ...d,
+      current: d.def ? { ...d.def } : null,
+    }));
+    saveShortcuts(shortcuts);
+    renderShortcutsGrid();
+    if (typeof window._syncPenSelects === 'function') window._syncPenSelects();
+    toast('Shortcuts reset to defaults');
+  });
+
+  // ── Expose for keydown handler ────────────────────────────────────────────
+  // The main keydown handler calls window._matchShortcut(e) to check a binding.
+  window._matchShortcut = function(id, e) {
+    const sc = shortcuts.find(s => s.id === id);
+    if (!sc || !sc.current) return false;
+    const c = sc.current;
+    // Ctrl: match ctrlKey OR metaKey (Mac Cmd)
+    if (c.ctrl !== (e.ctrlKey || e.metaKey)) return false;
+    if (c.shift !== e.shiftKey) return false;
+    // Match by code first (layout-independent), then fall back to key
+    if (c.code && e.code && c.code === e.code) return true;
+    if (c.key && e.key.toLowerCase() === c.key.toLowerCase()) return true;
+    return false;
+  };
+
+  // Initial render (grid is empty until overlay is opened; render now so
+  // _matchShortcut works from load, even before the overlay is opened).
+  shortcuts = loadShortcuts();
+
+})(); // end keyboard shortcuts system
 
 // ────────────────────────────────────────
 //  CANVAS RESIZE (expand/contract with anchor)
@@ -11031,9 +11723,12 @@ document.getElementById('file-open').addEventListener('change', e => {
 });
 
 // ────────────────────────────────────────
-//  KEYBOARD SHORTCUTS
+//  KEYBOARD SHORTCUTS — MAIN HANDLER
 // ────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  // Skip if capture mode is active (handled by the shortcuts system)
+  if (window._matchShortcut === undefined) return;
+
   // Only block shortcuts when the user is actually typing text
   const tag = e.target.tagName;
   const type = e.target.type || '';
@@ -11042,76 +11737,104 @@ document.addEventListener('keydown', e => {
                    || e.target.isContentEditable;
   if (isTextEntry) return;
 
-  // Use e.code for layout-independent keys, e.key for letters
-  const k    = e.key.toLowerCase();
-  const code = e.code; // e.g. "BracketLeft", "BracketRight", "KeyB", "KeyE"
-
-  if (e.ctrlKey && k === 'z') { e.preventDefault(); undo(); return; }
-  if (e.ctrlKey && (k === 'y' || (e.shiftKey && k === 'z'))) { e.preventDefault(); redo(); return; }
-  if (e.ctrlKey && k === 's') { e.preventDefault(); document.getElementById('btn-save-project').click(); return; }
-  if (e.ctrlKey && k === 'e') { e.preventDefault(); if (window._openExportModal) window._openExportModal(); return; }
-  if (e.ctrlKey && e.shiftKey && k === 'i') { e.preventDefault(); document.getElementById('sel-invert-btn')?.click(); return; }
-  if (e.ctrlKey) return; // don't fire tool shortcuts on other ctrl combos
-
-  const toolMap = { b: 'brush', e: 'eraser', f: 'fill', i: 'eyedrop', m: 'move', c: 'crop', s: 'select' };
-  if (toolMap[k]) {
-    if (toolMap[k] === 'eyedrop') {
-      state._preEyedropTool = state.tool !== 'eyedrop' ? state.tool : (state._preEyedropTool || 'brush');
-    }
-    activateTool(toolMap[k]);
+  // Close shortcuts overlay on Escape (only when not in capture — capture eats its own Escape)
+  const overlay = document.getElementById('shortcuts-overlay');
+  if (e.key === 'Escape' && overlay && overlay.classList.contains('open')) {
+    overlay.classList.remove('open');
+    return;
   }
 
-  if (code === 'BracketLeft') {
+  // ── Ctrl / Meta combos ────────────────────────────────────────────────────
+  if (window._matchShortcut('edit-undo', e))   { e.preventDefault(); undo(); return; }
+  // Ctrl+Shift+Z also = redo
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); redo(); return; }
+  if (window._matchShortcut('edit-redo', e))   { e.preventDefault(); redo(); return; }
+  if (window._matchShortcut('edit-save', e))   { e.preventDefault(); document.getElementById('btn-save-project').click(); return; }
+  if (window._matchShortcut('edit-export', e)) { e.preventDefault(); if (window._openExportModal) window._openExportModal(); return; }
+  if (window._matchShortcut('sel-invert', e))  { e.preventDefault(); document.getElementById('sel-invert-btn')?.click(); return; }
+  // Block other Ctrl combos from firing tool shortcuts
+  if (e.ctrlKey || e.metaKey) return;
+
+  // ── Tool shortcuts ────────────────────────────────────────────────────────
+  const TOOL_IDS = ['tool-brush','tool-eraser','tool-fill','tool-eyedrop','tool-move','tool-crop','tool-select'];
+  const TOOL_MAP = {
+    'tool-brush':   'brush',
+    'tool-eraser':  'eraser',
+    'tool-fill':    'fill',
+    'tool-eyedrop': 'eyedrop',
+    'tool-move':    'move',
+    'tool-crop':    'crop',
+    'tool-select':  'select',
+  };
+  for (const id of TOOL_IDS) {
+    if (window._matchShortcut(id, e)) {
+      if (TOOL_MAP[id] === 'eyedrop') {
+        state._preEyedropTool = state.tool !== 'eyedrop' ? state.tool : (state._preEyedropTool || 'brush');
+      }
+      activateTool(TOOL_MAP[id]);
+      return;
+    }
+  }
+
+  // ── Brush size ────────────────────────────────────────────────────────────
+  if (window._matchShortcut('brush-smaller', e)) {
     state.size = Math.max(1, state.size - 2);
     const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); maskStampCache.clear(); }
     document.getElementById('brush-size').value = state.size;
     if (window._redrawBrushCursor) window._redrawBrushCursor();
+    return;
   }
-  if (code === 'BracketRight') {
+  if (window._matchShortcut('brush-larger', e)) {
     state.size = Math.min(120, state.size + 2);
     const b = getActiveBrush(); if (b) { b.size = state.size; stampCache.clear(); maskStampCache.clear(); }
     document.getElementById('brush-size').value = state.size;
     if (window._redrawBrushCursor) window._redrawBrushCursor();
+    return;
   }
-  if (k === '+' || k === '=') zoomIn();
-  if (k === '-') zoomOut();
+
+  // ── Zoom ─────────────────────────────────────────────────────────────────
+  if (window._matchShortcut('zoom-in', e))  { zoomIn();  return; }
+  if (window._matchShortcut('zoom-out', e)) { zoomOut(); return; }
+  // Fallback for + key (various keyboard layouts send different codes)
+  if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    if (e.key === '+' || e.key === '=') { zoomIn(); return; }
+  }
 });
 
 // ────────────────────────────────────────
-//  PEN BUTTON SHORTCUTS ENGINE  v12
+//  PEN BUTTON SHORTCUTS ENGINE  v11
 //
-//  Wacom Pro Pen 3 on Wacom Movink Pro 14, Android Chrome.
+//  Wacom Pro Pen 3 — 3 barrel buttons, no eraser end.
+//  Platform: Android Chrome on Wacom Movink Pro 14.
 //
-//  WHAT WAS CONFIRMED WORKING IN v9:
-//    - Eyedropper (middle barrel) worked via pointermove bitmask reading.
+//  ROOT CAUSE OF ALL PREVIOUS FAILURES:
 //
-//  WHAT WAS BROKEN IN v9:
-//    - Eraser reverted when tip touched (bitmask lost barrel bits on tip down).
-//    - Third button (bottom barrel) never detected.
+//  Relying on e.buttons from tip-contact events to carry barrel bits is
+//  unreliable. Android Chrome does NOT guarantee that e.buttons on a tip
+//  pointerdown includes bits for simultaneously-held barrel buttons.
+//  In practice, tip pointerdown fires e.buttons=1 (just the tip), losing
+//  the barrel bits — so any bitmask-only approach clears the override the
+//  moment the pen touches.
 //
-//  WHY v11 BROKE EVERYTHING:
-//    - stopImmediatePropagation() on pointerdown blocked eyedropper.
-//    - pointerType='pen' guard may have been wrong: on this device barrel
-//      events may fire as pointerType='mouse', not 'pen'.
+//  CORRECT APPROACH:
 //
-//  DEFINITIVE APPROACH — two separate mechanisms, no stopPropagation:
+//  Track barrel state separately using a Set, updated ONLY from barrel-
+//  specific pointerdown/pointerup events (e.button = 1, 2, or 5 with
+//  pointerType='pen'). The tip touching/lifting (e.button=0) never touches
+//  this set. The set is the single source of truth for "which barrels held".
 //
-//  1. BARREL DETECTION: Listen for pointerdown with e.button=1,2,5 from
-//     EITHER pointerType='pen' OR pointerType='mouse' (guarded by pen
-//     recency so real mouse right-clicks are ignored). Track in a Set.
-//     Release on matching pointerup. This handles barrel press/release
-//     independently of whether Android fires them as 'pen' or 'mouse'.
+//  Barrel press:   pen pointerdown, e.button > 0  → add to set, apply
+//  Barrel release: pen pointerup,   e.button > 0  → remove from set, apply
+//  Tip down/move:  e.button = 0                   → ignored by barrel tracking
+//  Pen out of range:                               → clear set, restore
 //
-//  2. OVERRIDE SURVIVAL: The override is stored in heldBarrels Set and
-//     checked only on barrel events. Tip events (e.button=0) are completely
-//     ignored by barrel tracking, so tip contact cannot clear the override.
+//  This matches how CSP/Krita handle barrel state on Android.
 //
-//  3. NO stopImmediatePropagation: Both canvas handlers already have
-//     guards: draw handler has `if (e.button !== 0 && e.pointerType === 'pen') return`
-//     and select handler now has the same. These guards are sufficient.
-//     We do NOT block propagation — eyedropper needs tip pointerdown to fire.
+//  ALSO FIXES: select tool freeze — barrel pointerdown events (e.button=5)
+//  were reaching the select handler, capturing the pointer, and freezing it.
+//  stopImmediatePropagation() on barrel pointerdown prevents this entirely.
 //
-//  Wacom Pro Pen 3 barrel e.button values (W3C PointerEvents spec):
+//  Wacom Pro Pen 3 barrel → e.button mapping (W3C spec + MDN):
 //    Top barrel:    e.button = 1
 //    Middle barrel: e.button = 2
 //    Bottom barrel: e.button = 5
@@ -11121,12 +11844,12 @@ document.addEventListener('keydown', e => {
 
   // ── Configuration ─────────────────────────────────────────────────────────
   const CFG_DEFAULTS = {
-    btn1: 'eraser',   // top barrel    → Eraser
-    btn2: 'eyedrop',  // middle barrel → Eyedropper
-    btn5: 'select',   // bottom barrel → Select
+    btn1: 'eraser',   // top barrel (e.button=1)    → Eraser
+    btn2: 'eyedrop',  // middle barrel (e.button=2) → Eyedropper
+    btn5: 'select',   // bottom barrel (e.button=5) → Select
   };
 
-  const STORAGE_KEY = 'ug_penButtons_v12';
+  const STORAGE_KEY = 'ug_penButtons_v11';
   function loadCfg() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -11138,27 +11861,11 @@ document.addEventListener('keydown', e => {
   }
   let cfg = loadCfg();
 
-  // ── Pen recency — distinguish barrel-as-mouse from real mouse clicks ───────
-  // The pen fires pointerType='pen' events constantly while hovering.
-  // A real USB/BT mouse does not produce pen events.
-  // We track last pen event time and only treat button=1/2/5 mouse events
-  // as barrel buttons when a pen was seen recently.
-  let _lastPenMs = 0;
-  function penActive() { return (Date.now() - _lastPenMs) < 3000; }
-
-  document.addEventListener('pointermove', function(e) {
-    if (e.pointerType === 'pen') _lastPenMs = Date.now();
-  }, { capture: true, passive: true });
-
-  document.addEventListener('pointerdown', function(e) {
-    if (e.pointerType === 'pen') _lastPenMs = Date.now();
-  }, { capture: true, passive: true });
-
-  // ── State ─────────────────────────────────────────────────────────────────
-  // Set of e.button values (1, 2, 5) currently held as barrel buttons.
-  // Updated ONLY from barrel events. Tip events (e.button=0) never touch this.
+  // ── State — barrel Set is the only truth ──────────────────────────────────
+  // Keys are e.button values (1, 2, 5). Updated ONLY from barrel events.
+  // Tip events (e.button=0) never touch this set.
   const heldBarrels = new Set();
-  let originalTool  = null;
+  let originalTool   = null;
   let currentOverride = null;
   window._penBtnActive = false;
 
@@ -11177,20 +11884,21 @@ document.addEventListener('keydown', e => {
     if (penToast) penToast.classList.remove('show');
   }
 
-  // ── Resolve tool from held barrel set ─────────────────────────────────────
+  // ── Resolve highest-priority held barrel's tool ───────────────────────────
   function resolveToolFromSet() {
-    for (const n of [1, 2, 5]) {
-      if (heldBarrels.has(n)) {
-        const t = cfg['btn' + n];
+    for (const btnNum of [1, 2, 5]) {
+      if (heldBarrels.has(btnNum)) {
+        const t = cfg['btn' + btnNum];
         if (t && t !== 'none') return t;
       }
     }
     return null;
   }
 
-  // ── Apply held state → activate or restore tool ───────────────────────────
+  // ── Apply current held state ───────────────────────────────────────────────
   function applyState() {
     const wanted = resolveToolFromSet();
+
     if (!wanted) {
       if (currentOverride !== null) {
         const restore = originalTool || 'brush';
@@ -11202,8 +11910,12 @@ document.addEventListener('keydown', e => {
       }
       return;
     }
+
     if (currentOverride === wanted) return;
-    if (currentOverride === null) originalTool = state.tool;
+
+    if (currentOverride === null) {
+      originalTool = state.tool;
+    }
     currentOverride = wanted;
     window._penBtnActive = true;
     if (wanted === 'eyedrop') state._preEyedropTool = originalTool;
@@ -11211,43 +11923,39 @@ document.addEventListener('keydown', e => {
     showToast(wanted);
   }
 
-  // ── Is this event a barrel button press/release? ───────────────────────────
-  // Accepts both pointerType='pen' and pointerType='mouse' (Android Chrome
-  // may report barrel buttons as either depending on driver version).
-  // e.button must be 1, 2, or 5 (barrel buttons per W3C spec).
-  // For 'mouse' type, require pen to have been seen recently.
-  function isBarrelEvent(e) {
-    if (e.button !== 1 && e.button !== 2 && e.button !== 5) return false;
-    if (e.pointerType === 'pen') return true;
-    if (e.pointerType === 'mouse' && penActive()) return true;
-    return false;
-  }
-
   // ── Barrel pointerdown ─────────────────────────────────────────────────────
-  // passive:true — we do NOT stopPropagation. Canvas handlers already guard
-  // against barrel events with their own `e.button !== 0` checks.
+  // Non-passive capture: must stopImmediatePropagation so barrel events never
+  // reach the canvas draw handler or the select handler (which would capture
+  // the pointer and freeze the cursor).
   document.addEventListener('pointerdown', function(e) {
-    if (!isBarrelEvent(e)) return;
+    if (e.pointerType !== 'pen') return;
+    if (e.button === 0) return; // tip contact — ignore for barrel tracking
+    // Barrel button pressed. Record it and activate the mapped tool.
     heldBarrels.add(e.button);
     applyState();
-  }, { capture: true, passive: true });
+    // Block this event from ALL downstream handlers.
+    // Without this, the canvas draw handler and select handler both receive
+    // barrel pointerdown events and start strokes / capture the pointer.
+    e.stopImmediatePropagation();
+  }, { capture: true, passive: false });
 
   // ── Barrel pointerup ───────────────────────────────────────────────────────
   document.addEventListener('pointerup', function(e) {
-    if (!isBarrelEvent(e)) return;
+    if (e.pointerType !== 'pen') return;
+    if (e.button === 0) return; // tip lift — ignore
     heldBarrels.delete(e.button);
     applyState();
   }, { capture: true, passive: true });
 
-  // ── Pen out of range — clear all barrels ──────────────────────────────────
+  // ── Pen leaves digitizer entirely ─────────────────────────────────────────
   document.addEventListener('pointerout', function(e) {
     if (e.pointerType !== 'pen') return;
-    if (e.relatedTarget !== null) return;
+    if (e.relatedTarget !== null) return; // moved to child, not out of range
     if (heldBarrels.size > 0) { heldBarrels.clear(); applyState(); }
   }, { capture: true, passive: true });
 
   document.addEventListener('pointercancel', function(e) {
-    if (e.pointerType !== 'pen' && !penActive()) return;
+    if (e.pointerType !== 'pen') return;
     if (heldBarrels.size > 0) { heldBarrels.clear(); applyState(); }
   }, { capture: true, passive: true });
 
@@ -11273,7 +11981,11 @@ document.addEventListener('keydown', e => {
       const sel = e.target;
       if (!sel.classList.contains('pen-btn-select')) return;
       const cfgKey = SELECT_MAP[sel.id];
-      if (cfgKey) { cfg[cfgKey] = sel.value; saveCfg(cfg); toast('Pen button updated'); }
+      if (cfgKey) {
+        cfg[cfgKey] = sel.value;
+        saveCfg(cfg);
+        toast('Pen button updated');
+      }
     });
   }
 
@@ -13521,23 +14233,38 @@ function toast(msg) {
     startT: 0,      // timestamp of first finger down
     moved: false,   // did fingers move significantly?
     startPositions: [], // [{x,y}] at touchstart
+    maxRadius: 0,   // max touch contact radius (palm contacts typically > 22px)
+    spread: 0,      // pixel distance between 2-finger touches (palm spread >> finger tap)
   };
   var TAP_MAX_MS   = 300;  // max duration for a tap
   var TAP_MAX_MOVE = 20;   // max px movement before it's not a tap
 
   function _onTouchStart(e) {
-    // Track multi-finger tap — record finger count and start positions
+    // Track multi-finger tap — record finger count, positions, and palm-rejection data
     if (e.touches.length === 1) {
       // Reset on first finger down
       _tap.count = 1;
       _tap.startT = Date.now();
       _tap.moved  = false;
+      _tap.maxRadius = Math.max(e.touches[0].radiusX || 0, e.touches[0].radiusY || 0);
+      _tap.spread = 0;
       _tap.startPositions = [{ x: e.touches[0].clientX, y: e.touches[0].clientY }];
     } else if (e.touches.length === 2 || e.touches.length === 3) {
       _tap.count = e.touches.length;
       _tap.startPositions = [];
+      _tap.maxRadius = 0;
       for (var i = 0; i < e.touches.length; i++) {
+        // radiusX/Y is the contact ellipse — palms have large values (>20px), fingertips are small (<15px)
+        var r = Math.max(e.touches[i].radiusX || 0, e.touches[i].radiusY || 0);
+        if (r > _tap.maxRadius) _tap.maxRadius = r;
         _tap.startPositions.push({ x: e.touches[i].clientX, y: e.touches[i].clientY });
+      }
+      // Measure spread between the first two touch points
+      // Genuine 2-finger taps: ~40-160px apart; palm resting: often >200px
+      if (e.touches.length >= 2) {
+        var sdx = e.touches[0].clientX - e.touches[1].clientX;
+        var sdy = e.touches[0].clientY - e.touches[1].clientY;
+        _tap.spread = Math.sqrt(sdx * sdx + sdy * sdy);
       }
     }
 
@@ -13615,6 +14342,10 @@ function toast(msg) {
     while (da >  180) da -= 360;
     while (da < -180) da += 360;
     var newRot = _g.rot + da;
+    // Lock rotation while crop mode is active — pinch-zoom still works freely
+    var _cropActive = document.getElementById('crop-overlay') &&
+                      document.getElementById('crop-overlay').classList.contains('active');
+    if (_cropActive) newRot = st.canvasRotation || 0;
     var newRotRad = newRot * Math.PI / 180;
 
     // Strategy: find the canvas-space point that was under the pinch midpoint
@@ -13669,7 +14400,13 @@ function toast(msg) {
     // Check for multi-finger tap when all fingers lift
     if (e.touches.length === 0) {
       var elapsed = Date.now() - _tap.startT;
-      if (!_tap.moved && elapsed < TAP_MAX_MS) {
+      // Palm rejection heuristics:
+      //   1. Large contact area: palm radiusX/Y typically >22px; fingertips <15px
+      //   2. Excessive spread: genuine 2-finger undo taps are 40-160px apart;
+      //      a resting palm often registers 2 contacts >200px apart
+      var isPalm = (_tap.maxRadius > 22) ||
+                   (_tap.count === 2 && _tap.spread > 200);
+      if (!_tap.moved && !isPalm && elapsed < TAP_MAX_MS) {
         if (_tap.count === 2) {
           e.preventDefault();
           if (typeof undo === 'function') undo();
@@ -13680,6 +14417,7 @@ function toast(msg) {
       }
       // Reset tap state
       _tap.count = 0; _tap.moved = false; _tap.startPositions = [];
+      _tap.maxRadius = 0; _tap.spread = 0;
     }
 
     if (e.touches.length < 2) {
@@ -13700,6 +14438,9 @@ function toast(msg) {
     _wrap.addEventListener('touchmove',   _onTouchMove,  { passive: false });
     _wrap.addEventListener('touchend',    _onTouchEnd,   { passive: false });
     _wrap.addEventListener('touchcancel', _onTouchEnd,   { passive: false });
+    // Prevent Android long-press context menu (the popup that appears on short strokes)
+    // This fires after ~500ms hold or sometimes on very short gestures on Android Chrome.
+    _wrap.addEventListener('contextmenu', function(e) { e.preventDefault(); }, { passive: false });
     console.log('[UG-PWA] Gesture listeners attached \u2713');
   }
 
@@ -13743,6 +14484,11 @@ function toast(msg) {
   // ── Init on window.load ───────────────────────────────────
   window.addEventListener('load', function() {
     patchApplyTransform();
+
+    // Prevent Android long-press context menu anywhere in the drawing app.
+    // contextmenu fires after a ~500ms hold on Android Chrome, or sometimes on
+    // very fast short strokes when the browser misclassifies the gesture.
+    document.addEventListener('contextmenu', function(e) { e.preventDefault(); }, { passive: false });
 
     // Scroll-wheel zoom anchored to cursor (transform-origin: top left)
     // Formula: keep the canvas point under the cursor fixed as zoom changes.
@@ -13789,11 +14535,14 @@ function toast(msg) {
       });
     }
 
-    // Keyboard R = reset canvas rotation
+    // Keyboard R = reset canvas rotation (blocked during crop)
     document.addEventListener('keydown', function(e) {
       if (e.key !== 'r' || e.ctrlKey || e.metaKey || e.altKey) return;
       var tag = document.activeElement && document.activeElement.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // Do not reset rotation while crop mode is active
+      var cropEl = document.getElementById('crop-overlay');
+      if (cropEl && cropEl.classList.contains('active')) return;
       var st = window.state;
       if (!st) return;
       st.canvasRotation = 0;
