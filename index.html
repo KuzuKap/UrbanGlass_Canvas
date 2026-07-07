@@ -2566,56 +2566,6 @@
     pointer-events: none;
     z-index: 6;
   }
-
-  /* ── Gradient map stop markers ── */
-  .gm-bar-wrap {
-    position: relative;
-    padding-bottom: 12px; /* room for stop markers */
-  }
-  .gm-stop-marker {
-    position: absolute;
-    bottom: 0;
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    border: 1.5px solid rgba(255,255,255,0.25);
-    transform: translateX(-50%);
-    cursor: grab;
-    touch-action: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-    transition: border-color 0.1s, box-shadow 0.1s;
-  }
-  .gm-stop-marker:active { cursor: grabbing; }
-  .gm-stop-marker.gm-selected {
-    border-color: var(--accent2);
-    box-shadow: 0 0 0 1.5px rgba(110,230,160,0.4), 0 1px 4px rgba(0,0,0,0.5);
-  }
-  .gm-stop-color-btn {
-    width: 28px; height: 20px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border2);
-    cursor: pointer;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.12s, transform 0.08s;
-  }
-  .gm-stop-color-btn:hover { border-color: var(--accent); transform: scale(1.06); }
-  .gm-stop-color-btn input[type=color] {
-    position: absolute;
-    inset: -4px;
-    width: calc(100% + 8px);
-    height: calc(100% + 8px);
-    opacity: 0;
-    cursor: pointer;
-    border: none;
-    padding: 0;
-  }
-  .gm-stop-preview {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
 </style>
 </head>
 <body>
@@ -10107,7 +10057,7 @@ function addFxLayer(fxType, fxLabel) {
     id: Date.now() + Math.random(),
     fxParams: fxType === 'curves'  ? { shadows: 0, midtones: 0, highlights: 0 }
              : fxType === 'huesat' ? { hue: 0, saturation: 0, lightness: 0 }
-             : /* gradmap */         { preset: 'bw', opacity: 100, customStops: [{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}] },
+             : /* gradmap */         { preset: 'bw', opacity: 100 },
   };
   state.layers.push(layer);
   state.activeLayer = state.layers.length - 1;
@@ -10180,271 +10130,60 @@ function buildFxEditor(wrap, l, _idx) {
     });
 
   } else if (l.fxType === 'gradmap') {
+    const lbl = document.createElement('div');
+    lbl.className = 'fx-row-label';
+    lbl.style.marginBottom = '4px';
+    lbl.textContent = 'Gradient Preset';
+    wrap.appendChild(lbl);
 
-    // ── Preset data ──────────────────────────────────────────
-    const GM_PRESETS = [
-      { key:'bw',     label:'B&W',    stops:[{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}] },
-      { key:'warm',   label:'Warm',   stops:[{pos:0,color:'#1a0a00'},{pos:0.5,color:'#ff8800'},{pos:1,color:'#fff5cc'}] },
-      { key:'cool',   label:'Cool',   stops:[{pos:0,color:'#000d1a'},{pos:0.5,color:'#0055ff'},{pos:1,color:'#aaddff'}] },
-      { key:'sunset', label:'Sunset', stops:[{pos:0,color:'#0d001a'},{pos:0.33,color:'#cc0055'},{pos:0.66,color:'#ff9900'},{pos:1,color:'#fffacc'}] },
-      { key:'forest', label:'Forest', stops:[{pos:0,color:'#000a00'},{pos:0.33,color:'#003300'},{pos:0.66,color:'#33aa44'},{pos:1,color:'#ccffcc'}] },
-      { key:'chrome', label:'Chrome', stops:[{pos:0,color:'#000000'},{pos:0.25,color:'#888888'},{pos:0.5,color:'#ffffff'},{pos:0.75,color:'#888888'},{pos:1,color:'#000000'}] },
-      { key:'heat',   label:'Heat',   stops:[{pos:0,color:'#000000'},{pos:0.33,color:'#7c0000'},{pos:0.66,color:'#ff6600'},{pos:1,color:'#ffff88'}] },
+    const presets = [
+      { key: 'bw',       label: 'B&W',       stops: ['#000', '#fff'] },
+      { key: 'warm',     label: 'Warm',      stops: ['#1a0a00', '#ff8800', '#fff5cc'] },
+      { key: 'cool',     label: 'Cool',      stops: ['#000d1a', '#0055ff', '#aaddff'] },
+      { key: 'sunset',   label: 'Sunset',    stops: ['#0d001a', '#cc0055', '#ff9900', '#fffacc'] },
+      { key: 'forest',   label: 'Forest',    stops: ['#000a00', '#003300', '#33aa44', '#ccffcc'] },
     ];
 
-    // ── Migrate legacy fxParams ──────────────────────────────
-    if (!l.fxParams.customStops) {
-      const found = GM_PRESETS.find(p => p.key === l.fxParams.preset);
-      l.fxParams.customStops = (found ? found.stops : GM_PRESETS[0].stops).map(s => ({...s}));
-    }
-    if (l.fxParams.opacity === undefined) l.fxParams.opacity = 100;
-
-    // ── Helpers ──────────────────────────────────────────────
-    function gmHexToRgb(hex) {
-      const h = hex.replace('#','');
-      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
-    }
-    function gmRgbToHex(r,g,b) {
-      return '#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
-    }
-    function gmStopsToCSS(stops) {
-      return 'linear-gradient(to right,'+[...stops].sort((a,b)=>a.pos-b.pos).map(s=>`${s.color} ${(s.pos*100).toFixed(1)}%`).join(',')+')';
-    }
-
-    let gmSelectedIdx = 0; // which stop is selected
-
-    // ── Preset chips row (text-only, existing fx-chip style) ─
-    const presetRow = document.createElement('div');
-    presetRow.className = 'fx-btn-row';
-    const presetChips = {};
-    GM_PRESETS.forEach(p => {
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'fx-btn-row';
+    presets.forEach(p => {
       const chip = document.createElement('button');
       chip.className = 'fx-chip' + (l.fxParams.preset === p.key ? ' active' : '');
       chip.textContent = p.label;
       chip.addEventListener('click', e => {
         e.stopPropagation();
         l.fxParams.preset = p.key;
-        l.fxParams.customStops = p.stops.map(s => ({...s}));
-        gmSelectedIdx = 0;
-        Object.values(presetChips).forEach(c => c.classList.remove('active'));
+        chipsRow.querySelectorAll('.fx-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        gmRefresh();
+        bar.style.background = `linear-gradient(to right, ${p.stops.join(', ')})`;
         applyFxLayer(l, currentIdx());
       });
-      presetChips[p.key] = chip;
-      presetRow.appendChild(chip);
+      chipsRow.appendChild(chip);
     });
-    wrap.appendChild(presetRow);
+    wrap.appendChild(chipsRow);
 
-    // ── Gradient bar + stop markers ──────────────────────────
-    const barWrap = document.createElement('div');
-    barWrap.className = 'gm-bar-wrap';
-
+    const barRow = document.createElement('div');
+    barRow.className = 'fx-row';
+    barRow.style.marginTop = '4px';
     const bar = document.createElement('div');
     bar.className = 'fx-gradient-bar';
-    bar.style.cursor = 'crosshair';
-    bar.title = 'Click to add a stop';
-    barWrap.appendChild(bar);
+    const currentPreset = presets.find(p => p.key === l.fxParams.preset) || presets[0];
+    bar.style.background = `linear-gradient(to right, ${currentPreset.stops.join(', ')})`;
+    barRow.appendChild(bar);
+    wrap.appendChild(barRow);
 
-    // Stop marker container — overlays bar bottom
-    const markerLayer = document.createElement('div');
-    markerLayer.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:12px;pointer-events:none;';
-    barWrap.appendChild(markerLayer);
-
-    wrap.appendChild(barWrap);
-
-    // ── Selected-stop controls (fx-row style) ────────────────
-    // Row: [color swatch] [pos label flex] [× delete]
-    const selRow = document.createElement('div');
-    selRow.className = 'fx-row';
-
-    const colorBtn = document.createElement('div');
-    colorBtn.className = 'gm-stop-color-btn';
-    const colorPreview = document.createElement('div');
-    colorPreview.className = 'gm-stop-preview';
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorBtn.appendChild(colorPreview);
-    colorBtn.appendChild(colorInput);
-
-    const posLbl = document.createElement('span');
-    posLbl.className = 'fx-val';
-    posLbl.style.cssText = 'flex:1;text-align:left;min-width:0;';
-
-    const delBtn = document.createElement('button');
-    delBtn.title = 'Delete stop';
-    delBtn.style.cssText = 'width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.12s,color 0.12s,border-color 0.12s;';
-    delBtn.textContent = '×';
-    delBtn.addEventListener('mouseenter', () => { delBtn.style.background='rgba(255,69,58,0.12)'; delBtn.style.borderColor='var(--red)'; delBtn.style.color='var(--red)'; });
-    delBtn.addEventListener('mouseleave', () => { delBtn.style.background='var(--surface2)'; delBtn.style.borderColor='var(--border)'; delBtn.style.color='var(--text3)'; });
-
-    selRow.appendChild(colorBtn);
-    selRow.appendChild(posLbl);
-    selRow.appendChild(delBtn);
-    wrap.appendChild(selRow);
-
-    // ── Hint line ────────────────────────────────────────────
-    const hint = document.createElement('div');
-    hint.style.cssText = 'font-size:10px;color:var(--text3);font-family:"DM Sans",sans-serif;text-align:center;opacity:0.75;';
-    hint.textContent = 'Click bar to add · Drag to move · × to delete';
-    wrap.appendChild(hint);
-
-    // ── Reverse row (fx-row label + button) ──────────────────
-    const revRow = document.createElement('div');
-    revRow.className = 'fx-row';
-    const revLbl = document.createElement('span');
-    revLbl.className = 'fx-row-label';
-    revLbl.textContent = 'Reverse';
-    const revBtn = document.createElement('button');
-    revBtn.className = 'fx-chip';
-    revBtn.textContent = '⇆ Flip';
-    revBtn.style.marginLeft = 'auto';
-    revRow.appendChild(revLbl);
-    revRow.appendChild(revBtn);
-    wrap.appendChild(revRow);
-
-    // ── Strength row (matches Hue/Sat style exactly) ─────────
     const opRow = document.createElement('div');
     opRow.className = 'fx-row';
+    opRow.style.marginTop = '2px';
     const opLbl = document.createElement('span');
     opLbl.className = 'fx-row-label';
     opLbl.textContent = 'Strength';
     const opSlider = document.createElement('input');
-    opSlider.type = 'range';
-    opSlider.className = 'fx-slider';
-    opSlider.min = 0; opSlider.max = 100;
-    opSlider.value = l.fxParams.opacity;
-    opSlider.style.touchAction = 'none';
+    opSlider.type = 'range'; opSlider.className = 'fx-slider';
+    opSlider.min = 0; opSlider.max = 100; opSlider.value = l.fxParams.opacity;
     const opVal = document.createElement('span');
     opVal.className = 'fx-val';
     opVal.textContent = l.fxParams.opacity + '%';
-    opRow.appendChild(opLbl);
-    opRow.appendChild(opSlider);
-    opRow.appendChild(opVal);
-    wrap.appendChild(opRow);
-
-    // ── Refresh: rebuild bar + markers + sel controls ─────────
-    function gmRefresh() {
-      const stops = l.fxParams.customStops;
-      bar.style.background = gmStopsToCSS(stops);
-
-      // Rebuild markers
-      markerLayer.innerHTML = '';
-      markerLayer.style.pointerEvents = 'all';
-      stops.forEach((stop, idx) => {
-        const mk = document.createElement('div');
-        mk.className = 'gm-stop-marker' + (idx === gmSelectedIdx ? ' gm-selected' : '');
-        mk.style.left = (stop.pos * 100).toFixed(2) + '%';
-        mk.style.background = stop.color;
-        mk.addEventListener('pointerdown', e => {
-          e.stopPropagation();
-          e.preventDefault();
-          // Capture before DOM rebuild
-          gmStartDrag(e, idx, mk);
-          gmSelectedIdx = idx;
-          gmRefresh();
-        }, { passive: false });
-        markerLayer.appendChild(mk);
-      });
-
-      // Update selected-stop controls
-      const sel = stops[gmSelectedIdx] || stops[0];
-      if (sel) {
-        colorPreview.style.background = sel.color;
-        colorInput.value = sel.color;
-        posLbl.textContent = Math.round(sel.pos * 100) + '%';
-      }
-      delBtn.style.opacity = stops.length > 2 ? '1' : '0.35';
-      delBtn.style.pointerEvents = stops.length > 2 ? 'all' : 'none';
-    }
-
-    // ── Drag stop ─────────────────────────────────────────────
-    function gmStartDrag(startEvt, stopIdx, markerEl) {
-      const barRect = bar.getBoundingClientRect();
-      try { markerEl.setPointerCapture(startEvt.pointerId); } catch(_) {}
-      function onMove(e) {
-        e.stopPropagation();
-        const pos = Math.min(1, Math.max(0, (e.clientX - barRect.left) / barRect.width));
-        l.fxParams.customStops[stopIdx].pos = pos;
-        l.fxParams.preset = 'custom';
-        gmRefresh();
-        applyFxLayer(l, currentIdx());
-      }
-      function onUp(e) {
-        e.stopPropagation();
-        document.removeEventListener('pointermove', onMove, true);
-        document.removeEventListener('pointerup',   onUp,   true);
-        try { markerEl.releasePointerCapture(startEvt.pointerId); } catch(_) {}
-      }
-      document.addEventListener('pointermove', onMove, { capture:true, passive:false });
-      document.addEventListener('pointerup',   onUp,   { capture:true, passive:false });
-    }
-
-    // ── Click bar to add stop ─────────────────────────────────
-    bar.addEventListener('pointerdown', e => {
-      e.stopPropagation();
-      e.preventDefault();
-      const barRect = bar.getBoundingClientRect();
-      const pos = Math.min(1, Math.max(0, (e.clientX - barRect.left) / barRect.width));
-      const stops = l.fxParams.customStops;
-      if (stops.some(s => Math.abs(s.pos - pos) < 0.025)) return;
-      // Interpolate color at click position
-      const sorted = [...stops].sort((a,b) => a.pos - b.pos);
-      let color = sorted[0].color;
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (pos >= sorted[i].pos && pos <= sorted[i+1].pos) {
-          const t = (pos - sorted[i].pos) / Math.max(0.0001, sorted[i+1].pos - sorted[i].pos);
-          const c0 = gmHexToRgb(sorted[i].color), c1 = gmHexToRgb(sorted[i+1].color);
-          color = gmRgbToHex(c0[0]*(1-t)+c1[0]*t, c0[1]*(1-t)+c1[1]*t, c0[2]*(1-t)+c1[2]*t);
-          break;
-        }
-      }
-      l.fxParams.preset = 'custom';
-      Object.values(presetChips).forEach(c => c.classList.remove('active'));
-      stops.push({ pos, color });
-      gmSelectedIdx = stops.length - 1;
-      gmRefresh();
-      applyFxLayer(l, currentIdx());
-    }, { passive: false });
-
-    // ── Color picker ─────────────────────────────────────────
-    colorInput.addEventListener('input', e => {
-      e.stopPropagation();
-      const stops = l.fxParams.customStops;
-      const sel = stops[gmSelectedIdx];
-      if (!sel) return;
-      sel.color = colorInput.value;
-      l.fxParams.preset = 'custom';
-      Object.values(presetChips).forEach(c => c.classList.remove('active'));
-      gmRefresh();
-      applyFxLayer(l, currentIdx());
-    });
-    colorInput.addEventListener('click', e => e.stopPropagation());
-
-    // ── Delete selected stop ──────────────────────────────────
-    delBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      const stops = l.fxParams.customStops;
-      if (stops.length <= 2) return;
-      stops.splice(gmSelectedIdx, 1);
-      gmSelectedIdx = Math.min(gmSelectedIdx, stops.length - 1);
-      l.fxParams.preset = 'custom';
-      Object.values(presetChips).forEach(c => c.classList.remove('active'));
-      gmRefresh();
-      applyFxLayer(l, currentIdx());
-    });
-
-    // ── Reverse ───────────────────────────────────────────────
-    revBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      l.fxParams.customStops.forEach(s => { s.pos = 1 - s.pos; });
-      l.fxParams.preset = 'custom';
-      Object.values(presetChips).forEach(c => c.classList.remove('active'));
-      gmRefresh();
-      applyFxLayer(l, currentIdx());
-    });
-
-    // ── Strength slider ───────────────────────────────────────
     opSlider.addEventListener('input', e => {
       e.stopPropagation();
       l.fxParams.opacity = +opSlider.value;
@@ -10452,11 +10191,10 @@ function buildFxEditor(wrap, l, _idx) {
       applyFxLayer(l, currentIdx());
     });
     opSlider.addEventListener('click', e => e.stopPropagation());
-
-    // Initial render
-    gmRefresh();
+    opRow.appendChild(opLbl); opRow.appendChild(opSlider); opRow.appendChild(opVal);
+    wrap.appendChild(opRow);
   }
-} // end buildFxEditor
+}
 
 // ── Apply all FX layers (call after any paint or param change) ──
 function applyAllFxLayers() {
@@ -10542,56 +10280,34 @@ function applyFxLayer(l, idx) {
     l.ctx.putImageData(imgData, px, py);
 
   } else if (l.fxType === 'gradmap') {
-    // Migrate legacy (no customStops)
-    if (!l.fxParams.customStops) {
-      const LEGACY = {
-        bw:     [{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}],
-        warm:   [{pos:0,color:'#1a0a00'},{pos:0.5,color:'#ff8800'},{pos:1,color:'#fff5cc'}],
-        cool:   [{pos:0,color:'#000d1a'},{pos:0.5,color:'#0055ff'},{pos:1,color:'#aaddff'}],
-        sunset: [{pos:0,color:'#0d001a'},{pos:0.33,color:'#cc0055'},{pos:0.66,color:'#ff9900'},{pos:1,color:'#fffacc'}],
-        forest: [{pos:0,color:'#000a00'},{pos:0.33,color:'#003300'},{pos:0.66,color:'#33aa44'},{pos:1,color:'#ccffcc'}],
-      };
-      l.fxParams.customStops = (LEGACY[l.fxParams.preset] || LEGACY.bw).map(s=>({...s}));
-    }
-    const strength = (l.fxParams.opacity !== undefined ? l.fxParams.opacity : 100) / 100;
-    const sorted = [...l.fxParams.customStops].sort((a,b) => a.pos - b.pos);
-
-    function apHex(hex) {
-      const h = hex.replace('#','');
-      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
-    }
-    const stopRGB = sorted.map(s => apHex(s.color));
-
+    const GRADIENT_PRESETS = {
+      bw:     [[0,0,0],       [255,255,255]],
+      warm:   [[26,10,0],     [255,136,0],   [255,245,204]],
+      cool:   [[0,13,26],     [0,85,255],    [170,221,255]],
+      sunset: [[13,0,26],     [204,0,85],    [255,153,0],   [255,250,204]],
+      forest: [[0,10,0],      [0,51,0],      [51,170,68],   [204,255,204]],
+    };
+    const stops = GRADIENT_PRESETS[l.fxParams.preset] || GRADIENT_PRESETS.bw;
+    const strength = (l.fxParams.opacity || 100) / 100;
     const lutR = new Uint8ClampedArray(256);
     const lutG = new Uint8ClampedArray(256);
     const lutB = new Uint8ClampedArray(256);
     for (let v = 0; v < 256; v++) {
-      const t = v / 255;
-      let r, g, b;
-      if (t <= sorted[0].pos) {
-        [r,g,b] = stopRGB[0];
-      } else if (t >= sorted[sorted.length-1].pos) {
-        [r,g,b] = stopRGB[sorted.length-1];
-      } else {
-        let seg = 0;
-        while (seg < sorted.length-2 && sorted[seg+1].pos <= t) seg++;
-        const span = sorted[seg+1].pos - sorted[seg].pos;
-        const f = span > 0 ? (t - sorted[seg].pos) / span : 0;
-        const c0 = stopRGB[seg], c1 = stopRGB[seg+1];
-        r = c0[0]*(1-f)+c1[0]*f; g = c0[1]*(1-f)+c1[1]*f; b = c0[2]*(1-f)+c1[2]*f;
-      }
-      lutR[v] = Math.min(255, Math.max(0, Math.round(r)));
-      lutG[v] = Math.min(255, Math.max(0, Math.round(g)));
-      lutB[v] = Math.min(255, Math.max(0, Math.round(b)));
+      const t = v / 255 * (stops.length - 1);
+      const lo = Math.floor(t), hi = Math.min(stops.length - 1, lo + 1);
+      const f  = t - lo;
+      lutR[v] = Math.round(stops[lo][0] * (1-f) + stops[hi][0] * f);
+      lutG[v] = Math.round(stops[lo][1] * (1-f) + stops[hi][1] * f);
+      lutB[v] = Math.round(stops[lo][2] * (1-f) + stops[hi][2] * f);
     }
     l.ctx.drawImage(below, 0, 0);
     const imgData = l.ctx.getImageData(px, py, W, H);
     const d = imgData.data;
     for (let p = 0; p < d.length; p += 4) {
-      const lum = Math.round(0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2]);
-      d[p]   = Math.round(d[p]   * (1-strength) + lutR[lum] * strength);
-      d[p+1] = Math.round(d[p+1] * (1-strength) + lutG[lum] * strength);
-      d[p+2] = Math.round(d[p+2] * (1-strength) + lutB[lum] * strength);
+      const lum = Math.round(0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2]);
+      d[p]   = Math.round(d[p]   * (1 - strength) + lutR[lum] * strength);
+      d[p+1] = Math.round(d[p+1] * (1 - strength) + lutG[lum] * strength);
+      d[p+2] = Math.round(d[p+2] * (1 - strength) + lutB[lum] * strength);
     }
     l.ctx.putImageData(imgData, px, py);
   }
