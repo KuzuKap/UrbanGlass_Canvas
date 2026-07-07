@@ -6617,14 +6617,6 @@ const pressureState = {
   raw: 1,        // latest raw value from the pointer event
   smoothed: 1,   // exponentially smoothed value used for rendering
   active: false, // whether a real stylus/pen with variable pressure is detected
-  outSize: null,    // second-stage smoothed SIZE scale (post pressure-curve), null = not yet seeded this stroke
-  outOpacity: null, // second-stage smoothed OPACITY scale (post pressure-curve), null = not yet seeded this stroke
-  strokeStart: true, // true for the first pressure sample of a stroke. Forces every
-                      // smoothing stage to hard-seed from the real starting value instead
-                      // of blending from whatever the PREVIOUS stroke ended on — that stale
-                      // blend was the cause of the visible pressure "jump" right as a new
-                      // stroke begins, especially noticeable on brushes like G-Pen whose
-                      // heavy-start curve + very low sizeMin make any mismatch highly visible.
 };
 
 // Pressure affects size and/or opacity depending on user settings
@@ -6648,13 +6640,6 @@ const canvasPrefs = {
 
 // Smooth incoming pressure with a low-pass filter (avoids jitter)
 function smoothPressure(raw) {
-  // First sample of a new stroke: seed directly, never blend from whatever
-  // value the previous stroke (or pointer) left behind.
-  if (pressureState.strokeStart) {
-    pressureState.smoothed = raw;
-    pressureState.strokeStart = false;
-    return raw;
-  }
   if (!pressureSettings.smoothStrokes) {
     pressureState.smoothed = raw;
     return raw;
@@ -6684,52 +6669,6 @@ function pressureToOpacityScale(p, brush) {
   const min    = minPct / 100;
   const remapped = remapPressure(Math.max(0, Math.min(1, p)), curve);
   return min + (1 - min) * remapped;
-}
-
-// Second-stage smoothing applied to the FINAL (post pressure-curve) size/opacity
-// scale, on top of the raw-pressure smoothing in smoothPressure() above.
-//
-// Why two stages: steep low-end curves — e.g. G-Pen's "Heavy Start" curve
-// (p^0.45) combined with its very low sizeMin (2%) — have a derivative that
-// approaches infinity near zero pressure. That means even a perfectly smooth,
-// tiny fluctuation in raw pressure gets amplified into a large, visible swing
-// in line width after the curve is applied. Smoothing the curve's OUTPUT as
-// well keeps width changes continuous regardless of how steep the curve is,
-// without adding noticeable input lag (this stage is still a fast EMA).
-const SCALE_SMOOTH = 0.30;
-
-// Computes the pressure-driven size/opacity scale for a brush from an
-// already-smoothed 0..1 pressure value. Call once per pointer sample (down
-// or move). pressureState.outSize / outOpacity are reset to null at the start
-// of every stroke so the first sample is seeded directly — never blended
-// from the previous stroke's leftover scale.
-function getPressureScales(p, brush) {
-  const sizeOn    = brush.sizePressure    && pressureSettings.enabled;
-  const opacityOn = brush.opacityPressure && pressureSettings.enabled;
-
-  let sizeScale = 1;
-  if (sizeOn) {
-    const target = pressureToScale(p, brush);
-    sizeScale = (pressureState.outSize == null)
-      ? target
-      : pressureState.outSize * SCALE_SMOOTH + target * (1 - SCALE_SMOOTH);
-    pressureState.outSize = sizeScale;
-  } else {
-    pressureState.outSize = null;
-  }
-
-  let opacityScale = 1;
-  if (opacityOn) {
-    const target = pressureToOpacityScale(p, brush);
-    opacityScale = (pressureState.outOpacity == null)
-      ? target
-      : pressureState.outOpacity * SCALE_SMOOTH + target * (1 - SCALE_SMOOTH);
-    pressureState.outOpacity = opacityScale;
-  } else {
-    pressureState.outOpacity = null;
-  }
-
-  return { sizeScale, opacityScale };
 }
 
 function getPressure(e) {
@@ -6815,12 +6754,7 @@ canvasContainer.addEventListener('pointerdown', e => {
   canvasContainer.setPointerCapture(e.pointerId);
 
   const {x, y} = clientToCanvas(e.clientX, e.clientY);
-  // Mark this as the first pressure sample of a new stroke. smoothPressure()
-  // and getPressureScales() below will hard-seed from this stroke's real
-  // starting pressure instead of blending from the previous stroke's value.
-  pressureState.strokeStart = true;
-  pressureState.outSize     = null;
-  pressureState.outOpacity  = null;
+  pressureState.smoothed = getPressure(e);
 
   if (state.tool === 'move') {
     state.drawing = true;
@@ -6847,11 +6781,15 @@ canvasContainer.addEventListener('pointerdown', e => {
 
   const pressure = getPressure(e);
   const brush = getActiveBrush();
-  const { sizeScale, opacityScale } = getPressureScales(pressure, brush);
+  const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
+  const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
 
   if (state.tool === 'brush') {
     wetInit(getActiveCtx());
-    const size = Math.max(0.5, brush.size * sizeScale);
+    const initialSizeScale = (brush.sizePressure && pressureSettings.enabled)
+      ? pressureToScale(0.08, brush)
+      : sizeScale;
+    const size = Math.max(0.5, brush.size * initialSizeScale);
     const {r,g,b} = hexToRgb(state.color);
     stampDabs(brush, getActiveCtx(), x, y, size, {r,g,b}, 0);
     wetFlushToLayer();
@@ -6891,7 +6829,8 @@ canvasContainer.addEventListener('pointermove', e => {
     const {x: cx, y: cy} = clientToCanvas(ce.clientX, ce.clientY);
     const pressure = getPressure(ce);
     const brush = getActiveBrush();
-    const { sizeScale, opacityScale } = getPressureScales(pressure, brush);
+    const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
+    const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
 
     if (state.tool === 'brush') {
       if (pressureSettings.stabilizer > 0) {
@@ -6925,13 +6864,7 @@ canvasContainer.addEventListener('pointerup', e => {
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
   state.drawing = false;
   lastStampX = null; lastStampY = null;
-  // Don't force pressureState.smoothed to a fixed value here — that stale
-  // value previously got blended into the START of the next stroke and
-  // caused a visible pressure jump. Just flag that the next stroke's first
-  // sample should hard-seed instead of blend.
-  pressureState.strokeStart = true;
-  pressureState.outSize     = null;
-  pressureState.outOpacity  = null;
+  pressureState.smoothed = 1;
   stabilizer.active = false;
 });
 
@@ -6945,9 +6878,7 @@ canvasContainer.addEventListener('pointercancel', () => {
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
   state.drawing = false;
   lastStampX = null; lastStampY = null;
-  pressureState.strokeStart = true;
-  pressureState.outSize     = null;
-  pressureState.outOpacity  = null;
+  pressureState.smoothed = 1;
   stabilizer.active = false;
 });
 
@@ -14233,38 +14164,23 @@ function toast(msg) {
     startT: 0,      // timestamp of first finger down
     moved: false,   // did fingers move significantly?
     startPositions: [], // [{x,y}] at touchstart
-    maxRadius: 0,   // max touch contact radius (palm contacts typically > 22px)
-    spread: 0,      // pixel distance between 2-finger touches (palm spread >> finger tap)
   };
   var TAP_MAX_MS   = 300;  // max duration for a tap
   var TAP_MAX_MOVE = 20;   // max px movement before it's not a tap
 
   function _onTouchStart(e) {
-    // Track multi-finger tap — record finger count, positions, and palm-rejection data
+    // Track multi-finger tap — record finger count and start positions
     if (e.touches.length === 1) {
       // Reset on first finger down
       _tap.count = 1;
       _tap.startT = Date.now();
       _tap.moved  = false;
-      _tap.maxRadius = Math.max(e.touches[0].radiusX || 0, e.touches[0].radiusY || 0);
-      _tap.spread = 0;
       _tap.startPositions = [{ x: e.touches[0].clientX, y: e.touches[0].clientY }];
     } else if (e.touches.length === 2 || e.touches.length === 3) {
       _tap.count = e.touches.length;
       _tap.startPositions = [];
-      _tap.maxRadius = 0;
       for (var i = 0; i < e.touches.length; i++) {
-        // radiusX/Y is the contact ellipse — palms have large values (>20px), fingertips are small (<15px)
-        var r = Math.max(e.touches[i].radiusX || 0, e.touches[i].radiusY || 0);
-        if (r > _tap.maxRadius) _tap.maxRadius = r;
         _tap.startPositions.push({ x: e.touches[i].clientX, y: e.touches[i].clientY });
-      }
-      // Measure spread between the first two touch points
-      // Genuine 2-finger taps: ~40-160px apart; palm resting: often >200px
-      if (e.touches.length >= 2) {
-        var sdx = e.touches[0].clientX - e.touches[1].clientX;
-        var sdy = e.touches[0].clientY - e.touches[1].clientY;
-        _tap.spread = Math.sqrt(sdx * sdx + sdy * sdy);
       }
     }
 
@@ -14400,13 +14316,7 @@ function toast(msg) {
     // Check for multi-finger tap when all fingers lift
     if (e.touches.length === 0) {
       var elapsed = Date.now() - _tap.startT;
-      // Palm rejection heuristics:
-      //   1. Large contact area: palm radiusX/Y typically >22px; fingertips <15px
-      //   2. Excessive spread: genuine 2-finger undo taps are 40-160px apart;
-      //      a resting palm often registers 2 contacts >200px apart
-      var isPalm = (_tap.maxRadius > 22) ||
-                   (_tap.count === 2 && _tap.spread > 200);
-      if (!_tap.moved && !isPalm && elapsed < TAP_MAX_MS) {
+      if (!_tap.moved && elapsed < TAP_MAX_MS) {
         if (_tap.count === 2) {
           e.preventDefault();
           if (typeof undo === 'function') undo();
@@ -14417,7 +14327,6 @@ function toast(msg) {
       }
       // Reset tap state
       _tap.count = 0; _tap.moved = false; _tap.startPositions = [];
-      _tap.maxRadius = 0; _tap.spread = 0;
     }
 
     if (e.touches.length < 2) {
@@ -14438,9 +14347,6 @@ function toast(msg) {
     _wrap.addEventListener('touchmove',   _onTouchMove,  { passive: false });
     _wrap.addEventListener('touchend',    _onTouchEnd,   { passive: false });
     _wrap.addEventListener('touchcancel', _onTouchEnd,   { passive: false });
-    // Prevent Android long-press context menu (the popup that appears on short strokes)
-    // This fires after ~500ms hold or sometimes on very short gestures on Android Chrome.
-    _wrap.addEventListener('contextmenu', function(e) { e.preventDefault(); }, { passive: false });
     console.log('[UG-PWA] Gesture listeners attached \u2713');
   }
 
@@ -14484,11 +14390,6 @@ function toast(msg) {
   // ── Init on window.load ───────────────────────────────────
   window.addEventListener('load', function() {
     patchApplyTransform();
-
-    // Prevent Android long-press context menu anywhere in the drawing app.
-    // contextmenu fires after a ~500ms hold on Android Chrome, or sometimes on
-    // very fast short strokes when the browser misclassifies the gesture.
-    document.addEventListener('contextmenu', function(e) { e.preventDefault(); }, { passive: false });
 
     // Scroll-wheel zoom anchored to cursor (transform-origin: top left)
     // Formula: keep the canvas point under the cursor fixed as zoom changes.
