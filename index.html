@@ -13,11 +13,6 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>UrbanGlass Canvas</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-
-
-  </script>
-</body>
-</html>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2205,8 +2200,6 @@
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
-  .shortcuts-grid::-webkit-scrollbar { width: 3px; }
-  .shortcuts-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .shortcuts-section {
     font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
     text-transform: uppercase; color: var(--text3);
@@ -2565,6 +2558,56 @@
     inset: 0;
     pointer-events: none;
     z-index: 6;
+  }
+
+  /* ── Gradient map stop markers ── */
+  .gm-bar-wrap {
+    position: relative;
+    padding-bottom: 12px; /* room for stop markers */
+  }
+  .gm-stop-marker {
+    position: absolute;
+    bottom: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    transform: translateX(-50%);
+    cursor: grab;
+    touch-action: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    transition: border-color 0.1s, box-shadow 0.1s;
+  }
+  .gm-stop-marker:active { cursor: grabbing; }
+  .gm-stop-marker.gm-selected {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1.5px rgba(110,230,160,0.4), 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .gm-stop-color-btn {
+    width: 28px; height: 20px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border2);
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.12s, transform 0.08s;
+  }
+  .gm-stop-color-btn:hover { border-color: var(--accent); transform: scale(1.06); }
+  .gm-stop-color-btn input[type=color] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    opacity: 0;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+  .gm-stop-preview {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
   }
 </style>
 </head>
@@ -6014,174 +6057,6 @@ function stampDabs(brush, ctx, x, y, size, rgb, pathAngle) {
   }
 }
 
-// Legacy alias used by eraser (unchanged)
-function createBrushStamp(size, hardness, color, opacity, brushType) {
-  const pad  = Math.ceil(size * 0.15) + 2;
-  const dim  = size * 2 + pad * 2;
-  const offscreen = document.createElement('canvas');
-  offscreen.width  = dim;
-  offscreen.height = dim;
-  const ctx = offscreen.getContext('2d');
-  const cx = dim / 2, cy = dim / 2;
-  const {r,g,b} = hexToRgb(color);
-  const alpha = opacity / 100;
-
-  if (brushType === 'airbrush') {
-    // ── Soft airbrush: wide feathered gradient ──
-    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, size);
-    gradient.addColorStop(0,   `rgba(${r},${g},${b},${alpha})`);
-    gradient.addColorStop(0.35,`rgba(${r},${g},${b},${alpha * 0.65})`);
-    gradient.addColorStop(0.7, `rgba(${r},${g},${b},${alpha * 0.25})`);
-    gradient.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size, 0, Math.PI * 2);
-    ctx.fill();
-
-  } else if (brushType === 'pencil') {
-    // ── Procreate-style pencil ──
-    // Hard graphite core + paper grain texture with angular jitter
-    const rng = seededRand(Math.floor(size * 137 + alpha * 999));
-
-    // 1. Hard elliptical core (slight tilt like a real pencil tip)
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(Math.PI * 0.12);
-    const coreW = size * 0.62;
-    const coreH = size * 0.45;
-    const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, coreW);
-    coreGrad.addColorStop(0,    `rgba(${r},${g},${b},${alpha * 0.88})`);
-    coreGrad.addColorStop(0.55, `rgba(${r},${g},${b},${alpha * 0.55})`);
-    coreGrad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = coreGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, coreW, coreH, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // 2. Outer soft halo — faint deposit beyond the tip
-    const haloGrad = ctx.createRadialGradient(cx, cy, coreW * 0.8, cx, cy, size * 0.9);
-    haloGrad.addColorStop(0,   `rgba(${r},${g},${b},${alpha * 0.18})`);
-    haloGrad.addColorStop(0.6, `rgba(${r},${g},${b},${alpha * 0.06})`);
-    haloGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = haloGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.9, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 3. Paper grain: short scratchy strokes at ~12° angle (classic pencil direction)
-    const angle = Math.PI * 0.067;
-    const cosA = Math.cos(angle), sinA = Math.sin(angle);
-    const grainN = Math.floor(size * 4.5);
-    for (let i = 0; i < grainN; i++) {
-      const rr = Math.sqrt(rng()) * size * 0.85;
-      const theta = rng() * Math.PI * 2;
-      const px = cx + rr * Math.cos(theta);
-      const py = cy + rr * Math.sin(theta);
-      const dist = rr / (size * 0.85);
-      const ga = alpha * (1 - dist * dist) * (0.04 + rng() * 0.14);
-      const len = (0.4 + rng() * 0.9) * Math.max(0.8, size * 0.13);
-      const jitterX = (rng() - 0.5) * 0.6;
-      const jitterY = (rng() - 0.5) * 0.6;
-      ctx.beginPath();
-      ctx.moveTo(px - cosA * len * 0.5 + jitterX, py - sinA * len * 0.5 + jitterY);
-      ctx.lineTo(px + cosA * len * 0.5 + jitterX, py + sinA * len * 0.5 + jitterY);
-      ctx.strokeStyle = `rgba(${r},${g},${b},${ga})`;
-      ctx.lineWidth = rng() < 0.25 ? 0.4 : (rng() < 0.6 ? 0.7 : 1.1);
-      ctx.stroke();
-    }
-
-    // 4. Specular paper "tooth" — sparse bright micro-dots break up coverage
-    const toothN = Math.floor(size * size * 0.18);
-    for (let i = 0; i < toothN; i++) {
-      const rr = Math.sqrt(rng()) * size * 0.8;
-      const theta = rng() * Math.PI * 2;
-      const px = cx + rr * Math.cos(theta);
-      const py = cy + rr * Math.sin(theta);
-      const dist = rr / (size * 0.8);
-      const da = alpha * (1 - dist) * (0.02 + rng() * 0.055);
-      ctx.fillStyle = `rgba(${r},${g},${b},${da})`;
-      ctx.beginPath();
-      ctx.arc(px, py, 0.25 + rng() * 0.55, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-  } else if (brushType === 'watercolor') {
-    // ── Clip Studio Paint-style watercolor ──
-    // Built from multiple translucent blobs with ragged edges and a
-    // darker pigment ring — all source-over, no hue shift.
-    const rng = seededRand(Math.floor(size * 293 + alpha * 1777));
-
-    const baseA = alpha * 0.28;
-
-    // 1. Soft center wash
-    const washGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.75);
-    washGrad.addColorStop(0,   `rgba(${r},${g},${b},${baseA * 1.2})`);
-    washGrad.addColorStop(0.5, `rgba(${r},${g},${b},${baseA * 0.9})`);
-    washGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = washGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.75, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 2. Irregular outer blobs (simulate water bloom / cauliflower edge)
-    const blobN = 7 + Math.floor(rng() * 5);
-    for (let i = 0; i < blobN; i++) {
-      const angle2 = (i / blobN) * Math.PI * 2 + rng() * 0.6;
-      const dist2  = size * (0.45 + rng() * 0.45);
-      const bx = cx + Math.cos(angle2) * dist2;
-      const by = cy + Math.sin(angle2) * dist2;
-      const br = size * (0.18 + rng() * 0.28);
-      const bA = baseA * (0.5 + rng() * 0.7);
-      const bGrad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-      bGrad.addColorStop(0,   `rgba(${r},${g},${b},${bA})`);
-      bGrad.addColorStop(0.6, `rgba(${r},${g},${b},${bA * 0.5})`);
-      bGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-      ctx.fillStyle = bGrad;
-      ctx.beginPath();
-      ctx.arc(bx, by, br, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 3. Dark pigment ring at the edge (granulation / backrun)
-    const ringGrad = ctx.createRadialGradient(cx, cy, size * 0.55, cx, cy, size * 0.88);
-    ringGrad.addColorStop(0,   `rgba(${r},${g},${b},0)`);
-    ringGrad.addColorStop(0.5, `rgba(${r},${g},${b},${baseA * 1.6})`);
-    ringGrad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = ringGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.88, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Texture grain — sparse low-alpha dots inside wash
-    const grainN = Math.floor(size * size * 0.12);
-    for (let i = 0; i < grainN; i++) {
-      const rr = Math.sqrt(rng()) * size * 0.82;
-      const theta2 = rng() * Math.PI * 2;
-      const px = cx + rr * Math.cos(theta2);
-      const py = cy + rr * Math.sin(theta2);
-      const dist = rr / (size * 0.82);
-      const ga = alpha * (1 - dist) * rng() * 0.09;
-      ctx.fillStyle = `rgba(${r},${g},${b},${ga})`;
-      ctx.beginPath();
-      ctx.arc(px, py, 0.3 + rng() * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-  } else {
-    // ── Pen (smooth, crisp ink line) ──
-    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, size);
-    gradient.addColorStop(0,    `rgba(${r},${g},${b},${alpha})`);
-    gradient.addColorStop(0.75, `rgba(${r},${g},${b},${alpha})`);
-    gradient.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  return offscreen;
-}
 
 // ── Cached mask canvas ────────────────────────────────────────────────────
 // buildMaskCanvas() was called on every brush stamp — extremely slow.
@@ -6267,8 +6142,6 @@ function commitMask(mask) {
   selState.drawing = false;
   invalidateMaskCache();
 }
-
-function applySelectionClip(ctx) { /* kept for compat, no longer used */ }
 
 function placeErase(ctx, x, y, size) {
   const alpha = state.opacity / 100;
@@ -6564,28 +6437,20 @@ function overlayToCanvas(ox, oy) {
 
 // Smoothed pressure state to avoid jumpy transitions
 const pressureState = {
-  raw: 1,        // latest raw value from the pointer event
   smoothed: 1,   // exponentially smoothed value used for rendering
-  active: false, // whether a real stylus/pen with variable pressure is detected
 };
 
 // Pressure affects size and/or opacity depending on user settings
 const pressureSettings = {
-  enabled:        true,   // master on/off switch
-  affectsSize:    true,
-  affectsOpacity: false,
-  minScale: 0.15,  // minimum size multiplier at zero pressure
-  smoothStrokes:  true,   // low-pass filter on stroke positions
-  stabilizer:     0,      // 0=off, 1-10 lag-based stabilizer strength
-  pressureReadout: true,  // show live pressure in statusbar
+  enabled:       true,   // master on/off switch
+  smoothStrokes: true,   // low-pass filter on stroke positions
+  stabilizer:    0,      // 0=off, 1-10 lag-based stabilizer strength
 };
 
 // Canvas / interface preferences
 const canvasPrefs = {
-  showGrid:      false,
-  gridSize:      32,
-  darkBg:        false,
-  precisionCursor: true,
+  showGrid: false,
+  gridSize: 32,
 };
 
 // Smooth incoming pressure with a low-pass filter (avoids jitter)
@@ -6633,7 +6498,6 @@ function getPressure(e) {
   if (e.pointerType === 'mouse') return 1;
   // For pen/stylus: detect if we're actually getting variable pressure
   if (e.pointerType === 'pen') {
-    pressureState.active = true;
     return smoothPressure(Math.max(0.01, raw));
   }
   // Touch: no reliable pressure — use 1
@@ -7129,40 +6993,6 @@ function updateGridOverlay() {
 // updateGridOverlay is called from there after each transform.
 
 window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOverlay(); });
-
-// ────────────────────────────────────────
-//  CANVAS BG  (dark checkerboard option)
-// ────────────────────────────────────────
-function applyCanvasBg() {
-  const bg = document.getElementById('canvas-bg');
-  if (canvasPrefs.darkBg) {
-    // Dense dark checkerboard — clearly shows transparency
-    bg.style.backgroundImage = [
-      'linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-      'linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)',
-      'repeating-conic-gradient(#0d160f 0% 25%, #07100a 0% 50%)'
-    ].join(',');
-    bg.style.backgroundSize = '32px 32px, 32px 32px, 16px 16px';
-  } else {
-    bg.style.backgroundImage = [
-      'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px)',
-      'linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)'
-    ].join(',');
-    bg.style.backgroundSize = '32px 32px';
-  }
-}
-
-// ────────────────────────────────────────
-//  CANVAS CURSOR
-// ────────────────────────────────────────
-function applyCanvasCursor() {
-  if (canvasPrefs.precisionCursor) {
-    canvasContainer.style.cursor = 'crosshair';
-  } else {
-    // Default cursor based on active tool
-    canvasContainer.style.cursor = state.tool === 'move' ? 'grab' : 'default';
-  }
-}
 
 // ────────────────────────────────────────
 //  BRUSH CURSOR OVERLAY
@@ -8970,13 +8800,6 @@ let crop = { active: false, dragging: false, resizing: false,
              startMx: 0, startMy: 0, startX: 0, startY: 0, startW: 0, startH: 0,
              handle: null };
 
-function overlayToCanvas(ox, oy) {
-  // ox, oy are wrap-relative coords (clientX - wrapLeft, clientY - wrapTop).
-  // Convert to viewport coords and delegate to clientToCanvas.
-  const wr = _getWrapRect();
-  return clientToCanvas(ox + wr.left, oy + wr.top);
-}
-
 function updateCropVisual() {
   // The crop rect is in canvas space (axis-aligned to the canvas).
   // We map the four corners through canvasToOverlay to get their wrap-relative
@@ -10057,7 +9880,7 @@ function addFxLayer(fxType, fxLabel) {
     id: Date.now() + Math.random(),
     fxParams: fxType === 'curves'  ? { shadows: 0, midtones: 0, highlights: 0 }
              : fxType === 'huesat' ? { hue: 0, saturation: 0, lightness: 0 }
-             : /* gradmap */         { preset: 'bw', opacity: 100 },
+             : /* gradmap */         { preset: 'bw', opacity: 100, customStops: [{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}] },
   };
   state.layers.push(layer);
   state.activeLayer = state.layers.length - 1;
@@ -10130,60 +9953,271 @@ function buildFxEditor(wrap, l, _idx) {
     });
 
   } else if (l.fxType === 'gradmap') {
-    const lbl = document.createElement('div');
-    lbl.className = 'fx-row-label';
-    lbl.style.marginBottom = '4px';
-    lbl.textContent = 'Gradient Preset';
-    wrap.appendChild(lbl);
 
-    const presets = [
-      { key: 'bw',       label: 'B&W',       stops: ['#000', '#fff'] },
-      { key: 'warm',     label: 'Warm',      stops: ['#1a0a00', '#ff8800', '#fff5cc'] },
-      { key: 'cool',     label: 'Cool',      stops: ['#000d1a', '#0055ff', '#aaddff'] },
-      { key: 'sunset',   label: 'Sunset',    stops: ['#0d001a', '#cc0055', '#ff9900', '#fffacc'] },
-      { key: 'forest',   label: 'Forest',    stops: ['#000a00', '#003300', '#33aa44', '#ccffcc'] },
+    // ── Preset data ──────────────────────────────────────────
+    const GM_PRESETS = [
+      { key:'bw',     label:'B&W',    stops:[{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}] },
+      { key:'warm',   label:'Warm',   stops:[{pos:0,color:'#1a0a00'},{pos:0.5,color:'#ff8800'},{pos:1,color:'#fff5cc'}] },
+      { key:'cool',   label:'Cool',   stops:[{pos:0,color:'#000d1a'},{pos:0.5,color:'#0055ff'},{pos:1,color:'#aaddff'}] },
+      { key:'sunset', label:'Sunset', stops:[{pos:0,color:'#0d001a'},{pos:0.33,color:'#cc0055'},{pos:0.66,color:'#ff9900'},{pos:1,color:'#fffacc'}] },
+      { key:'forest', label:'Forest', stops:[{pos:0,color:'#000a00'},{pos:0.33,color:'#003300'},{pos:0.66,color:'#33aa44'},{pos:1,color:'#ccffcc'}] },
+      { key:'chrome', label:'Chrome', stops:[{pos:0,color:'#000000'},{pos:0.25,color:'#888888'},{pos:0.5,color:'#ffffff'},{pos:0.75,color:'#888888'},{pos:1,color:'#000000'}] },
+      { key:'heat',   label:'Heat',   stops:[{pos:0,color:'#000000'},{pos:0.33,color:'#7c0000'},{pos:0.66,color:'#ff6600'},{pos:1,color:'#ffff88'}] },
     ];
 
-    const chipsRow = document.createElement('div');
-    chipsRow.className = 'fx-btn-row';
-    presets.forEach(p => {
+    // ── Migrate legacy fxParams ──────────────────────────────
+    if (!l.fxParams.customStops) {
+      const found = GM_PRESETS.find(p => p.key === l.fxParams.preset);
+      l.fxParams.customStops = (found ? found.stops : GM_PRESETS[0].stops).map(s => ({...s}));
+    }
+    if (l.fxParams.opacity === undefined) l.fxParams.opacity = 100;
+
+    // ── Helpers ──────────────────────────────────────────────
+    function gmHexToRgb(hex) {
+      const h = hex.replace('#','');
+      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+    }
+    function gmRgbToHex(r,g,b) {
+      return '#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+    }
+    function gmStopsToCSS(stops) {
+      return 'linear-gradient(to right,'+[...stops].sort((a,b)=>a.pos-b.pos).map(s=>`${s.color} ${(s.pos*100).toFixed(1)}%`).join(',')+')';
+    }
+
+    let gmSelectedIdx = 0; // which stop is selected
+
+    // ── Preset chips row (text-only, existing fx-chip style) ─
+    const presetRow = document.createElement('div');
+    presetRow.className = 'fx-btn-row';
+    const presetChips = {};
+    GM_PRESETS.forEach(p => {
       const chip = document.createElement('button');
       chip.className = 'fx-chip' + (l.fxParams.preset === p.key ? ' active' : '');
       chip.textContent = p.label;
       chip.addEventListener('click', e => {
         e.stopPropagation();
         l.fxParams.preset = p.key;
-        chipsRow.querySelectorAll('.fx-chip').forEach(c => c.classList.remove('active'));
+        l.fxParams.customStops = p.stops.map(s => ({...s}));
+        gmSelectedIdx = 0;
+        Object.values(presetChips).forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
-        bar.style.background = `linear-gradient(to right, ${p.stops.join(', ')})`;
+        gmRefresh();
         applyFxLayer(l, currentIdx());
       });
-      chipsRow.appendChild(chip);
+      presetChips[p.key] = chip;
+      presetRow.appendChild(chip);
     });
-    wrap.appendChild(chipsRow);
+    wrap.appendChild(presetRow);
 
-    const barRow = document.createElement('div');
-    barRow.className = 'fx-row';
-    barRow.style.marginTop = '4px';
+    // ── Gradient bar + stop markers ──────────────────────────
+    const barWrap = document.createElement('div');
+    barWrap.className = 'gm-bar-wrap';
+
     const bar = document.createElement('div');
     bar.className = 'fx-gradient-bar';
-    const currentPreset = presets.find(p => p.key === l.fxParams.preset) || presets[0];
-    bar.style.background = `linear-gradient(to right, ${currentPreset.stops.join(', ')})`;
-    barRow.appendChild(bar);
-    wrap.appendChild(barRow);
+    bar.style.cursor = 'crosshair';
+    bar.title = 'Click to add a stop';
+    barWrap.appendChild(bar);
 
+    // Stop marker container — overlays bar bottom
+    const markerLayer = document.createElement('div');
+    markerLayer.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:12px;pointer-events:none;';
+    barWrap.appendChild(markerLayer);
+
+    wrap.appendChild(barWrap);
+
+    // ── Selected-stop controls (fx-row style) ────────────────
+    // Row: [color swatch] [pos label flex] [× delete]
+    const selRow = document.createElement('div');
+    selRow.className = 'fx-row';
+
+    const colorBtn = document.createElement('div');
+    colorBtn.className = 'gm-stop-color-btn';
+    const colorPreview = document.createElement('div');
+    colorPreview.className = 'gm-stop-preview';
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorBtn.appendChild(colorPreview);
+    colorBtn.appendChild(colorInput);
+
+    const posLbl = document.createElement('span');
+    posLbl.className = 'fx-val';
+    posLbl.style.cssText = 'flex:1;text-align:left;min-width:0;';
+
+    const delBtn = document.createElement('button');
+    delBtn.title = 'Delete stop';
+    delBtn.style.cssText = 'width:20px;height:20px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background 0.12s,color 0.12s,border-color 0.12s;';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('mouseenter', () => { delBtn.style.background='rgba(255,69,58,0.12)'; delBtn.style.borderColor='var(--red)'; delBtn.style.color='var(--red)'; });
+    delBtn.addEventListener('mouseleave', () => { delBtn.style.background='var(--surface2)'; delBtn.style.borderColor='var(--border)'; delBtn.style.color='var(--text3)'; });
+
+    selRow.appendChild(colorBtn);
+    selRow.appendChild(posLbl);
+    selRow.appendChild(delBtn);
+    wrap.appendChild(selRow);
+
+    // ── Hint line ────────────────────────────────────────────
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:10px;color:var(--text3);font-family:"DM Sans",sans-serif;text-align:center;opacity:0.75;';
+    hint.textContent = 'Click bar to add · Drag to move · × to delete';
+    wrap.appendChild(hint);
+
+    // ── Reverse row (fx-row label + button) ──────────────────
+    const revRow = document.createElement('div');
+    revRow.className = 'fx-row';
+    const revLbl = document.createElement('span');
+    revLbl.className = 'fx-row-label';
+    revLbl.textContent = 'Reverse';
+    const revBtn = document.createElement('button');
+    revBtn.className = 'fx-chip';
+    revBtn.textContent = '⇆ Flip';
+    revBtn.style.marginLeft = 'auto';
+    revRow.appendChild(revLbl);
+    revRow.appendChild(revBtn);
+    wrap.appendChild(revRow);
+
+    // ── Strength row (matches Hue/Sat style exactly) ─────────
     const opRow = document.createElement('div');
     opRow.className = 'fx-row';
-    opRow.style.marginTop = '2px';
     const opLbl = document.createElement('span');
     opLbl.className = 'fx-row-label';
     opLbl.textContent = 'Strength';
     const opSlider = document.createElement('input');
-    opSlider.type = 'range'; opSlider.className = 'fx-slider';
-    opSlider.min = 0; opSlider.max = 100; opSlider.value = l.fxParams.opacity;
+    opSlider.type = 'range';
+    opSlider.className = 'fx-slider';
+    opSlider.min = 0; opSlider.max = 100;
+    opSlider.value = l.fxParams.opacity;
+    opSlider.style.touchAction = 'none';
     const opVal = document.createElement('span');
     opVal.className = 'fx-val';
     opVal.textContent = l.fxParams.opacity + '%';
+    opRow.appendChild(opLbl);
+    opRow.appendChild(opSlider);
+    opRow.appendChild(opVal);
+    wrap.appendChild(opRow);
+
+    // ── Refresh: rebuild bar + markers + sel controls ─────────
+    function gmRefresh() {
+      const stops = l.fxParams.customStops;
+      bar.style.background = gmStopsToCSS(stops);
+
+      // Rebuild markers
+      markerLayer.innerHTML = '';
+      markerLayer.style.pointerEvents = 'all';
+      stops.forEach((stop, idx) => {
+        const mk = document.createElement('div');
+        mk.className = 'gm-stop-marker' + (idx === gmSelectedIdx ? ' gm-selected' : '');
+        mk.style.left = (stop.pos * 100).toFixed(2) + '%';
+        mk.style.background = stop.color;
+        mk.addEventListener('pointerdown', e => {
+          e.stopPropagation();
+          e.preventDefault();
+          // Capture before DOM rebuild
+          gmStartDrag(e, idx, mk);
+          gmSelectedIdx = idx;
+          gmRefresh();
+        }, { passive: false });
+        markerLayer.appendChild(mk);
+      });
+
+      // Update selected-stop controls
+      const sel = stops[gmSelectedIdx] || stops[0];
+      if (sel) {
+        colorPreview.style.background = sel.color;
+        colorInput.value = sel.color;
+        posLbl.textContent = Math.round(sel.pos * 100) + '%';
+      }
+      delBtn.style.opacity = stops.length > 2 ? '1' : '0.35';
+      delBtn.style.pointerEvents = stops.length > 2 ? 'all' : 'none';
+    }
+
+    // ── Drag stop ─────────────────────────────────────────────
+    function gmStartDrag(startEvt, stopIdx, markerEl) {
+      const barRect = bar.getBoundingClientRect();
+      try { markerEl.setPointerCapture(startEvt.pointerId); } catch(_) {}
+      function onMove(e) {
+        e.stopPropagation();
+        const pos = Math.min(1, Math.max(0, (e.clientX - barRect.left) / barRect.width));
+        l.fxParams.customStops[stopIdx].pos = pos;
+        l.fxParams.preset = 'custom';
+        gmRefresh();
+        applyFxLayer(l, currentIdx());
+      }
+      function onUp(e) {
+        e.stopPropagation();
+        document.removeEventListener('pointermove', onMove, true);
+        document.removeEventListener('pointerup',   onUp,   true);
+        try { markerEl.releasePointerCapture(startEvt.pointerId); } catch(_) {}
+      }
+      document.addEventListener('pointermove', onMove, { capture:true, passive:false });
+      document.addEventListener('pointerup',   onUp,   { capture:true, passive:false });
+    }
+
+    // ── Click bar to add stop ─────────────────────────────────
+    bar.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const barRect = bar.getBoundingClientRect();
+      const pos = Math.min(1, Math.max(0, (e.clientX - barRect.left) / barRect.width));
+      const stops = l.fxParams.customStops;
+      if (stops.some(s => Math.abs(s.pos - pos) < 0.025)) return;
+      // Interpolate color at click position
+      const sorted = [...stops].sort((a,b) => a.pos - b.pos);
+      let color = sorted[0].color;
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (pos >= sorted[i].pos && pos <= sorted[i+1].pos) {
+          const t = (pos - sorted[i].pos) / Math.max(0.0001, sorted[i+1].pos - sorted[i].pos);
+          const c0 = gmHexToRgb(sorted[i].color), c1 = gmHexToRgb(sorted[i+1].color);
+          color = gmRgbToHex(c0[0]*(1-t)+c1[0]*t, c0[1]*(1-t)+c1[1]*t, c0[2]*(1-t)+c1[2]*t);
+          break;
+        }
+      }
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      stops.push({ pos, color });
+      gmSelectedIdx = stops.length - 1;
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    }, { passive: false });
+
+    // ── Color picker ─────────────────────────────────────────
+    colorInput.addEventListener('input', e => {
+      e.stopPropagation();
+      const stops = l.fxParams.customStops;
+      const sel = stops[gmSelectedIdx];
+      if (!sel) return;
+      sel.color = colorInput.value;
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    });
+    colorInput.addEventListener('click', e => e.stopPropagation());
+
+    // ── Delete selected stop ──────────────────────────────────
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const stops = l.fxParams.customStops;
+      if (stops.length <= 2) return;
+      stops.splice(gmSelectedIdx, 1);
+      gmSelectedIdx = Math.min(gmSelectedIdx, stops.length - 1);
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    });
+
+    // ── Reverse ───────────────────────────────────────────────
+    revBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      l.fxParams.customStops.forEach(s => { s.pos = 1 - s.pos; });
+      l.fxParams.preset = 'custom';
+      Object.values(presetChips).forEach(c => c.classList.remove('active'));
+      gmRefresh();
+      applyFxLayer(l, currentIdx());
+    });
+
+    // ── Strength slider ───────────────────────────────────────
     opSlider.addEventListener('input', e => {
       e.stopPropagation();
       l.fxParams.opacity = +opSlider.value;
@@ -10191,10 +10225,11 @@ function buildFxEditor(wrap, l, _idx) {
       applyFxLayer(l, currentIdx());
     });
     opSlider.addEventListener('click', e => e.stopPropagation());
-    opRow.appendChild(opLbl); opRow.appendChild(opSlider); opRow.appendChild(opVal);
-    wrap.appendChild(opRow);
+
+    // Initial render
+    gmRefresh();
   }
-}
+} // end buildFxEditor
 
 // ── Apply all FX layers (call after any paint or param change) ──
 function applyAllFxLayers() {
@@ -10270,81 +10305,69 @@ function applyFxLayer(l, idx) {
     const sShift = l.fxParams.saturation / 100;
     const lShift = l.fxParams.lightness  / 100;
     for (let p = 0; p < d.length; p += 4) {
-      const [h, s, lv] = rgbToHsl(d[p], d[p+1], d[p+2]);
-      const nh = ((h * 360 + hShift) % 360 + 360) % 360 / 360;
-      const ns = Math.min(1, Math.max(0, s + sShift));
-      const nl = Math.min(1, Math.max(0, lv + lShift));
-      const [r, g, b] = hslToRgb(nh, ns, nl);
-      d[p] = r; d[p+1] = g; d[p+2] = b;
+      const hsl = rgbToHsl(d[p], d[p+1], d[p+2]);
+      const nh = ((hsl.h * 360 + hShift) % 360 + 360) % 360 / 360;
+      const ns = Math.min(1, Math.max(0, hsl.s + sShift));
+      const nl = Math.min(1, Math.max(0, hsl.l + lShift));
+      const rgb = hslToRgb(nh, ns, nl);
+      d[p] = rgb.r; d[p+1] = rgb.g; d[p+2] = rgb.b;
     }
     l.ctx.putImageData(imgData, px, py);
 
   } else if (l.fxType === 'gradmap') {
-    const GRADIENT_PRESETS = {
-      bw:     [[0,0,0],       [255,255,255]],
-      warm:   [[26,10,0],     [255,136,0],   [255,245,204]],
-      cool:   [[0,13,26],     [0,85,255],    [170,221,255]],
-      sunset: [[13,0,26],     [204,0,85],    [255,153,0],   [255,250,204]],
-      forest: [[0,10,0],      [0,51,0],      [51,170,68],   [204,255,204]],
-    };
-    const stops = GRADIENT_PRESETS[l.fxParams.preset] || GRADIENT_PRESETS.bw;
-    const strength = (l.fxParams.opacity || 100) / 100;
+    // Migrate legacy (no customStops)
+    if (!l.fxParams.customStops) {
+      const LEGACY = {
+        bw:     [{pos:0,color:'#000000'},{pos:1,color:'#ffffff'}],
+        warm:   [{pos:0,color:'#1a0a00'},{pos:0.5,color:'#ff8800'},{pos:1,color:'#fff5cc'}],
+        cool:   [{pos:0,color:'#000d1a'},{pos:0.5,color:'#0055ff'},{pos:1,color:'#aaddff'}],
+        sunset: [{pos:0,color:'#0d001a'},{pos:0.33,color:'#cc0055'},{pos:0.66,color:'#ff9900'},{pos:1,color:'#fffacc'}],
+        forest: [{pos:0,color:'#000a00'},{pos:0.33,color:'#003300'},{pos:0.66,color:'#33aa44'},{pos:1,color:'#ccffcc'}],
+      };
+      l.fxParams.customStops = (LEGACY[l.fxParams.preset] || LEGACY.bw).map(s=>({...s}));
+    }
+    const strength = (l.fxParams.opacity !== undefined ? l.fxParams.opacity : 100) / 100;
+    const sorted = [...l.fxParams.customStops].sort((a,b) => a.pos - b.pos);
+
+    function apHex(hex) {
+      const h = hex.replace('#','');
+      return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+    }
+    const stopRGB = sorted.map(s => apHex(s.color));
+
     const lutR = new Uint8ClampedArray(256);
     const lutG = new Uint8ClampedArray(256);
     const lutB = new Uint8ClampedArray(256);
     for (let v = 0; v < 256; v++) {
-      const t = v / 255 * (stops.length - 1);
-      const lo = Math.floor(t), hi = Math.min(stops.length - 1, lo + 1);
-      const f  = t - lo;
-      lutR[v] = Math.round(stops[lo][0] * (1-f) + stops[hi][0] * f);
-      lutG[v] = Math.round(stops[lo][1] * (1-f) + stops[hi][1] * f);
-      lutB[v] = Math.round(stops[lo][2] * (1-f) + stops[hi][2] * f);
+      const t = v / 255;
+      let r, g, b;
+      if (t <= sorted[0].pos) {
+        [r,g,b] = stopRGB[0];
+      } else if (t >= sorted[sorted.length-1].pos) {
+        [r,g,b] = stopRGB[sorted.length-1];
+      } else {
+        let seg = 0;
+        while (seg < sorted.length-2 && sorted[seg+1].pos <= t) seg++;
+        const span = sorted[seg+1].pos - sorted[seg].pos;
+        const f = span > 0 ? (t - sorted[seg].pos) / span : 0;
+        const c0 = stopRGB[seg], c1 = stopRGB[seg+1];
+        r = c0[0]*(1-f)+c1[0]*f; g = c0[1]*(1-f)+c1[1]*f; b = c0[2]*(1-f)+c1[2]*f;
+      }
+      lutR[v] = Math.min(255, Math.max(0, Math.round(r)));
+      lutG[v] = Math.min(255, Math.max(0, Math.round(g)));
+      lutB[v] = Math.min(255, Math.max(0, Math.round(b)));
     }
     l.ctx.drawImage(below, 0, 0);
     const imgData = l.ctx.getImageData(px, py, W, H);
     const d = imgData.data;
     for (let p = 0; p < d.length; p += 4) {
-      const lum = Math.round(0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2]);
-      d[p]   = Math.round(d[p]   * (1 - strength) + lutR[lum] * strength);
-      d[p+1] = Math.round(d[p+1] * (1 - strength) + lutG[lum] * strength);
-      d[p+2] = Math.round(d[p+2] * (1 - strength) + lutB[lum] * strength);
+      const lum = Math.round(0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2]);
+      d[p]   = Math.round(d[p]   * (1-strength) + lutR[lum] * strength);
+      d[p+1] = Math.round(d[p+1] * (1-strength) + lutG[lum] * strength);
+      d[p+2] = Math.round(d[p+2] * (1-strength) + lutB[lum] * strength);
     }
     l.ctx.putImageData(imgData, px, py);
   }
-}
-
-// ── RGB ↔ HSL helpers ──
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r,g,b), min = Math.min(r,g,b);
-  let h, s, l = (max+min)/2;
-  if (max === min) { h = s = 0; }
-  else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch(max) {
-      case r: h = ((g-b)/d + (g<b?6:0))/6; break;
-      case g: h = ((b-r)/d + 2)/6; break;
-      case b: h = ((r-g)/d + 4)/6; break;
-    }
-  }
-  return [h, s, l];
-}
-function hslToRgb(h, s, l) {
-  if (s === 0) { const v = Math.round(l*255); return [v,v,v]; }
-  const q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
-  const hue2rgb = (p,q,t) => {
-    if(t<0)t+=1; if(t>1)t-=1;
-    if(t<1/6)return p+(q-p)*6*t;
-    if(t<1/2)return q;
-    if(t<2/3)return p+(q-p)*(2/3-t)*6;
-    return p;
-  };
-  return [
-    Math.round(hue2rgb(p,q,h+1/3)*255),
-    Math.round(hue2rgb(p,q,h)*255),
-    Math.round(hue2rgb(p,q,h-1/3)*255),
-  ];
 }
 
 function mergeLayerDown(idx) {
