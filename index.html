@@ -2730,6 +2730,11 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7 4l5 4 5-4"/><path d="M7 20l5-4 5 4"/></svg>
   </button>
   <div class="tx-sep"></div>
+  <button class="panel-lock-btn" id="tx-lock-ratio" title="Lock aspect ratio">
+    <svg class="lock-icon-open" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+    <svg class="lock-icon-closed" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  </button>
+  <div class="tx-sep"></div>
   <button class="tx-cancel" id="transform-cancel">Cancel</button>
   <button class="tx-apply"  id="transform-apply">Apply</button>
 </div>
@@ -2909,8 +2914,8 @@
   <!-- Feather -->
   <div class="sel-feather-wrap">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" title="Feather" style="flex-shrink:0;opacity:0.85"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
-    <input type="range" id="sel-feather-slider" min="0" max="40" value="0" step="1">
-    <span id="sel-feather-val">0px</span>
+    <input type="range" id="sel-feather-slider" min="0" max="100" value="0" step="1">
+    <span id="sel-feather-val">0%</span>
   </div>
 
   <div class="sel-tb-sep"></div>
@@ -5786,7 +5791,24 @@ function _doWetFlush() {
   wet.layerCtx.clearRect(dx, dy, dw, dh);
   wet.layerCtx.drawImage(wet.snapCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
   wet.layerCtx.globalAlpha = opacity;
-  wet.layerCtx.drawImage(strokeCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
+
+  // Clip the whole accumulated stroke through the selection mask here, once,
+  // rather than per-dab — a scratch copy so wet.colCanvas (which keeps
+  // accumulating across multiple flushes within the same stroke) is untouched.
+  const maskC = selState.active && selState.mask
+    ? ((selState.feather || 0) > 0 ? getFeatheredMaskCanvas() : getMaskCanvas())
+    : null;
+  if (maskC) {
+    const clip = document.createElement('canvas');
+    clip.width = dw; clip.height = dh;
+    const cctx = clip.getContext('2d');
+    cctx.drawImage(strokeCanvas, dx, dy, dw, dh, 0, 0, dw, dh);
+    cctx.globalCompositeOperation = 'destination-in';
+    cctx.drawImage(maskC, dx, dy, dw, dh, 0, 0, dw, dh);
+    wet.layerCtx.drawImage(clip, 0, 0, dw, dh, dx, dy, dw, dh);
+  } else {
+    wet.layerCtx.drawImage(strokeCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
+  }
   wet.layerCtx.restore();
 }
 
@@ -5951,37 +5973,10 @@ function placeOneDab(brush, ctx, x, y, size, rgb, angleOverride) {
     }
   }
 
-  // Apply selection mask if active
-  if (selState.active && selState.mask) {
-    const maskC = (selState.feather || 0) > 0 ? getFeatheredMaskCanvas() : getMaskCanvas();
-    if (maskC) {
-      // Clip both stamps through the selection mask
-      const tmpCol = document.createElement('canvas');
-      tmpCol.width = csw; tmpCol.height = csh;
-      const tcc = tmpCol.getContext('2d');
-      tcc.drawImage(colStamp, 0, 0);
-      tcc.globalCompositeOperation = 'destination-in';
-      tcc.drawImage(maskC, -csx, -csy);
-      wet.colCtx.globalAlpha = 1;
-      wet.colCtx.globalCompositeOperation = 'source-over';
-      wet.colCtx.drawImage(tmpCol, csx, csy);
-
-      const tmpMsk = document.createElement('canvas');
-      tmpMsk.width = msw; tmpMsk.height = msh;
-      const tmc = tmpMsk.getContext('2d');
-      tmc.drawImage(maskStamp, 0, 0);
-      tmc.globalCompositeOperation = 'destination-in';
-      tmc.drawImage(maskC, -sx, -sy);
-      wet.maskCtx.globalAlpha = 1;
-      wet.maskCtx.globalCompositeOperation = 'source-over';
-      wet.maskCtx.drawImage(tmpMsk, sx, sy);
-
-      _wetExpandDirty(Math.min(sx,csx), Math.min(sy,csy), Math.max(msw,csw), Math.max(msh,csh));
-      return;
-    }
-  }
-
   // Normal: accumulate coloured stamp and solid mask stamp in parallel.
+  // (Selection-mask clipping, feathered or hard, is applied once per flush
+  // in _doWetFlush — not here — so overlapping dabs in a stroke can't wash
+  // a feathered edge back up to full opacity.)
   wet.colCtx.globalAlpha = 1;
   wet.colCtx.globalCompositeOperation = 'source-over';
   wet.colCtx.drawImage(colStamp, csx, csy);
@@ -7035,73 +7030,58 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     if (!visible || !isBrushTool()) return;
 
-    const brush = getActiveBrush();
-    const zoom  = state.zoom;
-
+    const brush  = getActiveBrush();
+    const isErase = state.tool === 'eraser';
     // Radius in screen pixels — matches the stamp radius used by the engine.
-    const logicalRadius = state.tool === 'eraser' ? state.size : brush.size;
-    const radius = Math.max(2, logicalRadius * zoom);
+    const radius = Math.max(2, (isErase ? state.size : brush.size) * state.zoom);
+    const x = cursorX, y = cursorY;
 
-    const x = cursorX;
-    const y = cursorY;
-
-    ctx.save();
-
-    if (state.tool === 'eraser') {
-      // ── Eraser: single dashed ring in white ──
-      // White is used because erasers have no meaningful colour.
-      const eType = state.eraserType || 'soft';
-      ctx.strokeStyle = 'rgba(255,255,255,0.90)';
-      ctx.lineWidth   = 1.5;
-      ctx.setLineDash([4, 3]);
-      if (eType === 'square') {
-        ctx.strokeRect(x - radius, y - radius, radius * 2, radius * 2);
+    // Shape: circle for round tips, square for square eraser,
+    // ellipse for flat/turnip/marker brush tips (respects ratio + angle).
+    const ratio = (brush.ratio || 100) / 100;
+    const angle = (brush.angle || 0) * Math.PI / 180;
+    const bType = brush.type || 'round';
+    const eType = state.eraserType || 'soft';
+    const useEllipse = !isErase && ratio < 0.98 && (
+      bType === 'csp_flat' || bType === 'csp_turnip' ||
+      bType === 'marker'   || (brush.followPath && ratio < 0.85)
+    );
+    function traceShape() {
+      ctx.beginPath();
+      if (isErase && eType === 'square') {
+        ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
+      } else if (useEllipse) {
+        ctx.ellipse(x, y, radius, radius * ratio, angle, 0, Math.PI * 2);
       } else {
-        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
       }
-      ctx.setLineDash([]);
-
-    } else {
-      // ── Brush: single ring in the current brush colour ──
-      // Parse the hex colour into an rgba string at full opacity so the ring
-      // is clearly identifiable as the active colour on any background.
-      const hex = state.color || '#ffffff';
-      const r   = parseInt(hex.slice(1, 3), 16);
-      const g   = parseInt(hex.slice(3, 5), 16);
-      const b   = parseInt(hex.slice(5, 7), 16);
-      const ringColor = `rgba(${r},${g},${b},0.90)`;
-
-      // Respect ratio/angle for flat/turnip tips — draw an ellipse instead.
-      const ratio = (brush.ratio || 100) / 100;
-      const angle = (brush.angle || 0) * Math.PI / 180;
-      const bType = brush.type || 'round';
-      const useEllipse = ratio < 0.98 && (
-        bType === 'csp_flat' || bType === 'csp_turnip' ||
-        bType === 'marker'   || (brush.followPath && ratio < 0.85)
-      );
-
-      ctx.strokeStyle = ringColor;
-      ctx.lineWidth   = 1.5;
-
-      ctx.save();
-      if (useEllipse) {
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-        ctx.beginPath(); ctx.ellipse(0, 0, radius, radius * ratio, 0, 0, Math.PI * 2);
-      } else {
-        ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-      }
-      ctx.stroke();
-      ctx.restore();
     }
 
-    // ── Centre dot — always drawn, in the brush colour (or white for eraser) ──
-    const dotHex  = state.tool === 'eraser' ? '#ffffff' : (state.color || '#ffffff');
-    const dr = parseInt(dotHex.slice(1, 3), 16);
-    const dg = parseInt(dotHex.slice(3, 5), 16);
-    const db = parseInt(dotHex.slice(5, 7), 16);
+    // Colour — the chosen brush colour, or white for the eraser (no meaningful colour)
+    const hex = isErase ? '#ffffff' : (state.color || '#ffffff');
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+
+    ctx.save();
+    if (isErase) ctx.setLineDash([4, 3]);
+
+    // Dark halo underneath so the outline reads on any background colour
+    traceShape();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth   = 3;
+    ctx.stroke();
+
+    // Coloured outline on top — a stroke only, never filled
+    traceShape();
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.95)`;
+    ctx.lineWidth   = 1.25;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Centre dot, same two-tone treatment for consistent visibility
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill();
     ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${dr},${dg},${db},0.95)`; ctx.fill();
+    ctx.fillStyle = `rgba(${r},${g},${b},0.95)`; ctx.fill();
 
     ctx.restore();
   }
@@ -7618,6 +7598,27 @@ function wandSelect(cx, cy, tolerance) {
   return mask;
 }
 
+// ── Fast lasso rasterisation via canvas fill + getImageData ──────────────
+// Replaces a manual per-pixel ray-cast (O(width*height*pathPoints), the
+// source of the lasso tool's commit delay) with the canvas engine's own
+// hardware-accelerated polygon fill.
+function rasterizeLassoMask(pts, cw, ch) {
+  const mask = new Uint8Array(cw * ch);
+  if (!pts || pts.length < 3) return mask;
+  const rc = document.createElement('canvas');
+  rc.width = cw; rc.height = ch;
+  const rctx = rc.getContext('2d');
+  rctx.beginPath();
+  rctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) rctx.lineTo(pts[i].x, pts[i].y);
+  rctx.closePath();
+  rctx.fillStyle = '#fff';
+  rctx.fill();
+  const data = rctx.getImageData(0, 0, cw, ch).data;
+  for (let i = 0, n = cw * ch; i < n; i++) mask[i] = data[i * 4 + 3] >= 128 ? 1 : 0;
+  return mask;
+}
+
 // ── Rasterise the current in-progress or committed selection to a mask ────
 // Does NOT require selState.active — works during drawing too.
 function selectionToMask() {
@@ -7653,18 +7654,7 @@ function selectionToMask() {
     return mask;
   }
   if (selState.selKind === 'lasso' && selState.path.length > 2) {
-    const pts = selState.path;
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        let inside = false;
-        for (let a = 0, b = pts.length - 1; a < pts.length; b = a++) {
-          const xi = pts[a].x, yi = pts[a].y, xj = pts[b].x, yj = pts[b].y;
-          if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
-        }
-        if (inside) mask[y * cw + x] = 1;
-      }
-    }
-    return mask;
+    return rasterizeLassoMask(selState.path, cw, ch);
   }
   return mask;
 }
@@ -7698,18 +7688,7 @@ function newSelectionToMask(kind, x1, y1, x2, y2, path, wandMask) {
     return mask;
   }
   if (kind === 'lasso' && path && path.length > 2) {
-    const pts = path;
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        let inside = false;
-        for (let a = 0, b = pts.length - 1; a < pts.length; b = a++) {
-          const xi = pts[a].x, yi = pts[a].y, xj = pts[b].x, yj = pts[b].y;
-          if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
-        }
-        if (inside) mask[y * cw + x] = 1;
-      }
-    }
-    return mask;
+    return rasterizeLassoMask(path, cw, ch);
   }
   return mask;
 }
@@ -7904,7 +7883,7 @@ initSelectionEvents();
   featherSlider.addEventListener('input', () => {
     const v = parseInt(featherSlider.value, 10);
     selState.feather = v;
-    featherVal.textContent = v + 'px';
+    featherVal.textContent = v + '%';
     // Invalidate feather-dependent caches so they rebuild on next draw
     selMaskCache.fCanvas = null;
     selMaskCache.feather = -1;
@@ -8801,44 +8780,35 @@ let crop = { active: false, dragging: false, resizing: false,
              handle: null };
 
 function updateCropVisual() {
-  // The crop rect is in canvas space (axis-aligned to the canvas).
-  // We map the four corners through canvasToOverlay to get their wrap-relative
-  // screen positions, then compute the axis-aligned bounding box on screen.
-  // The cropSel box is always drawn as a plain axis-aligned rectangle on screen
-  // (no CSS rotation) — it remains square with the canvas regardless of canvas rotation.
-  const tl = canvasToOverlay(crop.x,          crop.y);
+  // Crop box is a true rectangle that rotates together with the canvas —
+  // same top-left + CSS rotate() technique the Transform tool's box uses —
+  // so it always stays square (right-angled) and locked to canvas rotation.
+  const rotDeg = state.canvasRotation || 0;
+  const tl = canvasToOverlay(crop.x, crop.y);
+  const selW = crop.w * state.zoom, selH = crop.h * state.zoom;
+  cropSel.style.left            = tl.x + 'px';
+  cropSel.style.top             = tl.y + 'px';
+  cropSel.style.width           = selW + 'px';
+  cropSel.style.height          = selH + 'px';
+  cropSel.style.transformOrigin = '0 0';
+  cropSel.style.transform       = `rotate(${rotDeg}deg)`;
+
+  // Canvas boundary indicator — same rotated-rect treatment
+  const cTL = canvasToOverlay(0, 0);
+  cropBoundary.style.left            = cTL.x + 'px';
+  cropBoundary.style.top             = cTL.y + 'px';
+  cropBoundary.style.width           = (state.canvasW * state.zoom) + 'px';
+  cropBoundary.style.height          = (state.canvasH * state.zoom) + 'px';
+  cropBoundary.style.transformOrigin = '0 0';
+  cropBoundary.style.transform       = `rotate(${rotDeg}deg)`;
+
+  // Shade areas outside crop selection — sized to the bounding box of the
+  // (possibly rotated) selection corners
   const tr = canvasToOverlay(crop.x + crop.w, crop.y);
   const bl = canvasToOverlay(crop.x,          crop.y + crop.h);
   const br = canvasToOverlay(crop.x + crop.w, crop.y + crop.h);
-
-  // Axis-aligned bounding box of the four projected corners
-  const minX = Math.min(tl.x, tr.x, bl.x, br.x);
-  const minY = Math.min(tl.y, tr.y, bl.y, br.y);
-  const maxX = Math.max(tl.x, tr.x, bl.x, br.x);
-  const maxY = Math.max(tl.y, tr.y, bl.y, br.y);
-
-  cropSel.style.left      = minX + 'px';
-  cropSel.style.top       = minY + 'px';
-  cropSel.style.width     = (maxX - minX) + 'px';
-  cropSel.style.height    = (maxY - minY) + 'px';
-  cropSel.style.transform = '';  // no rotation — stays square with canvas
-
-  // Canvas boundary indicator — also no rotation on screen
-  const cTL = canvasToOverlay(0, 0);
-  const cTR = canvasToOverlay(state.canvasW, 0);
-  const cBL = canvasToOverlay(0, state.canvasH);
-  const cBR = canvasToOverlay(state.canvasW, state.canvasH);
-  const cbMinX = Math.min(cTL.x, cTR.x, cBL.x, cBR.x);
-  const cbMinY = Math.min(cTL.y, cTR.y, cBL.y, cBR.y);
-  const cbMaxX = Math.max(cTL.x, cTR.x, cBL.x, cBR.x);
-  const cbMaxY = Math.max(cTL.y, cTR.y, cBL.y, cBR.y);
-  cropBoundary.style.left      = cbMinX + 'px';
-  cropBoundary.style.top       = cbMinY + 'px';
-  cropBoundary.style.width     = (cbMaxX - cbMinX) + 'px';
-  cropBoundary.style.height    = (cbMaxY - cbMinY) + 'px';
-  cropBoundary.style.transform = '';
-
-  // Shade areas outside crop selection
+  const minX = Math.min(tl.x, tr.x, bl.x, br.x), minY = Math.min(tl.y, tr.y, bl.y, br.y);
+  const maxX = Math.max(tl.x, tr.x, bl.x, br.x), maxY = Math.max(tl.y, tr.y, bl.y, br.y);
   const sw = cropOverlay.offsetWidth  || window.innerWidth;
   const sh = cropOverlay.offsetHeight || window.innerHeight;
   const sx = Math.max(0, minX), sy = Math.max(0, minY);
@@ -8848,9 +8818,11 @@ function updateCropVisual() {
   cropShadeL.style.cssText = `left:0;top:${sy}px;width:${sx}px;height:${ey-sy}px;`;
   cropShadeR.style.cssText = `left:${ex}px;top:${sy}px;width:${Math.max(0,sw-ex)}px;height:${ey-sy}px;`;
 
-  // Rebuild corner handles using pointer events (works on touch + mouse)
+  // Rebuild corner handles using pointer events (works on touch + mouse).
+  // Positions are local to cropSel's own box, so its CSS rotation carries
+  // the handles along automatically — they land exactly on the true corners.
   cropHandles.innerHTML = '';
-  const selW = maxX - minX, selH = maxY - minY;
+
   const corners = [
     [0, 0, 'nwse-resize', 0],
     [1, 0, 'nesw-resize', 1],
@@ -9135,6 +9107,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     dragStartX: 0, dragStartY: 0,
     dragStartW: 0, dragStartH: 0,
     dragStartAngle: 0,
+    lockRatio: false,
     folderChildren: null, _hiddenChildren: null, _previewCanvas: null,
   };
 
@@ -9152,6 +9125,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     if (pivot)     pivot.style.display     = mode === 'skew' ? 'none' : '';
     if (mode === 'skew' && tx.active) {
       initCorners();
+      tx.angle = 0; // now baked into tx.corners; skew rendering doesn't use tx.angle
       updateBoxVisualSkew();
       previewTransform();
     } else if (mode === 'free' && tx.active) {
@@ -9209,6 +9183,15 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   }
   btnFlipH.addEventListener('click', () => flipSnapshot(true,  false));
   btnFlipV.addEventListener('click', () => flipSnapshot(false, true));
+
+  // ── Aspect ratio lock ────────────────────────────────────
+  const btnLockRatio = document.getElementById('tx-lock-ratio');
+  btnLockRatio.addEventListener('click', () => {
+    tx.lockRatio = !tx.lockRatio;
+    btnLockRatio.classList.toggle('locked', tx.lockRatio);
+    btnLockRatio.querySelector('.lock-icon-open').style.display   = tx.lockRatio ? 'none'  : 'block';
+    btnLockRatio.querySelector('.lock-icon-closed').style.display = tx.lockRatio ? 'block' : 'none';
+  });
 
   // ── Draw helper ─────────────────────────────────────────
   function drawTransformedContent(targetCtx, snapshot) {
@@ -9320,11 +9303,21 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
 
   // Initialise corners from the current bounding box
   function initCorners() {
+    // Rotate the plain bbox corners around the box's own pivot (tx.x,tx.y —
+    // same top-left transform-origin updateBoxVisual rotates around), so any
+    // rotation already applied in Free mode carries over instead of being
+    // silently discarded when switching to Skew.
+    const rad = (tx.angle || 0) * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const rot = (lx, ly) => ({
+      x: tx.x + (lx - tx.x) * cos - (ly - tx.y) * sin,
+      y: tx.y + (lx - tx.x) * sin + (ly - tx.y) * cos,
+    });
     tx.corners = {
-      tl: { x: tx.x,        y: tx.y },
-      tr: { x: tx.x + tx.w, y: tx.y },
-      bl: { x: tx.x,        y: tx.y + tx.h },
-      br: { x: tx.x + tx.w, y: tx.y + tx.h },
+      tl: rot(tx.x,        tx.y),
+      tr: rot(tx.x + tx.w, tx.y),
+      bl: rot(tx.x,        tx.y + tx.h),
+      br: rot(tx.x + tx.w, tx.y + tx.h),
     };
   }
 
@@ -9375,6 +9368,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     if (tx.active) return;
     const layer = state.layers[state.activeLayer];
     if (!layer) return;
+    setMode('free');
 
     if (layer.type === 'folder') {
       const folderId = layer.id;
@@ -9614,17 +9608,16 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
   function updateBoxVisual() {
     if (!tx.active) return;
     if (tx.mode === 'skew' && tx.corners) { updateBoxVisualSkew(); return; }
-    // canvasToOverlay already accounts for pan/zoom/canvasRotation,
-    // so tl is the correct screen position of the canvas-space top-left corner.
-    const tl = canvasToOverlay(tx.x, tx.y);
-    box.style.left   = tl.x + 'px';
-    box.style.top    = tl.y + 'px';
-    box.style.width  = (tx.w * state.zoom) + 'px';
-    box.style.height = (tx.h * state.zoom) + 'px';
-    // tx.angle is the layer's own rotation (canvas-space); canvasRotation is already
-    // applied by canvasToOverlay. Add both so the box tilts with both the canvas and
-    // the layer's own rotation, pivoting around the top-left corner.
-    box.style.transformOrigin = '0 0';
+    // drawTransformedContent() rotates the content around the box's CENTER,
+    // so the visual box must pivot around its center too (not the top-left
+    // corner) or it drifts away from the content as soon as tx.angle changes.
+    const c = canvasToOverlay(tx.x + tx.w / 2, tx.y + tx.h / 2);
+    const w = tx.w * state.zoom, h = tx.h * state.zoom;
+    box.style.left   = (c.x - w / 2) + 'px';
+    box.style.top    = (c.y - h / 2) + 'px';
+    box.style.width  = w + 'px';
+    box.style.height = h + 'px';
+    box.style.transformOrigin = '50% 50%';
     box.style.transform = `rotate(${(state.canvasRotation || 0) + (tx.angle || 0)}deg)`;
     resetHandlePositions();
   }
@@ -9668,6 +9661,15 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     const sdy = e.clientY - tx.dragStartMy;
     const dx = ( sdx * cos + sdy * sin) / state.zoom;
     const dy = (-sdx * sin + sdy * cos) / state.zoom;
+    // Box-local delta additionally un-rotates by the box's OWN angle (tx.angle),
+    // so resizing a box that's already been rotated moves handles along the
+    // box's own axes instead of the canvas's — this is what resizing after
+    // rotating needs; using plain dx/dy there was the "rotation doesn't work
+    // correctly" bug.
+    const brot = rot + (tx.mode === 'free' ? (tx.angle || 0) * Math.PI / 180 : 0);
+    const bcos = Math.cos(brot), bsin = Math.sin(brot);
+    const bdx = ( sdx * bcos + sdy * bsin) / state.zoom;
+    const bdy = (-sdx * bsin + sdy * bcos) / state.zoom;
 
     if (tx.dragging==='move') {
       if (tx.mode==='skew' && tx.corners) {
@@ -9731,11 +9733,11 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     } else {
       let nx=tx.dragStartX,ny=tx.dragStartY,nw=tx.dragStartW,nh=tx.dragStartH;
       const h=tx.dragging;
-      if(h==='tl'){nx+=dx;ny+=dy;nw-=dx;nh-=dy;}if(h==='tr'){ny+=dy;nw+=dx;nh-=dy;}
-      if(h==='bl'){nx+=dx;nw-=dx;nh+=dy;}if(h==='br'){nw+=dx;nh+=dy;}
-      if(h==='t'){ny+=dy;nh-=dy;}if(h==='b'){nh+=dy;}
-      if(h==='l'){nx+=dx;nw-=dx;}if(h==='r'){nw+=dx;}
-      if(e.shiftKey&&['tl','tr','bl','br'].includes(h)){const ratio=tx.dragStartW/tx.dragStartH;if(Math.abs(dx)>Math.abs(dy))nh=nw/ratio;else nw=nh*ratio;}
+      if(h==='tl'){nx+=bdx;ny+=bdy;nw-=bdx;nh-=bdy;}if(h==='tr'){ny+=bdy;nw+=bdx;nh-=bdy;}
+      if(h==='bl'){nx+=bdx;nw-=bdx;nh+=bdy;}if(h==='br'){nw+=bdx;nh+=bdy;}
+      if(h==='t'){ny+=bdy;nh-=bdy;}if(h==='b'){nh+=bdy;}
+      if(h==='l'){nx+=bdx;nw-=bdx;}if(h==='r'){nw+=bdx;}
+      if((tx.lockRatio||e.shiftKey)&&['tl','tr','bl','br'].includes(h)){const ratio=tx.dragStartW/tx.dragStartH;if(Math.abs(bdx)>Math.abs(bdy))nh=nw/ratio;else nw=nh*ratio;}
       tx.x=nx;tx.y=ny;tx.w=Math.max(1,nw);tx.h=Math.max(1,nh);
       updateBoxVisual();
     }
@@ -14125,6 +14127,13 @@ function toast(msg) {
   document.addEventListener('gesturestart',  function(e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('gestureend',    function(e) { e.preventDefault(); }, { passive: false });
+
+  // ── Block Android's long-press context menu (but not inside real text
+  //    fields, which already get user-select re-enabled for copy/paste) ──
+  document.addEventListener('contextmenu', function(e) {
+    const t = e.target.tagName;
+    if (t !== 'INPUT' && t !== 'TEXTAREA' && !e.target.isContentEditable) e.preventDefault();
+  }, { passive: false });
 
   // ── Init on window.load ───────────────────────────────────
   window.addEventListener('load', function() {
