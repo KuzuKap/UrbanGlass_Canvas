@@ -273,10 +273,11 @@
     appearance: slider-vertical;
     writing-mode: vertical-lr;
     direction: rtl;
-    width: 28px;
+    width: 4px;
     height: 80px;
-    border-radius: 4px;
+    border-radius: 2px;
     background: var(--surface3);
+    accent-color: var(--accent);
     outline: none;
     cursor: pointer;
     padding: 0;
@@ -291,20 +292,17 @@
     width: var(--touch-min);
   }
   input[type=range]:not(.vertical) { touch-action: none; }
-  /* HIG: large white knob thumb — matches iOS control style */
+  /* HIG: white knob thumb — matches the style used by pref/fx/bsp sliders */
   input[type=range].vertical::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 24px; height: 24px;
+    width: 20px; height: 20px;
     border-radius: 50%;
     background: #ffffff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.4);
     cursor: pointer;
-    transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1);
+    transition: transform 0.1s;
   }
-  input[type=range].vertical:active::-webkit-slider-thumb {
-    transform: scale(1.15);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
-  }
+  input[type=range].vertical:hover::-webkit-slider-thumb { transform: scale(1.1); }
   .vslider-sep {
     width: 28px;
     height: 1px;
@@ -550,6 +548,8 @@
   .ctx-menu-item:active { transform: scale(0.99); }
   .ctx-menu-item svg { flex-shrink: 0; opacity: 0.7; }
   .ctx-menu-item:hover svg { opacity: 1; }
+  .ctx-menu-item.active { background: var(--accent-glow); color: var(--accent2); }
+  .ctx-menu-item.active svg { opacity: 1; }
   .ctx-menu-sep { height: 1px; background: var(--border); margin: var(--sp-1) 0; }
   /* HIG: section header in context menu */
   .ctx-menu-label {
@@ -2334,13 +2334,16 @@
   #brush-settings-overlay {
     display: none; position: fixed; inset: 0; z-index: 3000;
     align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
   #brush-settings-overlay.open { display: flex; }
   #brush-settings-panel {
     background: var(--panel-bg);
+    backdrop-filter: blur(40px) saturate(2);
+    -webkit-backdrop-filter: blur(40px) saturate(2);
     border: 1px solid var(--glass-border);
-    border-radius: 16px;
+    border-radius: var(--radius-xl);
     width: min(900px, 95vw);
     height: min(680px, 92vh);
     display: flex; flex-direction: column;
@@ -2357,7 +2360,29 @@
     color: var(--text); letter-spacing: -0.01em; flex: 1;
   }
   #bsp-header-actions { display: flex; gap: var(--sp-2); align-items: center; }
-  /* bsp-hdr-btn and bsp-close already updated above */
+  /* HIG: same pill-button style as .top-btn / .file-menu-item across the app */
+  .bsp-hdr-btn {
+    height: 30px; padding: 0 var(--sp-3);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text2);
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.08s;
+  }
+  .bsp-hdr-btn:hover { background: var(--surface3); border-color: var(--border2); color: var(--text); }
+  .bsp-hdr-btn:active { transform: scale(0.96); }
+  .bsp-hdr-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bsp-hdr-btn.accent:hover { background: var(--accent2); border-color: var(--accent2); }
+  /* HIG: same circular close button as #theme-panel-close / .shortcuts-close */
+  #bsp-close {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: none; background: var(--surface3);
+    color: var(--text2); cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, color 0.12s, transform 0.08s;
+  }
+  #bsp-close:hover { background: rgba(255,69,58,0.18); color: var(--red); }
+  #bsp-close:active { transform: scale(0.9); }
   #bsp-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
   #bsp-presets {
     width: 210px; flex-shrink: 0; min-height: 0;
@@ -2730,10 +2755,10 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7 4l5 4 5-4"/><path d="M7 20l5-4 5 4"/></svg>
   </button>
   <div class="tx-sep"></div>
-  <button class="panel-lock-btn" id="tx-lock-ratio" title="Lock aspect ratio">
-    <svg class="lock-icon-open" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-    <svg class="lock-icon-closed" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-  </button>
+<button class="toggle-btn" id="tx-lock-ratio" title="Lock aspect ratio">
+  <svg class="lock-icon-open" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+  <svg class="lock-icon-closed" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:none" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+</button>
   <div class="tx-sep"></div>
   <button class="tx-cancel" id="transform-cancel">Cancel</button>
   <button class="tx-apply"  id="transform-apply">Apply</button>
@@ -2834,7 +2859,7 @@
   <!-- SV square + vertical hue bar + history swatches -->
   <div style="position:relative; display:flex; align-items:flex-start; gap:6px; margin-bottom:10px;">
     <!-- History swatches column (left) -->
-    <div id="color-history-col" style="display:flex; flex-direction:column; gap:3px; flex-shrink:0; width:16px;"></div>
+    <div id="color-history-col" style="display:flex; flex-direction:column; gap:3px; flex-shrink:0; width:16px; max-height:167px; overflow:hidden;"></div>
     <!-- Picker canvas -->
     <canvas id="color-picker-canvas" width="224" height="200" style="display:block; cursor:crosshair; border-radius:6px; width:186px; height:167px;"></canvas>
   </div>
@@ -2986,7 +3011,7 @@
   <div class="ctx-menu-sep"></div>
   <button class="ctx-menu-item" id="ctx-clip">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-    Clip to Below
+    <span id="ctx-clip-label">Clip to Below</span>
   </button>
   <button class="ctx-menu-item" id="ctx-merge">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v14"/><path d="M7 13l5 5 5-5"/><path d="M5 21h14"/></svg>
@@ -3559,19 +3584,10 @@
         <div class="bsp-type-tabs" id="bsp-type-tabs">
           <button class="bsp-type-tab" data-type="round">Round</button>
           <button class="bsp-type-tab" data-type="ink">Ink</button>
-          <button class="bsp-type-tab" data-type="csp_fill">Fill</button>
           <button class="bsp-type-tab" data-type="airbrush">Airbrush</button>
           <button class="bsp-type-tab" data-type="pencil">Pencil</button>
           <button class="bsp-type-tab" data-type="watercolor">Watercolor</button>
-          <button class="bsp-type-tab" data-type="gouache">Gouache</button>
-          <button class="bsp-type-tab" data-type="marker">Marker</button>
-          <button class="bsp-type-tab" data-type="chalk">Chalk</button>
-          <button class="bsp-type-tab" data-type="ballpoint">Ballpoint</button>
-          <button class="bsp-type-tab" data-type="csp_turnip">Turnip</button>
           <button class="bsp-type-tab" data-type="csp_flat">Flat</button>
-          <button class="bsp-type-tab" data-type="csp_blur">Blur</button>
-          <button class="bsp-type-tab" data-type="smear">Smear</button>
-          <button class="bsp-type-tab" data-type="pixel">Pixel</button>
         </div>
 
         <!-- Basic section -->
@@ -3605,6 +3621,16 @@
               <label class="bsp-param-label">Spacing</label>
               <input type="range" class="bsp-param-slider" id="bsp-spacing" min="1" max="200" step="1" value="10">
               <span class="bsp-param-val" id="bsp-spacing-val">10%</span>
+            </div>
+            <div class="bsp-param">
+              <label class="bsp-param-label">Angle</label>
+              <input type="range" class="bsp-param-slider" id="bsp-angle" min="0" max="360" step="1" value="0">
+              <span class="bsp-param-val" id="bsp-angle-val">0°</span>
+            </div>
+            <div class="bsp-param">
+              <label class="bsp-param-label">Ratio (X/Y)</label>
+              <input type="range" class="bsp-param-slider" id="bsp-ratio" min="10" max="100" step="1" value="100">
+              <span class="bsp-param-val" id="bsp-ratio-val">1.0</span>
             </div>
           </div>
         </div>
@@ -3660,12 +3686,6 @@
               <label class="bsp-param-label">Ink Bleed</label>
               <input type="range" class="bsp-param-slider" id="bsp-ink-bleed" min="0" max="100" step="1" value="0">
               <span class="bsp-param-val" id="bsp-ink-bleed-val">0%</span>
-            </div>
-            <!-- CSP-specific: Bristles (gouache bristle count) -->
-            <div class="bsp-param">
-              <label class="bsp-param-label">Bristles</label>
-              <input type="range" class="bsp-param-slider" id="bsp-bristles" min="0" max="20" step="1" value="0">
-              <span class="bsp-param-val" id="bsp-bristles-val">0</span>
             </div>
           </div>
         </div>
@@ -3755,26 +3775,6 @@
               <label class="bsp-param-label">Mix Ratio</label>
               <input type="range" class="bsp-param-slider" id="bsp-wet-ratio" min="0" max="100" step="1" value="30">
               <span class="bsp-param-val" id="bsp-wet-ratio-val">30%</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Shape section -->
-        <div class="bsp-section collapsed" id="bsp-sec-shape">
-          <div class="bsp-section-header">
-            <span class="bsp-section-title">Shape</span>
-            <span class="bsp-section-chevron">▾</span>
-          </div>
-          <div class="bsp-section-body">
-            <div class="bsp-param">
-              <label class="bsp-param-label">Angle</label>
-              <input type="range" class="bsp-param-slider" id="bsp-angle" min="0" max="360" step="1" value="0">
-              <span class="bsp-param-val" id="bsp-angle-val">0°</span>
-            </div>
-            <div class="bsp-param">
-              <label class="bsp-param-label">Ratio (X/Y)</label>
-              <input type="range" class="bsp-param-slider" id="bsp-ratio" min="10" max="100" step="1" value="100">
-              <span class="bsp-param-val" id="bsp-ratio-val">1.0</span>
             </div>
           </div>
         </div>
@@ -3902,10 +3902,71 @@ function duplicateLayer(idx) {
   newLayer.ctx.drawImage(src.canvas, 0, 0);
   newLayer.ctx.restore();
   newLayer.opacity = src.opacity;
+  newLayer.clipped = !!src.clipped;
   state.layers.splice(idx + 1, 0, newLayer);
   state.activeLayer = idx + 1;
   rebuildLayerOrder();
   renderLayersList();
+}
+
+// ── Non-destructive clipping ──────────────────────────────────────────────
+// A clipped layer's real pixel data (layer.canvas/ctx) is NEVER touched —
+// brush strokes keep painting it exactly as before. Instead we mirror its
+// pixels into a second "preview" canvas masked by the layer below, and show
+// that preview in its place. Un-clipping just drops the preview canvas and
+// the original layer is instantly back to its full, unmasked self.
+function getDisplayCanvas(l) {
+  return (l.clipped && l.clipCanvas) ? l.clipCanvas : l.canvas;
+}
+function refreshClipPreview(l) {
+  const base = state.layers[state.layers.indexOf(l) - 1];
+  if (!l.clipCanvas) {
+    const c = document.createElement('canvas');
+    c.style.cssText = 'position:absolute;pointer-events:none;';
+    canvasContainer.appendChild(c);
+    l.clipCanvas = c;
+  }
+  const c = l.clipCanvas;
+  c.width  = l.canvas.width;
+  c.height = l.canvas.height;
+  c.style.top  = l.canvas.style.top;
+  c.style.left = l.canvas.style.left;
+  const cctx = c.getContext('2d');
+  cctx.clearRect(0, 0, c.width, c.height);
+  cctx.drawImage(l.canvas, 0, 0);
+  if (base && base.ctx) {
+    cctx.globalCompositeOperation = 'destination-in';
+    cctx.drawImage(base.canvas, 0, 0);
+    cctx.globalCompositeOperation = 'source-over';
+  }
+}
+function refreshAllClips() {
+  // Cheap no-op for the common case where nobody uses clipping.
+  state.layers.forEach(l => { if (l.clipped) refreshClipPreview(l); });
+}
+// Live per-stroke version of refreshClipPreview: recomposites only the
+// rectangle that just changed (doc-space coords) instead of the whole
+// canvas, so it's cheap enough to call every frame while actively
+// drawing/erasing on a clipped layer — matches the wet-layer engine's own
+// dirty-rect approach.
+function refreshClipPreviewRegion(l, docX, docY, docW, docH) {
+  if (!l.clipped || !l.clipCanvas || docW <= 0 || docH <= 0) return;
+  const base = state.layers[state.layers.indexOf(l) - 1];
+  const { px, py } = getPad();
+  const rx = docX + px, ry = docY + py;
+  const cctx = l.clipCanvas.getContext('2d');
+  cctx.clearRect(rx, ry, docW, docH);
+  if (base && base.ctx) {
+    const tile = document.createElement('canvas');
+    tile.width = docW; tile.height = docH;
+    const tctx = tile.getContext('2d');
+    tctx.drawImage(l.canvas, rx, ry, docW, docH, 0, 0, docW, docH);
+    tctx.globalCompositeOperation = 'destination-in';
+    tctx.drawImage(base.canvas, rx, ry, docW, docH, 0, 0, docW, docH);
+    cctx.drawImage(tile, rx, ry);
+  } else {
+    cctx.drawImage(l.canvas, rx, ry, docW, docH, rx, ry, docW, docH);
+  }
 }
 
 function rebuildLayerOrder() {
@@ -3916,6 +3977,8 @@ function rebuildLayerOrder() {
     'multiply':    'multiply',
     'overlay':     'overlay',
   };
+
+  refreshAllClips();
 
   // Build folder visibility map: a layer is visible only if all ancestor folders are visible
   const folderVisMap = {};
@@ -3933,13 +3996,20 @@ function rebuildLayerOrder() {
     // Check if parent folder is hidden
     const parentHidden = l.folderId && folderVisMap[l.folderId] === false;
 
-    l.canvas.style.zIndex = i;
-    l.canvas.style.opacity = (!parentHidden && l.visible) ? l.opacity / 100 : 0;
+    // Show whichever canvas is the active display element (raw or clip
+    // preview); always hide the other one so toggling clip never leaves a
+    // stale duplicate visible.
+    const disp  = getDisplayCanvas(l);
+    const other = disp === l.canvas ? l.clipCanvas : l.canvas;
+    if (other) { other.style.opacity = '0'; other.style.zIndex = '-1'; }
+
+    disp.style.zIndex = i;
+    disp.style.opacity = (!parentHidden && l.visible) ? l.opacity / 100 : 0;
 
     if (l.type === 'fx') {
-      l.canvas.style.mixBlendMode = 'normal';
+      disp.style.mixBlendMode = 'normal';
     } else {
-      l.canvas.style.mixBlendMode = (i === 0) ? 'normal' : (blendMap[l.blendMode] || 'normal');
+      disp.style.mixBlendMode = (i === 0) ? 'normal' : (blendMap[l.blendMode] || 'normal');
     }
   });
 
@@ -3957,14 +4027,14 @@ function rebuildLayerOrder() {
     for (let i = 0; i < topmostFxIdx; i++) {
       const l = state.layers[i];
       if (l.type === 'fx') {
-        l.canvas.style.opacity = '0';
+        getDisplayCanvas(l).style.opacity = '0';
       }
     }
     // Hide all normal/folder layers below the topmost FX (they're baked into it too)
     for (let i = 0; i < topmostFxIdx; i++) {
       const l = state.layers[i];
       if (l.type !== 'fx') {
-        l.canvas.style.opacity = '0';
+        getDisplayCanvas(l).style.opacity = '0';
       }
     }
   }
@@ -4276,7 +4346,7 @@ function renderLayersList() {
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = 36; thumbCanvas.height = 36;
     const tc = thumbCanvas.getContext('2d');
-    { const {px,py}=getPad(); tc.drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, 36, 36); }
+    { const {px,py}=getPad(); tc.drawImage(getDisplayCanvas(l), px, py, state.canvasW, state.canvasH, 0, 0, 36, 36); }
     thumbWrap.appendChild(thumbCanvas);
 
     // Info
@@ -4289,7 +4359,7 @@ function renderLayersList() {
 
     const metaEl = document.createElement('div');
     metaEl.className = 'layer-meta';
-    metaEl.textContent = l.opacity + '%';
+    metaEl.textContent = l.opacity + '%' + (l.clipped ? ' · Clipped' : '');
 
     info.appendChild(nameEl);
     info.appendChild(metaEl);
@@ -4324,7 +4394,7 @@ function renderLayersList() {
       ev.stopPropagation();
       l.opacity = +opSlider.value;
       opLabel.textContent = l.opacity + '%';
-      metaEl.textContent = l.opacity + '%';
+      metaEl.textContent = l.opacity + '%' + (l.clipped ? ' · Clipped' : '');
       rebuildLayerOrder();
     });
     opSlider.addEventListener('click', ev => ev.stopPropagation());
@@ -4502,6 +4572,7 @@ function captureSnapshot() {
         visible:  l.visible,
         opacity:  l.opacity,
         blendMode: l.blendMode,
+        clipped:  !!l.clipped,
         // Folder / FX metadata
         type:     l.type     || null,
         folderId: l.folderId || null,
@@ -4521,7 +4592,7 @@ function restoreSnapshot(snap) {
     idMap[s.folderLayerId] = Date.now() + Math.random() + i;
   });
 
-  state.layers.forEach(l => l.canvas.remove());
+  state.layers.forEach(l => { l.canvas.remove(); if (l.clipCanvas) l.clipCanvas.remove(); });
   state.layers = [];
 
   snap.layers.forEach((s, i) => {
@@ -4570,6 +4641,7 @@ function restoreSnapshot(snap) {
     layer.blendMode = s.blendMode || 'source-over';
     layer.id        = newId;
     layer.folderId  = s.folderId ? idMap[s.folderId] : null;
+    layer.clipped   = !!s.clipped;
     if (s.pixels) layer.ctx.drawImage(s.pixels, 0, 0);
     state.layers.push(layer);
   });
@@ -4699,7 +4771,6 @@ function remapPressure(p, curve) {
 }
 
 const DEFAULT_PRESETS = [
-  // ── Pen category (CSP G-Pen / Mapping Pen / Turnip Pen) ──
   {
     ...BRUSH_DEFAULTS, name: 'G-Pen',
     type: 'ink', tipShape: 'circle',
@@ -4708,27 +4779,12 @@ const DEFAULT_PRESETS = [
     opacityPressure: false, edgeRoughness: 0,
   },
   {
-    ...BRUSH_DEFAULTS, name: 'Mapping Pen',
-    type: 'ink', tipShape: 'circle',
-    size: 6, hardness: 100, spacing: 2, opacity: 100, flow: 100,
-    sizePressure: true, sizeMin: 1, pressureCurve: 2,
-    opacityPressure: false, edgeRoughness: 0,
-  },
-  {
-    ...BRUSH_DEFAULTS, name: 'Turnip Pen',
-    type: 'csp_turnip', tipShape: 'turnip',
-    size: 14, hardness: 95, spacing: 3, opacity: 100, flow: 100,
-    sizePressure: true, sizeMin: 3, pressureCurve: 3,
-    ratio: 100, angle: 0, edgeRoughness: 0,
-  },
-  {
     ...BRUSH_DEFAULTS, name: 'Flat Pen',
     type: 'csp_flat', tipShape: 'flat',
     size: 16, hardness: 98, spacing: 3, opacity: 100, flow: 100,
     sizePressure: true, sizeMin: 5, pressureCurve: 1,
     ratio: 25, angle: 0, followPath: true, edgeRoughness: 0,
   },
-  // ── Pencil category (CSP Real Pencil / Design Pencil / Rough Pencil) ──
   {
     ...BRUSH_DEFAULTS, name: 'Real Pencil',
     type: 'pencil', tipShape: 'circle',
@@ -4737,31 +4793,6 @@ const DEFAULT_PRESETS = [
     opacityPressure: true, opacityMin: 30,
     texture: 'paper', textureStrength: 45, textureScale: 80,
     edgeRoughness: 20,
-  },
-  {
-    ...BRUSH_DEFAULTS, name: 'Design Pencil',
-    type: 'pencil', tipShape: 'circle',
-    size: 10, hardness: 75, spacing: 4, opacity: 95, flow: 100,
-    sizePressure: true, sizeMin: 10, pressureCurve: 1,
-    texture: 'grain', textureStrength: 25, textureScale: 60,
-    edgeRoughness: 8,
-  },
-  {
-    ...BRUSH_DEFAULTS, name: 'Rough Pencil',
-    type: 'pencil', tipShape: 'circle',
-    size: 22, hardness: 40, spacing: 6, opacity: 70, flow: 80,
-    sizePressure: true, sizeMin: 30, pressureCurve: 0,
-    opacityPressure: true, opacityMin: 20,
-    texture: 'paper', textureStrength: 65, textureScale: 100,
-    edgeRoughness: 35, angleJitter: 8,
-  },
-  // ── Brush category (CSP Fill In / Round / Soft) ──
-  {
-    ...BRUSH_DEFAULTS, name: 'Fill In Brush',
-    type: 'csp_fill', tipShape: 'circle',
-    size: 30, hardness: 85, spacing: 6, opacity: 100, flow: 100,
-    sizePressure: true, sizeMin: 20, pressureCurve: 1,
-    edgeRoughness: 0,
   },
   {
     ...BRUSH_DEFAULTS, name: 'Round Brush',
@@ -4777,7 +4808,6 @@ const DEFAULT_PRESETS = [
     sizePressure: true, sizeMin: 30, pressureCurve: 0,
     opacityPressure: true, opacityMin: 20, edgeRoughness: 0,
   },
-  // ── Airbrush category (CSP Spray / Soft Airbrush) ──
   {
     ...BRUSH_DEFAULTS, name: 'Soft Airbrush',
     type: 'airbrush', tipShape: 'circle',
@@ -4786,14 +4816,6 @@ const DEFAULT_PRESETS = [
     opacityPressure: true, opacityMin: 10, edgeRoughness: 0,
   },
   {
-    ...BRUSH_DEFAULTS, name: 'Spray',
-    type: 'airbrush', tipShape: 'circle',
-    size: 50, hardness: 0, spacing: 5, opacity: 50, flow: 25,
-    scatter: 80, count: 6, sizeJitter: 40,
-    sizePressure: true, sizeMin: 30, pressureCurve: 0, edgeRoughness: 0,
-  },
-  // ── Watercolor / Gouache ──
-  {
     ...BRUSH_DEFAULTS, name: 'Watercolor Fringe',
     type: 'watercolor', tipShape: 'circle',
     size: 45, hardness: 0, spacing: 18, opacity: 75, flow: 55,
@@ -4801,75 +4823,6 @@ const DEFAULT_PRESETS = [
     sizePressure: true, sizeMin: 40, pressureCurve: 0,
     opacityPressure: true, opacityMin: 25,
   },
-  {
-    ...BRUSH_DEFAULTS, name: 'Gouache',
-    type: 'gouache', tipShape: 'circle',
-    size: 28, hardness: 70, spacing: 7, opacity: 95, flow: 90,
-    bristles: 8, edgeRoughness: 30,
-    sizePressure: true, sizeMin: 25, pressureCurve: 1,
-    opacityPressure: false,
-  },
-  // ── Marker ──
-  {
-    ...BRUSH_DEFAULTS, name: 'Copic Marker',
-    type: 'marker', tipShape: 'flat',
-    size: 22, hardness: 90, spacing: 4, opacity: 70, flow: 85,
-    ratio: 30, angle: 0, followPath: true,
-    sizePressure: false, opacityPressure: false, edgeRoughness: 0,
-  },
-  {
-    ...BRUSH_DEFAULTS, name: 'Brush Marker',
-    type: 'marker', tipShape: 'circle',
-    size: 18, hardness: 80, spacing: 5, opacity: 80, flow: 90,
-    sizePressure: true, sizeMin: 8, pressureCurve: 1, edgeRoughness: 5,
-  },
-  // ── Chalk / Pastel ──
-  {
-    ...BRUSH_DEFAULTS, name: 'Pastel',
-    type: 'chalk', tipShape: 'circle',
-    size: 32, hardness: 50, spacing: 7, opacity: 80, flow: 80,
-    edgeRoughness: 55, angleJitter: 15,
-    texture: 'paper', textureStrength: 50, textureScale: 90,
-    sizePressure: true, sizeMin: 50, pressureCurve: 0,
-    opacityPressure: true, opacityMin: 30,
-  },
-  {
-    ...BRUSH_DEFAULTS, name: 'Chalk Board',
-    type: 'chalk', tipShape: 'flat',
-    size: 24, hardness: 60, spacing: 6, opacity: 85, flow: 85,
-    ratio: 40, angle: 0, followPath: false,
-    edgeRoughness: 40, angleJitter: 10, sizeJitter: 15,
-    texture: 'grain', textureStrength: 55, textureScale: 80,
-    sizePressure: true, sizeMin: 30, pressureCurve: 0,
-  },
-  // ── Ballpoint Pen ──
-  {
-    ...BRUSH_DEFAULTS, name: 'Ballpoint',
-    type: 'ballpoint', tipShape: 'circle',
-    size: 4, hardness: 95, spacing: 2, opacity: 90, flow: 95,
-    sizePressure: true, sizeMin: 50, pressureCurve: 0,
-    opacityPressure: true, opacityMin: 50,
-    texture: 'grain', textureStrength: 15, textureScale: 50,
-    edgeRoughness: 5,
-  },
-  // ── CSP Blur (soft blend) ──
-  {
-    ...BRUSH_DEFAULTS, name: 'Blur Blend',
-    type: 'csp_blur', tipShape: 'circle',
-    size: 35, hardness: 0, spacing: 6, opacity: 60, flow: 50,
-    wetMix: true, wetRatio: 70,
-    sizePressure: true, sizeMin: 40, pressureCurve: 0,
-    opacityPressure: true, opacityMin: 20,
-  },
-  // ── Calligraphy ──
-  {
-    ...BRUSH_DEFAULTS, name: 'Calligraphy',
-    type: 'ink', tipShape: 'flat',
-    size: 20, hardness: 95, spacing: 3, opacity: 100, flow: 100,
-    ratio: 20, angle: 45, followPath: false,
-    sizePressure: true, sizeMin: 8, pressureCurve: 1, edgeRoughness: 0,
-  },
-  // ── Scatter / FX ──
   {
     ...BRUSH_DEFAULTS, name: 'Splatter',
     type: 'round', tipShape: 'circle',
@@ -5810,6 +5763,13 @@ function _doWetFlush() {
     wet.layerCtx.drawImage(strokeCanvas, dx, dy, dw, dh, dx, dy, dw, dh);
   }
   wet.layerCtx.restore();
+
+  // Live per-stroke clip refresh — only the region that just changed, so
+  // painting on a clipped layer shows marks in real time.
+  const paintedLayer = state.layers.find(l => l.ctx === wet.layerCtx);
+  if (paintedLayer && paintedLayer.clipped) {
+    refreshClipPreviewRegion(paintedLayer, dx, dy, dw, dh);
+  }
 }
 
 // Called when the layer contents change outside of a wet stroke
@@ -6205,10 +6165,21 @@ function drawErase(x, y, sizeScale = 1) {
   if (dist < spacing) return;
 
   const steps = Math.ceil(dist / spacing);
+  const segX0 = lastStampX, segY0 = lastStampY;
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     placeErase(ctx, lastStampX + dx * t, lastStampY + dy * t, size);
   }
+
+  // Live per-stroke clip refresh for the erased region.
+  const activeLayer = state.layers[state.activeLayer];
+  if (activeLayer && activeLayer.clipped) {
+    const pad = size + 2;
+    const minX = Math.min(segX0, x) - pad, minY = Math.min(segY0, y) - pad;
+    const maxX = Math.max(segX0, x) + pad, maxY = Math.max(segY0, y) + pad;
+    refreshClipPreviewRegion(activeLayer, minX, minY, maxX - minX, maxY - minY);
+  }
+
   lastStampX = x; lastStampY = y;
 }
 
@@ -6328,7 +6299,7 @@ function eyedrop(x, y) {
   const composite = document.createElement('canvas');
   composite.width = state.canvasW; composite.height = state.canvasH;
   const cc = composite.getContext('2d');
-  state.layers.forEach(l => { if (l.visible && l.ctx) { const {px,py}=getPad(); cc.drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); } });
+  state.layers.forEach(l => { if (l.visible && l.ctx) { const {px,py}=getPad(); cc.drawImage(getDisplayCanvas(l), px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); } });
   const px = Math.round(x), py = Math.round(y);
   const d = cc.getImageData(px, py, 1, 1).data;
   const hex = '#' + [d[0],d[1],d[2]].map(v => v.toString(16).padStart(2,'0')).join('');
@@ -6581,6 +6552,7 @@ canvasContainer.addEventListener('pointerdown', e => {
     floodFill(x, y);
     if (window.addToColorHistory) window.addToColorHistory(state.color);
     renderLayersList();
+    refreshAllClips();
     return;
   }
 
@@ -6668,6 +6640,7 @@ canvasContainer.addEventListener('pointerup', e => {
     }
     refreshLayerThumb();
     renderLayersList();
+    refreshAllClips();
     applyAllFxLayers();
   }
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
@@ -6682,6 +6655,7 @@ canvasContainer.addEventListener('pointercancel', () => {
     if (state.tool === 'brush') wetCommit();
     if (state.tool === 'eraser') _wetInvalidateSnapshot();
     refreshLayerThumb();
+    refreshAllClips();
     applyAllFxLayers();
   }
   if (stabilizer.rafId) { cancelAnimationFrame(stabilizer.rafId); stabilizer.rafId = null; }
@@ -7543,7 +7517,7 @@ function wandSelect(cx, cy, tolerance) {
   composite.width = W; composite.height = H;
   const cc = composite.getContext('2d');
   state.layers.forEach(l => {
-    if (l.visible && l.type !== 'folder' && l.ctx) { cc.globalAlpha = l.opacity/100; const {px,py}=getPad(); cc.drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); }
+    if (l.visible && l.type !== 'folder' && l.ctx) { cc.globalAlpha = l.opacity/100; const {px,py}=getPad(); cc.drawImage(getDisplayCanvas(l), px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); }
   });
   cc.globalAlpha = 1;
   const imgData = cc.getImageData(0, 0, W, H);
@@ -9005,6 +8979,7 @@ document.getElementById('crop-apply').addEventListener('click', () => {
   exitCropMode();
   activateTool('brush');
   fitCanvasToViewport();
+  rebuildLayerOrder();
   renderLayersList();
   updateStatusBar();
   toast(`Canvas cropped to ${cw} × ${ch}`);
@@ -9067,7 +9042,7 @@ function rotateCropCanvas(dir) {
   fitCanvasToViewport();
   renderLayersList();
   updateStatusBar();
-  applyAllFxLayers();
+  rebuildLayerOrder();
   // Re-enter crop mode so the selection resets to the new canvas dimensions
   exitCropMode();
   enterCropMode();
@@ -9505,7 +9480,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     if (window.positionSubToolbars) window.positionSubToolbars();
     if (tx._previewCanvas){tx._previewCanvas.remove();tx._previewCanvas=null;}
     if (tx._hiddenChildren){tx._hiddenChildren.forEach(c=>{c.canvas.style.opacity=c._savedOpacity||'';});tx._hiddenChildren=null;}
-    tx.corners = null; tx._dragStartCorners = null;
+    tx.corners = apply ? tx.corners : null; tx._dragStartCorners = null;
     resetHandlePositions();
     // Restore rotate handle visibility
     const rotHandle = box.querySelector('[data-txh="rotate"]');
@@ -9551,6 +9526,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
       }
       layer.ctx.restore();
       renderLayersList();
+      refreshAllClips();
     }
     tx.snapshot=null;tx.bgCanvas=null;
   }
@@ -9565,6 +9541,7 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
     if (tx.hasSelection && tx.bgCanvas) layer.ctx.drawImage(tx.bgCanvas, 0, 0);
     drawTransformedContent(layer.ctx, snapshot);
     _wetInvalidateSnapshot(); // layer changed outside wet stroke
+    refreshAllClips();
     if (!tx.folderChildren) { renderLayersList(); toast('Transform applied'); }
   }
 
@@ -9737,7 +9714,19 @@ document.getElementById('crop-rotate-ccw').addEventListener('click', () => rotat
       if(h==='bl'){nx+=bdx;nw-=bdx;nh+=bdy;}if(h==='br'){nw+=bdx;nh+=bdy;}
       if(h==='t'){ny+=bdy;nh-=bdy;}if(h==='b'){nh+=bdy;}
       if(h==='l'){nx+=bdx;nw-=bdx;}if(h==='r'){nw+=bdx;}
-      if((tx.lockRatio||e.shiftKey)&&['tl','tr','bl','br'].includes(h)){const ratio=tx.dragStartW/tx.dragStartH;if(Math.abs(bdx)>Math.abs(bdy))nh=nw/ratio;else nw=nh*ratio;}
+      const lock = tx.lockRatio || (e.shiftKey && ['tl','tr','bl','br'].includes(h));
+      if (lock) {
+        const ratio = tx.dragStartW / tx.dragStartH;
+        if (['tl','tr','bl','br'].includes(h)) {
+          if (Math.abs(bdx) > Math.abs(bdy)) nh = nw / ratio; else nw = nh * ratio;
+          if (h.includes('t')) ny = tx.dragStartY + tx.dragStartH - nh;
+          if (h.includes('l')) nx = tx.dragStartX + tx.dragStartW - nw;
+        } else if (h === 't' || h === 'b') {
+          nw = nh * ratio; nx = tx.dragStartX + (tx.dragStartW - nw) / 2;
+        } else if (h === 'l' || h === 'r') {
+          nh = nw / ratio; ny = tx.dragStartY + (tx.dragStartH - nh) / 2;
+        }
+      }
       tx.x=nx;tx.y=ny;tx.w=Math.max(1,nw);tx.h=Math.max(1,nh);
       updateBoxVisual();
     }
@@ -10257,11 +10246,11 @@ function compositeBelowFx(fxIdx) {
       // Include this FX layer's already-rendered canvas output so effects chain
       tc.globalAlpha = l.opacity / 100;
       tc.globalCompositeOperation = 'source-over';
-      tc.drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH);
+      tc.drawImage(getDisplayCanvas(l), px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH);
     } else {
       tc.globalAlpha = l.opacity / 100;
       tc.globalCompositeOperation = 'source-over';
-      tc.drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH);
+      tc.drawImage(getDisplayCanvas(l), px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH);
     }
   }
   return tmp;
@@ -10391,17 +10380,19 @@ function mergeLayerDown(idx) {
 
   const top = state.layers[idx];
   const below = state.layers[idx - 1];
+  if (top.clipped) refreshClipPreview(top); // ensure the mask reflects the latest paint before baking it in
 
   // Composite top onto below respecting top layer opacity
   // Merge full overscan buffer — reset transform to copy raw physical pixels
   below.ctx.save();
   below.ctx.setTransform(1,0,0,1,0,0);
   below.ctx.globalAlpha = top.opacity / 100;
-  below.ctx.drawImage(top.canvas, 0, 0);
+  below.ctx.drawImage(getDisplayCanvas(top), 0, 0);
   below.ctx.restore();
 
-  // Remove the top layer canvas from DOM and layers array
+  // Remove the top layer canvas (and its clip preview, if any) from DOM
   top.canvas.remove();
+  if (top.clipCanvas) top.clipCanvas.remove();
   state.layers.splice(idx, 1);
   state.activeLayer = idx - 1;
   rebuildLayerOrder();
@@ -10499,7 +10490,7 @@ function mergeLayerDown(idx) {
     layers.forEach(l => {
       if (!l.visible || l.type === 'folder') return;
       cc.globalAlpha = l.opacity / 100;
-      { const {px,py}=getPad(); cc.drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); }
+      { const {px,py}=getPad(); cc.drawImage(getDisplayCanvas(l), px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); }
     });
     cc.globalAlpha = 1;
 
@@ -11004,7 +10995,7 @@ function mergeLayerDown(idx) {
     fitCanvasToViewport();
     renderLayersList();
     updateStatusBar();
-    applyAllFxLayers();
+    rebuildLayerOrder();
     toast(`Canvas resized to ${newW} × ${newH}`);
   }
 })();
@@ -11024,6 +11015,7 @@ document.getElementById('btn-flip-h').addEventListener('click', () => {
     layer.ctx.drawImage(tmp, 0, 0);
   });
   renderLayersList();
+  refreshAllClips();
   toast('Canvas flipped horizontally');
 });
 
@@ -11052,7 +11044,7 @@ fileDropdown.querySelectorAll('.file-menu-item').forEach(item => {
 function initCanvas(w, h) {
   state.canvasW = w;
   state.canvasH = h;
-  state.layers.forEach(l => l.canvas.remove());
+  state.layers.forEach(l => { l.canvas.remove(); if (l.clipCanvas) l.clipCanvas.remove(); });
   state.layers = [];
   state.history = []; state.future = [];
   canvasContainer.style.width = w + 'px';
@@ -11144,6 +11136,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     name:    l.name,
     visible: l.visible,
     opacity: l.opacity,
+    clipped: !!l.clipped,
     data:    (() => { if (!l.ctx) return null; const {px,py}=getPad(); const tmp=document.createElement('canvas'); tmp.width=state.canvasW; tmp.height=state.canvasH; tmp.getContext('2d').drawImage(l.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); return tmp.toDataURL('image/png'); })()
   }));
 
@@ -11284,7 +11277,7 @@ document.getElementById('file-open').addEventListener('change', e => {
         canvasContainer.style.height = h + 'px';
 
         // Tear down existing layers
-        state.layers.forEach(l => l.canvas.remove());
+        state.layers.forEach(l => { l.canvas.remove(); if (l.clipCanvas) l.clipCanvas.remove(); });
         state.layers = [];
         state.history = []; state.future = [];
 
@@ -11339,6 +11332,7 @@ document.getElementById('file-open').addEventListener('change', e => {
           const layer = createLayer(ld.name || `Layer ${i + 1}`);
           layer.visible = ld.visible !== false;
           layer.opacity = typeof ld.opacity === 'number' ? ld.opacity : 100;
+          layer.clipped = !!ld.clipped;
           state.layers.push(layer);
 
           const img = new Image();
@@ -11386,6 +11380,7 @@ document.getElementById('file-open').addEventListener('change', e => {
         const ox = (state.canvasW - w) / 2, oy = (state.canvasH - h) / 2;
         ctx.drawImage(img, ox, oy, w, h);
         renderLayersList();
+        refreshAllClips();
         toast('Image imported to active layer');
       };
       img.src = ev.target.result;
@@ -11735,6 +11730,10 @@ function toast(msg) {
     if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
     return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
   }
+  function mixHex(a, b, t) {
+    const [ar,ag,ab] = hexToRgbArr(a), [br,bg,bb] = hexToRgbArr(b);
+    return '#' + [ar+(br-ar)*t, ag+(bg-ag)*t, ab+(bb-ab)*t].map(v => Math.round(v).toString(16).padStart(2,'0')).join('');
+  }
   function getVar(key) { return getComputedStyle(root).getPropertyValue(key).trim(); }
   function varToHex(key) {
     const val = getVar(key);
@@ -11745,13 +11744,13 @@ function toast(msg) {
   }
 
   // ── Apply a colour change + auto-derive dependents ──
+  const PANEL_VARS = ['--topbar-bg','--panel-bg','--panel-bg-soft','--glass-bg','--statusbar-bg','--toast-bg'];
   function applyColor(key, hex) {
-    if (['--topbar-bg','--panel-bg','--panel-bg-soft','--glass-bg','--canvas-bg-color'].includes(key)) {
-      // Preserve current alpha for rgba vars
-      const cur = getVar(key);
+    if (key === '--panels') {
+      const cur = getVar('--panel-bg');
       const alpha = cur.startsWith('rgba') ? getAlpha(cur) : 1;
       const [r,g,b] = hexToRgbArr(hex);
-      root.style.setProperty(key, alpha < 1 ? `rgba(${r},${g},${b},${alpha})` : hex);
+      PANEL_VARS.forEach(k => root.style.setProperty(k, alpha < 1 ? `rgba(${r},${g},${b},${alpha})` : hex));
       return;
     }
     root.style.setProperty(key, hex);
@@ -11760,7 +11759,6 @@ function toast(msg) {
       root.style.setProperty('--surface',  `rgba(${r+4},${g+8},${b+2},0.55)`);
       root.style.setProperty('--surface2', `rgba(${r+10},${g+18},${b+6},0.60)`);
       root.style.setProperty('--surface3', `rgba(${r+16},${g+28},${b+10},0.65)`);
-      root.style.setProperty('--glass-bg', `rgba(${r+2},${g+6},${b+2},0.52)`);
     }
     if (key === '--accent') {
       const [r,g,b] = hexToRgbArr(hex);
@@ -11769,29 +11767,34 @@ function toast(msg) {
       root.style.setProperty('--border2',       `rgba(${r},${g},${b},0.30)`);
       root.style.setProperty('--glass-border',  `rgba(${r},${g},${b},0.15)`);
       root.style.setProperty('--green', hex);
+      root.style.setProperty('--accent2', mixHex(hex, '#ffffff', 0.4));
+    }
+    if (key === '--text') {
+      // Dimmer text shades always derive toward the current bg colour, so
+      // contrast (and readability) is preserved no matter what bg is picked.
+      const bgHex = varToHex('--bg');
+      root.style.setProperty('--text2', mixHex(hex, bgHex, 0.45));
+      root.style.setProperty('--text3', mixHex(hex, bgHex, 0.75));
     }
   }
 
   // ── setAlpha: update the alpha of an rgba var, keep rgb ──
   function setAlpha(key, alpha) {
-    const hex = varToHex(key);
-    const [r,g,b] = hexToRgbArr(hex);
+    const rk = key === '--panels' ? '--panel-bg' : key;
+    const [r,g,b] = hexToRgbArr(varToHex(rk));
+    if (key === '--panels') {
+      PANEL_VARS.forEach(k => root.style.setProperty(k, `rgba(${r},${g},${b},${alpha})`));
+      return;
+    }
     root.style.setProperty(key, `rgba(${r},${g},${b},${alpha})`);
   }
 
   // ── DEFAULTS — must match :root CSS vars ──
   const DEFAULTS = {
-    '--bg':            '#0a100d',
-    '--accent':        '#3ecf6e',
-    '--accent2':       '#6eeea0',
-    '--text':          '#e8f4ec',
-    '--text2':         '#8aaa96',
-    '--text3':         '#4e6a58',
-    '--canvas-bg':     '#070e09',
-    '--topbar-bg':     'rgba(8,17,11,0.72)',
-    '--panel-bg':      'rgba(8,16,11,0.97)',
-    '--panel-bg-soft': 'rgba(10,19,13,0.92)',
-    '--glass-bg':      'rgba(10,20,14,0.60)',
+    '--bg':        '#0a100d',
+    '--accent':    '#3ecf6e',
+    '--text':      '#e8f4ec',
+    '--canvas-bg': '#070e09',
   };
 
   // ── PRESETS ──
@@ -11840,21 +11843,11 @@ function toast(msg) {
   // For 'color+opacity': an opacity slider controls the alpha of the rgba var
   // For 'color+slider': separate dedicated slider row with custom label/key
   const SLOTS = [
-    // ─ App Background ─
-    { section: 'App Background', key: '--bg',         label: 'Background',       sub: 'Main app fill colour',    type: 'color+opacity', opacityKey: '--bg', opacityLabel: 'Dim' },
-    // ─ Canvas ─
-    { section: 'Canvas',          key: '--canvas-bg',  label: 'Canvas Background', sub: 'Behind the canvas layers', type: 'color' },
-    // ─ Accent & Text ─
-    { section: 'Accent & Text',   key: '--accent',     label: 'Accent',            sub: 'Active buttons & highlights', type: 'color' },
-    { section: null,                  key: '--accent2',    label: 'Accent Glow',       sub: 'Hover & glow states',     type: 'color' },
-    { section: null,                  key: '--text',       label: 'Text',              sub: 'Primary labels',          type: 'color' },
-    { section: null,                  key: '--text2',      label: 'Text Dim',          sub: 'Secondary labels',        type: 'color' },
-    { section: null,                  key: '--text3',      label: 'Text Muted',        sub: 'Hints & placeholders',    type: 'color' },
-    // ─ UI Chrome ─
-    { section: 'UI Chrome',       key: '--topbar-bg',     label: 'Top Bar',         sub: 'Top toolbar strip',       type: 'color+opacity' },
-    { section: null,                  key: '--panel-bg',      label: 'Menus & Dropdowns', sub: 'Popup & context menus', type: 'color+opacity' },
-    { section: null,                  key: '--panel-bg-soft', label: 'Floating Panels', sub: 'Layers, FX, sub-toolbars', type: 'color+opacity' },
-    { section: null,                  key: '--glass-bg',      label: 'Sidebar',         sub: 'Right sidebar & color picker', type: 'color+opacity' },
+    { section: 'App',   key: '--bg',        label: 'Background', sub: 'App fill & derived surfaces',        type: 'color+opacity' },
+    { section: null,        key: '--canvas-bg', label: 'Canvas',      sub: 'Behind the canvas layers',           type: 'color' },
+    { section: 'Theme', key: '--accent',    label: 'Accent',      sub: 'Highlights, glow & borders',         type: 'color' },
+    { section: null,        key: '--text',      label: 'Text',        sub: 'All text — shades auto-derived',     type: 'color' },
+    { section: null,        key: '--panels',    label: 'Panels',      sub: 'Menus, toolbars, toasts & sidebar',  type: 'color+opacity', readKey: '--panel-bg' },
   ];
 
   // ── applyPreset ──
@@ -11875,14 +11868,11 @@ function toast(msg) {
 
   // ── resetToDefault ──
   function resetToDefault() {
-    ['--surface','--surface2','--surface3','--accent-glow',
+    ['--surface','--surface2','--surface3','--accent-glow','--accent2','--text2','--text3',
      '--border','--border2','--glass-border','--glass-highlight','--green',
-     '--canvas-shadow','--canvas-grid-line']
+     '--canvas-shadow','--canvas-grid-line', ...PANEL_VARS]
       .forEach(v => root.style.removeProperty(v));
-    Object.entries(DEFAULTS).forEach(([k,v]) => {
-      if (v.startsWith('rgba')) root.style.setProperty(k, v);
-      else applyColor(k, v);
-    });
+    Object.entries(DEFAULTS).forEach(([k,v]) => applyColor(k, v));
     syncSwatches();
   }
 
@@ -11905,14 +11895,14 @@ function toast(msg) {
   function syncSwatches() {
     // Sync color pickers
     swatchesEl.querySelectorAll('input[type=color][data-var]').forEach(inp => {
-      const hex = varToHex(inp.dataset.var);
+      const hex = varToHex(inp.dataset.read || inp.dataset.var);
       inp.value = hex;
       const swatch = inp.closest('.theme-swatch');
       if (swatch) swatch.style.background = hex;
     });
     // Sync opacity sliders
-    opacitySliders.forEach(({slider, valEl, key}) => {
-      const val = getVar(key);
+    opacitySliders.forEach(({slider, valEl, key, readKey}) => {
+      const val = getVar(readKey || key);
       let pct;
       if (key === '--bg') {
         // bg is solid hex — read a custom data attr we set
@@ -11926,14 +11916,16 @@ function toast(msg) {
   }
 
   // Helper: build a color swatch + hidden color input
-  function buildSwatch(key) {
+  function buildSwatch(key, readKey) {
+    const rk = readKey || key;
     const swatch = document.createElement('div');
     swatch.className = 'theme-swatch';
-    swatch.style.background = varToHex(key);
+    swatch.style.background = varToHex(rk);
     const inp = document.createElement('input');
     inp.type = 'color';
     inp.dataset.var = key;
-    inp.value = varToHex(key);
+    inp.dataset.read = rk;
+    inp.value = varToHex(rk);
     swatch.appendChild(inp);
     return { swatch, inp };
   }
@@ -12002,7 +11994,7 @@ function toast(msg) {
     info.innerHTML = `<div class="theme-row-label">${slot.label}</div><div class="theme-row-sub">${slot.sub}</div>`;
     row.appendChild(info);
 
-    const { swatch, inp } = buildSwatch(slot.key);
+    const { swatch, inp } = buildSwatch(slot.key, slot.readKey);
 
     inp.addEventListener('input', () => {
       applyColor(slot.key, inp.value);
@@ -12014,30 +12006,21 @@ function toast(msg) {
     row.appendChild(swatch);
     swatchesEl.appendChild(row);
 
-    // Opacity slider row for rgba surface vars and bg
+    // Opacity slider row (--bg uses body-level dim; everything else is rgba alpha)
     if (slot.type === 'color+opacity') {
-      const isRgba = ['--topbar-bg','--panel-bg','--panel-bg-soft','--glass-bg'].includes(slot.key);
-      const isBg   = slot.key === '--bg';
+      const isBg = slot.key === '--bg';
+      const rk   = slot.readKey || slot.key;
+      const rawVal = getVar(rk);
+      const initPct = isBg ? Math.round(bgAlpha * 100)
+        : (rawVal.startsWith('rgba') ? Math.round(getAlpha(rawVal) * 100) : 100);
 
-      if (isRgba || isBg) {
-        let initPct = 100;
-        if (isRgba) {
-          const rawVal = getVar(slot.key);
-          initPct = rawVal.startsWith('rgba') ? Math.round(getAlpha(rawVal) * 100) : 100;
-        } else {
-          initPct = Math.round(bgAlpha * 100);
-        }
-
-        const opLabel = isBg ? 'Opacity' : 'Opacity';
-        const { row: sliderRow, slider, valEl } = buildSliderRow(opLabel, 0, 100, initPct, (pct) => {
-          if (isRgba) setAlpha(slot.key, pct / 100);
-          if (isBg)   applyBgOpacity(pct);
-          slider.dataset.currentPct = pct;
-        });
-        slider.dataset.currentPct = initPct;
-        opacitySliders.push({ slider, valEl, key: slot.key });
-        swatchesEl.appendChild(sliderRow);
-      }
+      const { row: sliderRow, slider, valEl } = buildSliderRow('Opacity', 0, 100, initPct, (pct) => {
+        isBg ? applyBgOpacity(pct) : setAlpha(slot.key, pct / 100);
+        slider.dataset.currentPct = pct;
+      });
+      slider.dataset.currentPct = initPct;
+      opacitySliders.push({ slider, valEl, key: slot.key, readKey: rk });
+      swatchesEl.appendChild(sliderRow);
     }
   });
 
@@ -12100,6 +12083,9 @@ function toast(msg) {
 
     ctxLayerIdx = idx;
     ctxTitle.textContent = state.layers[idx]?.name || 'Layer';
+    const clipped = !!state.layers[idx]?.clipped;
+    document.getElementById('ctx-clip-label').textContent = clipped ? 'Release Clip' : 'Clip to Below';
+    document.getElementById('ctx-clip').classList.toggle('active', clipped);
 
     // Position the menu to the left of the layers panel,
     // or right if in left-hand mode
@@ -12205,27 +12191,20 @@ function toast(msg) {
     const idx = ctxLayerIdx;
     closeCtxMenu();
     if (idx < 0) return;
+    const l = state.layers[idx];
+    if (!l || !l.ctx) { toast('Cannot clip this layer'); return; }
     if (idx === 0) { toast('No layer below to clip to'); return; }
     saveHistory();
-    const top   = state.layers[idx];
-    const below = state.layers[idx - 1];
-    // Apply the clipping mask: composite top using below as mask
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width  = state.canvasW;
-    tempCanvas.height = state.canvasH;
-    const tempCtx = tempCanvas.getContext('2d');
-    // Draw below as mask source
-    { const {px,py}=getPad(); tempCtx.drawImage(below.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); }
-    tempCtx.globalCompositeOperation = 'source-in';
-    tempCtx.globalAlpha = top.opacity / 100;
-    { const {px,py}=getPad(); tempCtx.drawImage(top.canvas, px, py, state.canvasW, state.canvasH, 0, 0, state.canvasW, state.canvasH); }
-    // Write result back into top layer — clear full overscan first
-    top.ctx.save(); top.ctx.setTransform(1,0,0,1,0,0); top.ctx.clearRect(0,0,layerCanvasW(),layerCanvasH()); top.ctx.restore();
-    top.ctx.drawImage(tempCanvas, 0, 0);
-    top.opacity = 100;
+    l.clipped = !l.clipped;
+    if (!l.clipped && l.clipCanvas) {
+      // Un-clipping just drops the masked preview — the layer's real pixels
+      // were never touched, so it's instantly back to its full, original self.
+      l.clipCanvas.remove();
+      l.clipCanvas = null;
+    }
     rebuildLayerOrder();
     renderLayersList();
-    toast('Clipped to below');
+    toast(l.clipped ? 'Clipped to below' : 'Clip released');
     requestAnimationFrame(positionPanels);
   });
 
@@ -12390,6 +12369,7 @@ function toast(msg) {
     toast(label + ' applied');
     hideFxToolbar();
     renderLayersList();
+    refreshAllClips();
   });
 
   document.getElementById('fx-tb-cancel').addEventListener('click', () => {
@@ -12399,6 +12379,7 @@ function toast(msg) {
       layer.ctx.putImageData(fxSnapshot, px, py);
     }
     hideFxToolbar();
+    refreshAllClips();
   });
 
   // ── Dropdown item clicks open the fx toolbar ──
@@ -12680,6 +12661,7 @@ function toast(msg) {
     ctx.fillText(text, 0, 0);
     ctx.restore();
     renderLayersList();
+    refreshAllClips();
     applyAllFxLayers();
     if (window.addToColorHistory) window.addToColorHistory(state.color);
     toast('Text placed');
@@ -13648,6 +13630,7 @@ function toast(msg) {
         layer.ctx.putImageData(lq.originalData, padX, padY);
         refreshLayerThumb();
         renderLayersList();
+        refreshAllClips();
         applyAllFxLayers();
       }
       toast('Liquify cancelled');
@@ -13655,6 +13638,7 @@ function toast(msg) {
       saveHistory();
       refreshLayerThumb();
       renderLayersList();
+      refreshAllClips();
       applyAllFxLayers();
       toast('Liquify applied');
     }
