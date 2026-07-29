@@ -2891,7 +2891,7 @@
     Soft
   </button>
   <button class="popout-btn" data-eraser="hard">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/></svg>
     Hard
   </button>
   <button class="popout-btn" data-eraser="square">
@@ -3298,6 +3298,28 @@
       <div class="prefs-row-sub">Stylus &amp; pen devices</div>
     </div>
     <div class="pref-toggle-wrap on" id="pref-pressure-enabled" data-pref="pressureEnabled" role="switch" aria-checked="true">
+      <div class="pref-toggle-track"></div>
+      <div class="pref-toggle-knob"></div>
+    </div>
+  </div>
+
+  <div class="prefs-row">
+    <div class="prefs-row-info">
+      <div class="prefs-row-title">Tilt</div>
+      <div class="prefs-row-sub">Tilt the pen to set brush angle</div>
+    </div>
+    <div class="pref-toggle-wrap" id="pref-tilt-enabled" role="switch" aria-checked="false">
+      <div class="pref-toggle-track"></div>
+      <div class="pref-toggle-knob"></div>
+    </div>
+  </div>
+
+  <div class="prefs-row">
+    <div class="prefs-row-info">
+      <div class="prefs-row-title">Barrel Rotation</div>
+      <div class="prefs-row-sub">Rotate the pen to rotate the brush</div>
+    </div>
+    <div class="pref-toggle-wrap" id="pref-barrel-rotation-enabled" role="switch" aria-checked="false">
       <div class="pref-toggle-track"></div>
       <div class="pref-toggle-knob"></div>
     </div>
@@ -3792,7 +3814,7 @@
   </div>
 </div>
 <!-- Hidden file input for brush import -->
-<input type="file" id="bsp-import-input" accept=".json" style="display:none">
+<input type="file" id="bsp-import-input" accept=".json,.abr,.sut" style="display:none">
 
 <script>
 // ════════════════════════════════════════════════════════════
@@ -4757,6 +4779,11 @@ const BRUSH_DEFAULTS = {
   valJitter: 0,
   wetMix: false,
   wetRatio: 30,
+  // Optional imported Photoshop/CSP brush tip (PNG data URL).
+  tipData: null,
+  tipWidth: 0,
+  tipHeight: 0,
+  tipId: '',
 };
 
 // ── CSP-quality pressure curve remapper ──────────────────────────────────────
@@ -4867,13 +4894,44 @@ const STAMP_CACHE_MAX = 64;
 
 // Separate cache for mask stamps (solid alpha, used for max-alpha accumulation)
 const maskStampCache = new Map();
+const customTipCache = new Map();
+
+function hydrateBrushTip(brush) {
+  if (!brush?.tipData || !brush.tipId || customTipCache.has(brush.tipId)) return Promise.resolve();
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || brush.tipWidth || 1;
+      canvas.height = img.naturalHeight || brush.tipHeight || 1;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      customTipCache.set(brush.tipId, canvas);
+      resolve();
+    };
+    img.onerror = resolve;
+    img.src = brush.tipData;
+  });
+}
+
+function hydrateSavedBrushTips() {
+  window.brushPresets.filter(b => b.tipData).forEach(brush => {
+    if (!brush.tipId) brush.tipId = 'tip-' + Math.random().toString(36).slice(2);
+    hydrateBrushTip(brush).then(() => {
+      window.dispatchEvent(new Event('ug-brush-tip-ready'));
+      if (getActiveBrush() === brush && typeof renderPreview === 'function') {
+        stampCache.clear(); maskStampCache.clear(); renderPreview();
+      }
+    });
+  });
+}
+hydrateSavedBrushTips();
 
 function makeStampKey(brush, size, {r,g,b}) {
-  return `${brush.type}|${brush.tipShape||'circle'}|${Math.round(size)}|${r},${g},${b}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}|${Math.round(brush.edgeRoughness||0)}|${Math.round(brush.bristles||0)}`;
+  return `${brush.type}|${brush.tipId||''}|${brush.tipShape||'circle'}|${size.toFixed(2)}|${r},${g},${b}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}|${Math.round(brush.edgeRoughness||0)}|${Math.round(brush.bristles||0)}`;
 }
 
 function makeMaskStampKey(brush, size) {
-  return `mask|${brush.type}|${brush.tipShape||'circle'}|${Math.round(size)}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}|${Math.round(brush.edgeRoughness||0)}`;
+  return `mask|${brush.type}|${brush.tipId||''}|${brush.tipShape||'circle'}|${size.toFixed(2)}|${Math.round(brush.hardness)}|${Math.round(brush.angle)}|${Math.round(brush.ratio)}|${Math.round(brush.edgeRoughness||0)}`;
 }
 
 // Builds a solid white stamp for alpha-mask accumulation.
@@ -4913,7 +4971,13 @@ function buildMaskStamp(brush, size) {
     drawCtx = tmpCanvas.getContext('2d');
   }
 
-  if (type === 'pixel') {
+  if (brush.tipData && customTipCache.has(brush.tipId)) {
+    const tip = customTipCache.get(brush.tipId);
+    const scale = (size * 2) / Math.max(tip.width, tip.height, 1);
+    const w = tip.width * scale, h = tip.height * scale;
+    drawCtx.drawImage(tip, drawCx - w / 2, drawCy - h / 2, w, h);
+
+  } else if (type === 'pixel') {
     drawCtx.fillStyle = 'white';
     const half = Math.max(0.5, size / 2);
     drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
@@ -5047,7 +5111,17 @@ function buildStamp(brush, size, rgb, _unused) {
   }
 
   // ── pixel ─────────────────────────────────────────────────────────────────
-  if (type === 'pixel') {
+  if (brush.tipData && customTipCache.has(brush.tipId)) {
+    const tip = customTipCache.get(brush.tipId);
+    const scale = (size * 2) / Math.max(tip.width, tip.height, 1);
+    const w = tip.width * scale, h = tip.height * scale;
+    drawCtx.drawImage(tip, drawCx - w / 2, drawCy - h / 2, w, h);
+    drawCtx.globalCompositeOperation = 'source-in';
+    drawCtx.fillStyle = `rgb(${r},${g},${b})`;
+    drawCtx.fillRect(0, 0, dim, dim);
+    drawCtx.globalCompositeOperation = 'source-over';
+
+  } else if (type === 'pixel') {
     drawCtx.fillStyle = `rgb(${r},${g},${b})`;
     const half = Math.max(0.5, size / 2);
     drawCtx.fillRect(drawCx - half, drawCy - half, half * 2, half * 2);
@@ -5720,6 +5794,7 @@ function _doWetFlush() {
                       type === 'csp_fill'  || type === 'csp_flat'  || type === 'csp_turnip'||
                       type === 'marker'    || type === 'gouache');
   const isSoft = !isHardType && (
+    brush.tipData ||
     type === 'airbrush' || type === 'csp_blur' || type === 'watercolor' || type === 'smear' ||
     (brush.hardness || 80) < 40
   );
@@ -5801,6 +5876,7 @@ const stabilizer = {
   rafId: null,          // rAF handle for continuous update loop
   sizeScale: 1,         // pressure scales saved for the rAF loop
   opacityScale: 1,
+  orientation: null,
 };
 
 // Called on every pointermove: just records the real cursor position.
@@ -5856,7 +5932,7 @@ function stabilizerTick() {
         const steps = Math.max(1, Math.ceil(dist / spacing));
         for (let i = 1; i <= steps; i++) {
           const t = i / steps;
-          stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, {r,g,b}, pathAngle);
+          stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, {r,g,b}, pathAngle, stabilizer.orientation);
         }
         lastStampX = stabilizer.lazyX;
         lastStampY = stabilizer.lazyY;
@@ -5949,7 +6025,7 @@ function placeOneDab(brush, ctx, x, y, size, rgb, angleOverride) {
 }
 
 // ── Main stroke functions ─────────────────────────────────────────────────────
-function drawStroke(x, y, sizeScale = 1, opacityScale = 1) {
+function drawStroke(x, y, sizeScale = 1, opacityScale = 1, orientation = null) {
   const ctx = getActiveCtx();
   if (!ctx) return;
 
@@ -5983,13 +6059,13 @@ function drawStroke(x, y, sizeScale = 1, opacityScale = 1) {
   const steps = Math.max(1, Math.ceil(dist / spacing));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, rgb, pathAngle);
+    stampDabs(brush, ctx, lastStampX + dx*t, lastStampY + dy*t, size, rgb, pathAngle, orientation);
   }
   lastStampX = x; lastStampY = y;
   wetFlushToLayer();
 }
 
-function stampDabs(brush, ctx, x, y, size, rgb, pathAngle) {
+function stampDabs(brush, ctx, x, y, size, rgb, pathAngle, orientation = null) {
   const count = Math.max(1, Math.round(brush.count || 1));
   for (let c = 0; c < count; c++) {
     let sx = x, sy = y;
@@ -6003,11 +6079,8 @@ function stampDabs(brush, ctx, x, y, size, rgb, pathAngle) {
     }
     // Angle
     let dAngle;
-    if (brush.followPath) {
-      dAngle = pathAngle + (Math.random() - 0.5) * (brush.angleJitter * 2);
-    } else {
-      dAngle = brush.angle + (Math.random() - 0.5) * (brush.angleJitter * 2);
-    }
+    dAngle = (orientation?.angle ?? (brush.followPath ? pathAngle : brush.angle)) +
+      (orientation?.twist || 0) + (Math.random() - 0.5) * (brush.angleJitter * 2);
     placeOneDab(brush, ctx, sx, sy, size, rgb, dAngle);
   }
 }
@@ -6409,6 +6482,8 @@ const pressureState = {
 // Pressure affects size and/or opacity depending on user settings
 const pressureSettings = {
   enabled:       true,   // master on/off switch
+  tiltEnabled:   false,
+  barrelRotationEnabled: false,
   smoothStrokes: true,   // low-pass filter on stroke positions
   stabilizer:    0,      // 0=off, 1-10 lag-based stabilizer strength
 };
@@ -6468,6 +6543,19 @@ function getPressure(e) {
   }
   // Touch: no reliable pressure — use 1
   return 1;
+}
+
+function getPenOrientation(e) {
+  if (e.pointerType !== 'pen') return null;
+  const tiltX = Number.isFinite(e.tiltX) ? e.tiltX : 0;
+  const tiltY = Number.isFinite(e.tiltY) ? e.tiltY : 0;
+  const azimuth = Number.isFinite(e.azimuthAngle) ? e.azimuthAngle * 180 / Math.PI : null;
+  return {
+    angle: pressureSettings.tiltEnabled && (tiltX || tiltY || (azimuth !== null && e.altitudeAngle < Math.PI / 2))
+      ? (tiltX || tiltY ? Math.atan2(tiltY, tiltX) * 180 / Math.PI : azimuth) - (state.canvasRotation || 0)
+      : null,
+    twist: pressureSettings.barrelRotationEnabled && Number.isFinite(e.twist) ? e.twist : 0,
+  };
 }
 
 // Blur any focused input when clicking outside text fields so shortcuts always work.
@@ -6561,6 +6649,7 @@ canvasContainer.addEventListener('pointerdown', e => {
   lastStampX = null; lastStampY = null;
 
   const pressure = getPressure(e);
+  const orientation = getPenOrientation(e);
   const brush = getActiveBrush();
   const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
   const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
@@ -6572,7 +6661,7 @@ canvasContainer.addEventListener('pointerdown', e => {
       : sizeScale;
     const size = Math.max(0.5, brush.size * initialSizeScale);
     const {r,g,b} = hexToRgb(state.color);
-    stampDabs(brush, getActiveCtx(), x, y, size, {r,g,b}, 0);
+    stampDabs(brush, getActiveCtx(), x, y, size, {r,g,b}, 0, orientation);
     wetFlushToLayer();
     lastStampX = x; lastStampY = y;
     if (pressureSettings.stabilizer > 0) {
@@ -6581,6 +6670,7 @@ canvasContainer.addEventListener('pointerdown', e => {
       stabilizer.realX  = x; stabilizer.realY  = y;
       stabilizer.sizeScale    = sizeScale;
       stabilizer.opacityScale = opacityScale;
+      stabilizer.orientation  = orientation;
       if (!stabilizer.rafId) stabilizer.rafId = requestAnimationFrame(stabilizerTick);
     }
   } else if (state.tool === 'eraser') drawErase(x, y, sizeScale);
@@ -6609,6 +6699,7 @@ canvasContainer.addEventListener('pointermove', e => {
   for (const ce of events) {
     const {x: cx, y: cy} = clientToCanvas(ce.clientX, ce.clientY);
     const pressure = getPressure(ce);
+    const orientation = getPenOrientation(ce);
     const brush = getActiveBrush();
     const sizeScale    = (brush.sizePressure    && pressureSettings.enabled) ? pressureToScale(pressure, brush) : 1;
     const opacityScale = (brush.opacityPressure && pressureSettings.enabled) ? pressureToOpacityScale(pressure, brush) : 1;
@@ -6620,10 +6711,11 @@ canvasContainer.addEventListener('pointermove', e => {
         stabilizer.realY = cy;
         stabilizer.sizeScale    = sizeScale;
         stabilizer.opacityScale = opacityScale;
+        stabilizer.orientation  = orientation;
         // Restart the loop if it somehow stopped (e.g. tab was backgrounded)
         if (!stabilizer.rafId) stabilizer.rafId = requestAnimationFrame(stabilizerTick);
       } else {
-        drawStroke(cx, cy, sizeScale, opacityScale);
+        drawStroke(cx, cy, sizeScale, opacityScale, orientation);
       }
     } else if (state.tool === 'eraser') drawErase(cx, cy, sizeScale);
   }
@@ -6648,6 +6740,7 @@ canvasContainer.addEventListener('pointerup', e => {
   lastStampX = null; lastStampY = null;
   pressureState.smoothed = 1;
   stabilizer.active = false;
+  stabilizer.orientation = null;
 });
 
 canvasContainer.addEventListener('pointercancel', () => {
@@ -6663,6 +6756,7 @@ canvasContainer.addEventListener('pointercancel', () => {
   lastStampX = null; lastStampY = null;
   pressureState.smoothed = 1;
   stabilizer.active = false;
+  stabilizer.orientation = null;
 });
 
 // Prevent browser default touch actions (scroll, zoom) on the canvas
@@ -6822,6 +6916,16 @@ document.addEventListener('click', e => {
   bindToggle('pref-pressure-enabled',
     () => pressureSettings.enabled,
     v  => { pressureSettings.enabled = v; }
+  );
+
+  bindToggle('pref-tilt-enabled',
+    () => pressureSettings.tiltEnabled,
+    v  => { pressureSettings.tiltEnabled = v; }
+  );
+
+  bindToggle('pref-barrel-rotation-enabled',
+    () => pressureSettings.barrelRotationEnabled,
+    v  => { pressureSettings.barrelRotationEnabled = v; }
   );
 
   // ── STROKE: Smooth strokes ──
@@ -7109,14 +7213,12 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
   const opacitySlider = document.getElementById('brush-opacity');
 
   sizeSlider.addEventListener('input', () => {
-    showPopout(sizeSlider, parseInt(sizeSlider.value) + ' px');
     if (visible) drawCursor();
   });
   sizeSlider.addEventListener('pointerup',    hidePopout);
   sizeSlider.addEventListener('pointerleave', hidePopout);
 
   opacitySlider.addEventListener('input', () => {
-    showPopout(opacitySlider, parseInt(opacitySlider.value) + '%');
     if (visible) drawCursor();
   });
   opacitySlider.addEventListener('pointerup',    hidePopout);
@@ -7923,19 +8025,17 @@ function applyTransform() {
 }
 
 function fitCanvasToViewport() {
-  // Use the canvas-wrap element's actual available area.
-  // With transform-origin: top left, we must set panX/panY to visually center
-  // the canvas, since flexbox centering only worked when there was no transform.
+  // Fit inside the flex content box; the unscaled canvas is already centered by flexbox.
   const wrap = document.getElementById('canvas-wrap');
-  const wrapRect = wrap.getBoundingClientRect();
-  const availW = wrapRect.width;
-  const availH = wrapRect.height;
+  const style = getComputedStyle(wrap);
+  const availW = wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const availH = wrap.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
   const scaleX = (availW - 80) / state.canvasW;
   const scaleY = (availH - 80) / state.canvasH;
   state.zoom = Math.min(scaleX, scaleY, 1);
-  // Center the canvas in the available area
-  state.panX = (availW - state.canvasW * state.zoom) / 2;
-  state.panY = (availH - state.canvasH * state.zoom) / 2;
+  // Offset only the difference introduced by scaling; flexbox supplies centering.
+  state.panX = (state.canvasW - state.canvasW * state.zoom) / 2;
+  state.panY = (state.canvasH - state.canvasH * state.zoom) / 2;
   applyTransform();
 }
 
@@ -11344,6 +11444,7 @@ document.getElementById('file-open').addEventListener('change', e => {
               rebuildLayerOrder();
               renderLayersList();
               updateStatusBar();
+              requestAnimationFrame(fitCanvasToViewport);
 
               // Restore undo/redo history if present (version 2+)
               if (Array.isArray(project.history) && project.history.length) {
@@ -11361,7 +11462,7 @@ document.getElementById('file-open').addEventListener('change', e => {
           img.src = ld.data;
         });
       } catch (err) {
-        toast('Failed to open project file');
+      toast('Failed to open project file');
       }
     };
     reader.readAsText(file);
@@ -13042,6 +13143,106 @@ function toast(msg) {
     return parseFloat(document.getElementById(id)?.value || 0);
   }
 
+  function tipId() { return 'tip-' + Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function bytesToDataUrl(bytes, mime = 'image/png') {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return `data:${mime};base64,${btoa(binary)}`;
+  }
+  function abrTipPng(data, width, height) {
+    const scale = Math.min(1, 512 / Math.max(width, height));
+    const w = Math.max(1, Math.round(width * scale)), h = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const pixels = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const a = 255 - data[Math.min(height - 1, Math.floor(y / scale)) * width + Math.min(width - 1, Math.floor(x / scale))];
+      const i = (y * w + x) * 4; pixels[i] = pixels[i + 1] = pixels[i + 2] = 255; pixels[i + 3] = a;
+    }
+    const ctx = canvas.getContext('2d'), image = ctx.createImageData(w, h); image.data.set(pixels); ctx.putImageData(image, 0, 0);
+    return { data: canvas.toDataURL('image/png'), width: w, height: h };
+  }
+  function decodeAbrRle(dv, pos, end, width, height) {
+    const rows = [];
+    for (let y = 0; y < height && pos + 2 <= end; y++, pos += 2) rows.push(dv.getUint16(pos));
+    const out = new Uint8Array(width * height);
+    for (let y = 0; y < height; y++) {
+      const rowEnd = Math.min(end, pos + (rows[y] || 0)); let x = 0;
+      while (pos < rowEnd && x < width) {
+        const n = dv.getInt8(pos++);
+        if (n >= 0) for (let i = 0; i <= n && pos < rowEnd && x < width; i++) out[y * width + x++] = dv.getUint8(pos++);
+        else if (n !== -128 && pos < rowEnd) { const v = dv.getUint8(pos++); for (let i = 0; i < 1 - n && x < width; i++) out[y * width + x++] = v; }
+      }
+      pos = rowEnd;
+    }
+    return out;
+  }
+  function parseAbr(buffer, fileName) {
+    const bytes = new Uint8Array(buffer), dv = new DataView(buffer), base = fileName.replace(/\.[^.]+$/, '');
+    if (String.fromCharCode(...bytes.subarray(0, 4)) !== '8BPS') throw new Error('Not an ABR file');
+    const version = dv.getUint16(4), brushes = [];
+    const addSample = (p, end, name) => {
+      if (p + 23 > end) return;
+      const top = dv.getInt32(p), left = dv.getInt32(p + 4), bottom = dv.getInt32(p + 8), right = dv.getInt32(p + 12);
+      const width = Math.abs(right - left), height = Math.abs(bottom - top); p += 16;
+      const depth = dv.getUint16(p), compression = dv.getUint8(p + 2); p += 3;
+      if (depth !== 8 || !width || !height || width > 4096 || height > 4096) return;
+      const data = compression === 0 ? bytes.slice(p, Math.min(end, p + width * height)) : decodeAbrRle(dv, p, end, width, height);
+      if (data.length < width * height) return;
+      const tip = abrTipPng(data, width, height);
+      brushes.push({ ...BRUSH_DEFAULTS, name, type: 'round', tipData: tip.data, tipWidth: tip.width, tipHeight: tip.height, tipId: tipId() });
+    };
+    if (version === 1 || version === 2) {
+      let p = 6, count = dv.getUint16(p); p += 2;
+      for (let i = 0; i < count && p + 6 <= bytes.length; i++) {
+        const kind = dv.getUint16(p), size = dv.getUint32(p + 2), start = p + 6, end = Math.min(bytes.length, start + size); p = end;
+        if (kind !== 2) continue;
+        let q = start + 6, name = `${base} ${i + 1}`;
+        if (version === 2 && q + 4 <= end) {
+          const n = dv.getUint32(q); q += 4; const chars = [];
+          for (let j = 0; j < n && q + 1 < end; j++, q += 2) chars.push(String.fromCharCode(dv.getUint16(q)));
+          name = chars.join('').replace(/\0/g, '') || name;
+        }
+        addSample(q + 9, end, name);
+      }
+    } else if (version === 6) {
+      const subVersion = dv.getUint16(6); let p = 8;
+      while (p + 12 <= bytes.length) {
+        const section = String.fromCharCode(...bytes.subarray(p, p + 4)), tag = String.fromCharCode(...bytes.subarray(p + 4, p + 8)), size = dv.getUint32(p + 8), start = p + 12, end = Math.min(bytes.length, start + size);
+        if (section === '8BIM' && tag === 'samp') {
+          let q = start, i = 0;
+          while (q + 4 <= end) {
+            const recordSize = dv.getUint32(q), recordStart = q + 4, recordEnd = Math.min(end, recordStart + recordSize);
+            if (!recordSize || recordEnd <= recordStart) break;
+            addSample(recordStart + 37 + (subVersion === 1 ? 10 : 264), recordEnd, `${base} ${++i}`);
+            q = recordStart + ((recordSize + 3) & ~3);
+          }
+        }
+        p = start + ((size + 1) & ~1);
+      }
+    }
+    if (!brushes.length) throw new Error('No sampled brush tips found');
+    return brushes;
+  }
+  function extractPngs(buffer) {
+    const bytes = new Uint8Array(buffer), signature = [137,80,78,71,13,10,26,10], found = [], dv = new DataView(buffer);
+    for (let i = 0; i + 24 < bytes.length; i++) {
+      if (!signature.every((v, j) => bytes[i + j] === v)) continue;
+      const width = dv.getUint32(i + 16), height = dv.getUint32(i + 20); let p = i + 8;
+      while (p + 12 <= bytes.length) { const n = dv.getUint32(p); p += 12 + n; if (p > bytes.length) break; if (String.fromCharCode(...bytes.subarray(p - n - 8, p - n - 4)) === 'IEND') { found.push({ data: bytesToDataUrl(bytes.slice(i, p)), width, height }); i = p - 1; break; } }
+    }
+    return found;
+  }
+  function parseSut(buffer, fileName) {
+    const base = fileName.replace(/\.[^.]+$/, ''), pngs = extractPngs(buffer);
+    if (!pngs.length) throw new Error('No embedded PNG brush tip found');
+    return pngs.slice(0, 16).map((p, i) => ({ ...BRUSH_DEFAULTS, name: pngs.length === 1 ? base : `${base} ${i + 1}`, type: 'round', tipData: p.data, tipWidth: p.width, tipHeight: p.height, tipId: tipId() }));
+  }
+  function prepareImportedBrush(brush) {
+    const out = { ...BRUSH_DEFAULTS, ...brush };
+    if (out.tipData && !out.tipId) out.tipId = tipId();
+    return out;
+  }
+
   // ── Live-update helpers ───────────────────────────────────
   function bindSliderLive(id, key, fmt) {
     const el    = document.getElementById(id);
@@ -13228,12 +13429,15 @@ function toast(msg) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = evt => {
+    reader.onload = async evt => {
       try {
-        const parsed = JSON.parse(evt.target.result);
+        const ext = file.name.toLowerCase().split('.').pop();
+        const parsed = ext === 'json'
+          ? JSON.parse(evt.target.result)
+          : ext === 'abr' ? parseAbr(evt.target.result, file.name) : parseSut(evt.target.result, file.name);
         if (!Array.isArray(parsed) || !parsed.length) throw new Error('Invalid brush file');
-        // Merge defaults into each imported brush to fill any missing keys
-        window.brushPresets = parsed.map(b => ({ ...BRUSH_DEFAULTS, ...b }));
+        window.brushPresets = parsed.map(prepareImportedBrush);
+        await Promise.all(window.brushPresets.filter(b => b.tipData).map(hydrateBrushTip));
         editingIdx = 0;
         editBrush  = JSON.parse(JSON.stringify(window.brushPresets[0]));
         saveBrushPresets();
@@ -13246,12 +13450,15 @@ function toast(msg) {
         toast('Import failed: ' + err.message);
       }
     };
-    reader.readAsText(file);
+    if (file.name.toLowerCase().endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
     importInput.value = '';
   });
 
   // ── Initial sync ──────────────────────────────────────────
   // Apply active brush to state on load
+  window.addEventListener('ug-brush-tip-ready', () => {
+    if (editBrush?.tipData) { stampCache.clear(); maskStampCache.clear(); renderPreview(); }
+  });
   syncBrushToState();
 
 })(); // end initBrushSettingsPanel
