@@ -151,7 +151,7 @@
   .tool-btn:active { transform: scale(0.93); }
   .tool-btn.active {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
 
@@ -392,7 +392,7 @@
   #layers-trigger:active { transform: scale(0.93); }
   #layers-trigger.active {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
   #layers-trigger[data-tip]:hover::after,
@@ -448,9 +448,10 @@
     transition: background 0.12s, border-color 0.12s;
     user-select: none;
     min-height: 44px;
+    touch-action: pan-y;
   }
   .layer-item:hover { background: var(--surface2); }
-  .layer-item.active { background: var(--accent-glow); border-color: rgba(62,207,110,0.28); }
+  .layer-item.active { background: var(--accent-glow); border-color: var(--border2); }
 
   /* Layer thumbnail — rounded corners, checkerboard bg */
   .layer-thumb {
@@ -824,7 +825,7 @@
   .blend-pill:active { transform: scale(0.95); }
   .blend-pill.active {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
   .layer-expand-wrap {
@@ -880,8 +881,9 @@
   /* Drag-over indicators */
   .layer-item.drag-over-above { box-shadow: 0 -2px 0 var(--accent); }
   .layer-item.drag-over-below { box-shadow: 0 2px 0 var(--accent); }
-  .layer-item.drag-over-folder { box-shadow: inset 0 0 0 2px rgba(62,207,110,0.4); background: var(--accent-glow) !important; }
+  .layer-item.drag-over-folder { box-shadow: inset 0 0 0 2px var(--border2); background: var(--accent-glow) !important; }
   .layer-item.dragging { opacity: 0.35; }
+  .layer-item.touch-reordering { opacity: 0.6; box-shadow: 0 0 0 2px var(--accent); }
 
   /* Color picker popup */
   #color-popup {
@@ -1151,7 +1153,7 @@
   }
   .color-header-tool:hover { background: var(--surface2); border-color: var(--border); color: var(--text2); }
   .color-header-tool:active { transform: scale(0.9); }
-  .color-header-tool.active { background: var(--accent-glow); border-color: rgba(62,207,110,0.35); color: var(--accent2); }
+  .color-header-tool.active { background: var(--accent-glow); border-color: var(--border2); color: var(--accent2); }
 
   /* ── Paged Palette ── */
   #palette-carousel-wrap {
@@ -1188,8 +1190,74 @@
     display: flex;
     justify-content: center;
     gap: 5px;
-    margin-top: 6px;
+    margin-top: 0;
+    flex: 1;
   }
+  #palette-footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 18px;
+    margin: -6px 0;
+  }
+  #palette-edit-btn {
+    width: 20px; height: 20px; padding: 0;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface2); color: var(--text2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  #palette-edit-btn:hover, #palette-edit-btn.active {
+    background: var(--accent-glow); border-color: var(--accent); color: var(--accent2);
+  }
+  #palette-editor-menu {
+    display: none;
+    position: fixed;
+    z-index: 520;
+    width: min(420px, calc(100vw - 16px));
+    max-height: min(720px, calc(100vh - 16px));
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-direction: column;
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    background: var(--panel-bg);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+  }
+  #palette-editor-menu.open { display: flex; }
+  .palette-editor-head, .palette-editor-add { display: flex; align-items: center; gap: 6px; }
+  .palette-editor-head .panel-header { flex: 1; padding: 0; border: 0; color: var(--text3); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .palette-editor-pages { display: flex; flex-direction: column; gap: 8px; }
+  .palette-editor-page { display: flex; align-items: center; gap: 5px; min-height: 27px; }
+  .palette-editor-page-name { flex: 1; padding: 0; border: 0; background: transparent; color: var(--text2); font-size: 11px; text-align: left; cursor: pointer; }
+  .palette-editor-page.selected .palette-editor-page-name { color: var(--accent2); }
+  .palette-editor-page-btn, .palette-editor-icon-btn {
+    width: 24px; height: 24px; padding: 0; border: 1px solid var(--border);
+    border-radius: 5px; background: var(--surface2); color: var(--text2);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .palette-editor-page-btn:hover, .palette-editor-icon-btn:hover { color: var(--accent2); border-color: var(--accent); background: var(--accent-glow); }
+  .palette-editor-page-btn.hidden { opacity: 0.45; }
+  .palette-editor-colors { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 4px 0; }
+  .palette-editor-color { position: relative; aspect-ratio: 1; min-width: 0; border-radius: 4px; border: 1px solid var(--border); cursor: grab; touch-action: none; }
+  .palette-editor-color:active, .palette-editor-color.dragging { cursor: grabbing; }
+  .palette-editor-color.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .palette-editor-color:hover { transform: scale(1.08); border-color: var(--accent); }
+  .palette-editor-color.hidden { opacity: 0.3; }
+  .palette-editor-color-remove, .palette-editor-color-toggle { position: absolute; top: -3px; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; background: var(--panel-bg); color: var(--text2); font-size: 10px; line-height: 11px; cursor: pointer; }
+  .palette-editor-color-remove { right: -3px; }
+  .palette-editor-color-toggle { left: -3px; }
+  .palette-editor-color-remove:hover { color: var(--red); }
+  .palette-editor-color-toggle:hover { color: var(--accent2); }
+  .palette-editor-add input[type=color] { width: 30px; height: 24px; padding: 1px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface2); cursor: pointer; }
+  .palette-editor-add .palette-editor-icon-btn { margin-left: auto; }
+  #palette-swatch-actions { display: none; position: fixed; z-index: 530; min-width: 120px; padding: 4px; flex-direction: column; gap: 2px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: var(--panel-bg); box-shadow: 0 8px 22px rgba(0,0,0,0.28); }
+  #palette-swatch-actions.open { display: flex; }
+  #palette-swatch-actions button { border: 0; padding: 7px 9px; border-radius: 4px; background: transparent; color: var(--text2); text-align: left; cursor: pointer; }
+  #palette-swatch-actions button:hover { background: var(--accent-glow); color: var(--accent2); }
+  #palette-swatch-actions button[data-action=delete]:hover { color: var(--red); }
   .palette-dot {
     width: 5px; height: 5px;
     border-radius: 50%;
@@ -1289,7 +1357,7 @@
     bottom: calc(44px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%) translateY(16px);
-    background: rgba(18, 32, 22, 0.92);
+    background: var(--toast-bg);
     backdrop-filter: blur(40px) saturate(2);
     -webkit-backdrop-filter: blur(40px) saturate(2);
     border: 1px solid var(--glass-border);
@@ -1400,7 +1468,7 @@
 
   #btn-prefs.active {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
 
@@ -1427,7 +1495,7 @@
   #btn-file-menu:active { transform: scale(0.95); }
   #btn-file-menu.active {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
   /* HIG dropdown menu */
@@ -1566,7 +1634,7 @@
   .panel-lock-btn:active { transform: scale(0.88); }
   .panel-lock-btn.locked {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
 
@@ -1656,7 +1724,7 @@
   .sel-mode-btn:active { transform: scale(0.9); }
   .sel-mode-btn.active {
     background: var(--accent-glow);
-    border-color: rgba(62,207,110,0.35);
+    border-color: var(--border2);
     color: var(--accent2);
   }
   .sel-mode-btn svg { flex-shrink: 0; display: block; }
@@ -1702,8 +1770,8 @@
   #sel-invert-btn {
     height: 30px; padding: 0 var(--sp-3);
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(62,207,110,0.25);
-    background: rgba(62,207,110,0.06);
+    border: 1px solid var(--border2);
+    background: var(--accent-glow);
     color: var(--accent2);
     font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
     cursor: pointer;
@@ -1711,7 +1779,7 @@
     transition: background 0.12s, border-color 0.12s, transform 0.08s;
     white-space: nowrap; flex-shrink: 0;
   }
-  #sel-invert-btn:hover { background: rgba(62,207,110,0.14); border-color: var(--accent); }
+  #sel-invert-btn:hover { background: var(--accent-glow); border-color: var(--accent); }
   #sel-invert-btn:active { transform: scale(0.95); }
   /* ── Transform overlay ── */
   #transform-overlay {
@@ -1848,7 +1916,7 @@
   .tx-mode-btn { display: flex; align-items: center; gap: var(--sp-1); padding: 0 var(--sp-3) !important; }
   .tx-mode-btn.active {
     background: var(--accent-glow) !important;
-    border-color: rgba(62,207,110,0.35) !important;
+    border-color: var(--border2) !important;
     color: var(--accent2) !important;
   }
   .tx-icon-btn {
@@ -2232,9 +2300,9 @@
     transition: background 0.12s;
     position: relative;
   }
-  .shortcut-keys-wrap:hover { background: rgba(62,207,110,0.08); }
+  .shortcut-keys-wrap:hover { background: var(--accent-glow); }
   .shortcut-keys-wrap.capturing {
-    background: rgba(62,207,110,0.18);
+    background: var(--accent-glow);
     outline: 1.5px solid var(--accent);
     outline-offset: 1px;
     animation: sc-pulse 1s ease-in-out infinite;
@@ -2324,7 +2392,7 @@
   }
   .resize-anchor-btn:hover { border-color: var(--border2); background: var(--surface3); }
   .resize-anchor-btn:active { transform: scale(0.9); }
-  .resize-anchor-btn.active { background: var(--accent-glow); border-color: rgba(62,207,110,0.35); }
+  .resize-anchor-btn.active { background: var(--accent-glow); border-color: var(--border2); }
   .resize-anchor-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); }
   .resize-anchor-btn.active .resize-anchor-dot { background: var(--accent2); }
 
@@ -2424,11 +2492,11 @@
   }
   .bsp-preset-item:hover { background: var(--surface2); }
   .bsp-preset-item:active { transform: scale(0.98); }
-  .bsp-preset-item.active { background: var(--accent-glow); border-color: rgba(62,207,110,0.28); }
+  .bsp-preset-item.active { background: var(--accent-glow); border-color: var(--border2); }
   .bsp-preset-preview {
     width: 36px; height: 36px; border-radius: var(--radius-sm);
     border: 1px solid var(--border); flex-shrink: 0;
-    background: #0c140e; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    background: var(--surface3); overflow: hidden; display: flex; align-items: center; justify-content: center;
   }
   .bsp-preset-info { flex: 1; min-width: 0; }
   .bsp-preset-name {
@@ -2447,7 +2515,7 @@
   #bsp-editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   #bsp-stroke-preview {
     width: 100%; height: 56px; border-radius: var(--radius-sm);
-    border: 1px solid var(--border); background: #0c140e;
+    border: 1px solid var(--border); background: var(--surface3);
     margin-bottom: var(--sp-3); overflow: hidden; flex-shrink: 0; position: relative;
   }
   #bsp-stroke-preview canvas { display: block; }
@@ -2471,7 +2539,7 @@
   }
   .bsp-type-tab:hover { border-color: var(--border2); color: var(--text); background: var(--surface3); }
   .bsp-type-tab:active { transform: scale(0.95); }
-  .bsp-type-tab.active { background: var(--accent-glow); border-color: rgba(62,207,110,0.35); color: var(--accent2); }
+  .bsp-type-tab.active { background: var(--accent-glow); border-color: var(--border2); color: var(--accent2); }
   .bsp-section {
     border: 1px solid var(--border); border-radius: var(--radius-sm);
     margin-bottom: var(--sp-2); overflow: hidden; flex-shrink: 0;
@@ -2529,7 +2597,7 @@
   .bsp-texture-grid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(7,1fr); gap: var(--sp-1); }
   .bsp-tex-btn {
     aspect-ratio: 1; border-radius: var(--radius-sm); border: 1px solid var(--border);
-    background: #0c140e; cursor: pointer; overflow: hidden;
+    background: var(--surface3); cursor: pointer; overflow: hidden;
     transition: border-color 0.12s, transform 0.08s; padding: 0;
     display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text3);
   }
@@ -2606,7 +2674,7 @@
   .gm-stop-marker:active { cursor: grabbing; }
   .gm-stop-marker.gm-selected {
     border-color: var(--accent2);
-    box-shadow: 0 0 0 1.5px rgba(110,230,160,0.4), 0 1px 4px rgba(0,0,0,0.5);
+    box-shadow: 0 0 0 1.5px var(--accent2), 0 1px 4px rgba(0,0,0,0.5);
   }
   .gm-stop-color-btn {
     width: 28px; height: 20px;
@@ -2868,7 +2936,12 @@
   <div id="palette-carousel-wrap">
     <div id="palette-carousel-track"></div>
   </div>
-  <div id="palette-dots"></div>
+  <div id="palette-footer">
+    <button id="palette-edit-btn" title="Edit swatches" aria-label="Edit swatches">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+    <div id="palette-dots"></div>
+  </div>
   <!-- Hidden elements kept for JS compatibility -->
   <div style="display:none">
     <div id="color-preview-swatch"></div>
@@ -2876,6 +2949,19 @@
     <input type="color" id="colorPicker">
   </div>
 </div>
+
+<!-- Separate swatch editor popout -->
+<div id="palette-editor-menu">
+  <div class="palette-editor-head"><div class="panel-header">Swatches</div><button class="palette-editor-icon-btn" id="palette-add-page" title="Add page" aria-label="Add page">+</button></div>
+  <div class="palette-editor-pages" id="palette-editor-pages"></div>
+  <div class="palette-editor-add"><input type="color" id="palette-new-color" value="#ffffff" title="Choose swatch color"><button class="palette-editor-icon-btn" id="palette-add-color" title="Add swatch" aria-label="Add swatch">+</button></div>
+</div>
+<div id="palette-swatch-actions" role="menu">
+  <button data-action="change" type="button">Change color</button>
+  <button data-action="hide" type="button">Hide swatch</button>
+  <button data-action="delete" type="button">Delete swatch</button>
+</div>
+<input id="palette-action-color" type="color" aria-label="Change swatch color" style="display:none">
 
 <!-- Brush type popout -->
 <div id="brush-popout" class="tool-popout">
@@ -3436,7 +3522,7 @@
 </div>
 
 <!-- Liquify Toolbar (two-row) -->
-<div id="liquify-toolbar" style="display:none; position:fixed; left:50%; transform:translateX(-50%); z-index:296; background:var(--panel-bg-soft); backdrop-filter:blur(40px) saturate(2); -webkit-backdrop-filter:blur(40px) saturate(2); border:1px solid rgba(62,207,110,0.22); border-radius:14px; padding:8px 14px 9px; pointer-events:all; top:60px; flex-direction:column; gap:0;">
+<div id="liquify-toolbar" style="display:none; position:fixed; left:50%; transform:translateX(-50%); z-index:296; background:var(--panel-bg-soft); backdrop-filter:blur(40px) saturate(2); -webkit-backdrop-filter:blur(40px) saturate(2); border:1px solid var(--border2); border-radius:14px; padding:8px 14px 9px; pointer-events:all; top:60px; flex-direction:column; gap:0;">
 
   <!-- ROW 1 : tools · freeze/thaw/reset · apply/cancel -->
   <div style="display:flex; align-items:center; gap:8px; white-space:nowrap;">
@@ -3814,7 +3900,7 @@
   </div>
 </div>
 <!-- Hidden file input for brush import -->
-<input type="file" id="bsp-import-input" accept=".json,.abr,.sut" style="display:none">
+<input type="file" id="bsp-import-input" accept=".ugb,.abr,.sut" style="display:none">
 
 <script>
 // ════════════════════════════════════════════════════════════
@@ -4576,6 +4662,68 @@ function renderLayersList() {
     layersList.appendChild(wrapper);
   }
 }
+
+function reorderLayerByTouch(fromIdx, toIdx, moveAbove) {
+  const draggedLayer = state.layers[fromIdx];
+  if (!draggedLayer || fromIdx === toIdx || (draggedLayer.type === 'folder' && state.layers[toIdx]?.folderId === draggedLayer.id)) return false;
+  if (draggedLayer.type === 'folder') {
+    moveFolderGroup(fromIdx, moveAbove ? state.layers[toIdx] : (state.layers[toIdx - 1] || null));
+    state.activeLayer = state.layers.indexOf(draggedLayer);
+  } else {
+    const [moved] = state.layers.splice(fromIdx, 1);
+    moved.folderId = null;
+    const adjustedTo = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    state.layers.splice(moveAbove ? adjustedTo + 1 : adjustedTo, 0, moved);
+    state.activeLayer = state.layers.indexOf(moved);
+  }
+  rebuildLayerOrder(); renderLayersList(); updateStatusBar();
+  return true;
+}
+
+// Touch long-press reorder for the selected layer; desktop drag behavior stays unchanged.
+(function bindTouchLayerReorder() {
+  let session = null;
+  let suppressClick = false;
+  const clearRows = () => layersList.querySelectorAll('.drag-over-above,.drag-over-below,.touch-reordering').forEach(row => row.classList.remove('drag-over-above','drag-over-below','touch-reordering'));
+  layersList.addEventListener('pointerdown', e => {
+    const row = e.target.closest('.layer-item');
+    if (e.pointerType !== 'touch' || !row || !layersList.contains(row) || +row.dataset.layerIdx !== state.activeLayer || e.target.closest('button,input,.folder-chevron,.layer-drag-handle')) return;
+    const fromIdx = +row.dataset.layerIdx;
+    session = { row, fromIdx, pointerId: e.pointerId, startY: e.clientY, target: null, dragging: false,
+      timer: setTimeout(() => { if (!session) return; session.dragging = true; row.classList.add('touch-reordering'); row.setPointerCapture?.(e.pointerId); }, 450) };
+  });
+  layersList.addEventListener('pointermove', e => {
+    if (!session || e.pointerId !== session.pointerId) return;
+    if (!session.dragging) {
+      if (Math.abs(e.clientY - session.startY) > 10) { clearTimeout(session.timer); session = null; }
+      return;
+    }
+    e.preventDefault();
+    const rows = [...layersList.querySelectorAll('.layer-item')];
+    session.target = rows.filter(row => row !== session.row).sort((a,b) => Math.abs(e.clientY - (a.getBoundingClientRect().top + a.offsetHeight / 2)) - Math.abs(e.clientY - (b.getBoundingClientRect().top + b.offsetHeight / 2)))[0] || null;
+    clearRows(); session.row.classList.add('touch-reordering');
+    if (session.target) session.target.classList.add(e.clientY < session.target.getBoundingClientRect().top + session.target.offsetHeight / 2 ? 'drag-over-above' : 'drag-over-below');
+  }, { passive: false });
+  const finish = e => {
+    if (!session || e.pointerId !== session.pointerId) return;
+    clearTimeout(session.timer);
+    const current = session;
+    session = null;
+    if (!current.dragging) return;
+    e.preventDefault();
+    current.row.releasePointerCapture?.(e.pointerId);
+    const targetIdx = current.target ? +current.target.dataset.layerIdx : -1;
+    const moveAbove = current.target && e.clientY < current.target.getBoundingClientRect().top + current.target.offsetHeight / 2;
+    clearRows();
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+    reorderLayerByTouch(current.fromIdx, targetIdx, moveAbove);
+  };
+  layersList.addEventListener('pointerup', finish);
+  layersList.addEventListener('pointercancel', finish);
+  layersList.addEventListener('click', e => {
+    if (suppressClick && e.target.closest('.layer-item')) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+})();
 
 // ────────────────────────────────────────
 //  HISTORY (Undo/Redo)
@@ -6550,11 +6698,12 @@ function getPenOrientation(e) {
   const tiltX = Number.isFinite(e.tiltX) ? e.tiltX : 0;
   const tiltY = Number.isFinite(e.tiltY) ? e.tiltY : 0;
   const azimuth = Number.isFinite(e.azimuthAngle) ? e.azimuthAngle * 180 / Math.PI : null;
+  const twist = Number.isFinite(e.twist) ? e.twist : (Number.isFinite(e.tangentialPressure) ? e.tangentialPressure * 180 : 0);
   return {
     angle: pressureSettings.tiltEnabled && (tiltX || tiltY || (azimuth !== null && e.altitudeAngle < Math.PI / 2))
       ? (tiltX || tiltY ? Math.atan2(tiltY, tiltX) * 180 / Math.PI : azimuth) - (state.canvasRotation || 0)
       : null,
-    twist: pressureSettings.barrelRotationEnabled && Number.isFinite(e.twist) ? e.twist : 0,
+    twist: pressureSettings.barrelRotationEnabled ? twist : 0,
   };
 }
 
@@ -7168,13 +7317,13 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
   const popout = document.createElement('div');
   popout.style.cssText = [
     'position:fixed',
-    'background:rgba(10,18,13,0.92)',
-    'border:1px solid rgba(62,207,110,0.3)',
+    'background:var(--toast-bg)',
+    'border:1px solid var(--border2)',
     'border-radius:7px',
     'padding:4px 10px',
     'font-family:"DM Mono",monospace',
     'font-size:11px',
-    'color:#6eeea0',
+    'color:var(--accent2)',
     'pointer-events:none',
     'z-index:9999',
     'display:none',
@@ -8300,6 +8449,10 @@ function setColor(hex) {
 
 // Toggle floating picker from toolbar color button
 const colorPickerFloat = document.getElementById('color-picker-float');
+const paletteEditorMenu = document.getElementById('palette-editor-menu');
+const paletteEditButton = document.getElementById('palette-edit-btn');
+const paletteSwatchActions = document.getElementById('palette-swatch-actions');
+const paletteActionColor = document.getElementById('palette-action-color');
 const layersFloat      = document.getElementById('layers-float');
 
 function getSidebarLeft() {
@@ -8326,6 +8479,19 @@ function getSubToolbarBottom() {
     }
   }
   return bottom;
+}
+
+function positionPaletteEditor() {
+  if (!paletteEditorMenu.classList.contains('open')) return;
+  const picker = colorPickerFloat.getBoundingClientRect();
+  const sidebar = document.getElementById('right-sidebar');
+  const leftHand = sidebar.classList.contains('left-hand');
+  const menuW = paletteEditorMenu.offsetWidth || 420;
+  const menuH = paletteEditorMenu.offsetHeight || 420;
+  const left = Math.max(8, Math.min(window.innerWidth - menuW - 8, leftHand ? picker.right + 8 : picker.left - menuW - 8));
+  const top = Math.max(8, Math.min(window.innerHeight - menuH - 8, picker.top));
+  paletteEditorMenu.style.left = left + 'px';
+  paletteEditorMenu.style.top = top + 'px';
 }
 
 function positionPanels() {
@@ -8378,10 +8544,14 @@ function positionPanels() {
   } else {
     layersFloat.style.maxHeight = '';
   }
+  positionPaletteEditor();
 }
 
 document.getElementById('color-trigger').addEventListener('click', e => {
   e.stopPropagation();
+  paletteEditorMenu.classList.remove('open');
+  paletteEditButton.classList.remove('active');
+  paletteSwatchActions.classList.remove('open');
   const isOpen = colorPickerFloat.classList.contains('open');
   if (isOpen && !panelLock.color) {
     colorPickerFloat.classList.remove('open');
@@ -8406,7 +8576,7 @@ document.getElementById('layers-trigger').addEventListener('click', e => {
 });
 
 window.addEventListener('resize', () => {
-  if (colorPickerFloat.classList.contains('open') || layersFloat.classList.contains('open')) {
+  if (colorPickerFloat.classList.contains('open') || layersFloat.classList.contains('open') || paletteEditorMenu.classList.contains('open')) {
     positionPanels();
   }
 });
@@ -8449,11 +8619,16 @@ document.addEventListener('click', e => {
   const ct = document.getElementById('color-trigger');
   const lt = document.getElementById('layers-trigger');
   let changed = false;
-  if (!colorPickerFloat.contains(e.target) && e.target !== ct && !ct.contains(e.target)) {
+  if (!colorPickerFloat.contains(e.target) && !paletteEditorMenu.contains(e.target) && !paletteSwatchActions.contains(e.target) && e.target !== ct && !ct.contains(e.target)) {
     if (!panelLock.color) {
       colorPickerFloat.classList.remove('open');
       changed = true;
     }
+  }
+  if (!paletteEditorMenu.contains(e.target) && !paletteSwatchActions.contains(e.target) && e.target !== paletteEditButton && !paletteEditButton.contains(e.target)) {
+    paletteEditorMenu.classList.remove('open');
+    paletteEditButton.classList.remove('active');
+    paletteSwatchActions.classList.remove('open');
   }
   if (!layersFloat.contains(e.target) && e.target !== lt && !lt.contains(e.target)) {
     if (!panelLock.layers) {
@@ -8476,88 +8651,186 @@ document.getElementById('hex-input').addEventListener('change', e => {
 // ────────────────────────────────────────
 //  PAGED SWATCH CAROUSEL
 // ────────────────────────────────────────
-const PALETTE_PAGES = [
-  // Page 1 — Vivid spectrum
-  [
-    '#ff4d4d','#ff8c42','#ffd166','#a8e06a',
-    '#4ecdc4','#45b7f5','#6c63ff','#f565c8',
-    '#ff0000','#ff6600','#ffcc00','#66ff00',
-    '#00ffcc','#0099ff','#9900ff','#ff0099',
-  ],
-  // Page 2 — Pastels
-  [
-    '#ffd6d6','#ffdfc4','#fff4c2','#d6f5c2',
-    '#c2f5ec','#c2e4f5','#d4c2f5','#f5c2ec',
-    '#ffb3b3','#ffcba4','#ffe999','#b8eeaa',
-    '#aaeee8','#aad6f0','#c4aaf0','#f0aae0',
-  ],
-  // Page 3 — Earth tones
-  [
-    '#8b1a1a','#a0522d','#b8860b','#556b2f',
-    '#2e8b57','#2f4f4f','#4a4080','#6b2d6b',
-    '#c47c5a','#d4a76a','#c8b560','#7aaa7a',
-    '#5f9ea0','#708090','#9370db','#c06080',
-  ],
-  // Page 4 — Neons & brights
-  [
-    '#ff003c','#ff5500','#ffdd00','#aaff00',
-    '#00ffaa','#00aaff','#5500ff','#ff00aa',
-    '#ff69b4','#ff8c00','#adff2f','#00fa9a',
-    '#00bfff','#7b68ee','#da70d6','#ff4500',
-  ],
-  // Page 5 — Skin tones & neutrals
-  [
-    '#fddbb4','#f5c5a3','#e8a87c','#d4875a',
-    '#c06a3a','#9c4a20','#7a3010','#4a1c0a',
-    '#f2e0d0','#e8c9b0','#d4a882','#b88060',
-    '#8b6050','#6a4035','#4a2820','#2a1008',
-  ],
-  // Page 6 — Greyscale
-  [
-    '#ffffff','#eeeeee','#dddddd','#cccccc',
-    '#bbbbbb','#aaaaaa','#999999','#888888',
-    '#777777','#666666','#555555','#444444',
-    '#333333','#222222','#111111','#000000',
-  ],
+const DEFAULT_PALETTE_PAGES = [
+  { name: 'Wayne Thiebaud', colors: ['#fff8e7','#fff1c1','#f7c85d','#f6bd60','#f28f3b','#e56b6f','#f49b9b','#f4d7b5','#c97c5d','#d6a6c8','#6c5b7b','#8fa8dc','#72b7d6','#247ba0','#9ed9d1','#70c1b3'] },
+  { name: 'Edgar Degas', colors: ['#f3e6c8','#f0d6a8','#e6ccb2','#c9a66b','#b98b73','#9b6b6c','#e8b4b8','#d7a9a9','#c08497','#d8c3d5','#776d8a','#a9c4d4','#8fa7bf','#6f8f9f','#b7b7a4','#5f6672'] },
+  { name: 'Anders Zorn', colors: ['#ffffff','#f4e3c1','#e4c7a1','#d6b36a','#b88746','#f0b27b','#d9784a','#a85d45','#b94e3d','#8f332e','#6f211b','#c9c1b5','#8c6a4a','#5a4636','#3b3028','#181512'] },
 ];
+let PALETTE_PAGES = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('ug_palettePages') || 'null');
+    if (Array.isArray(saved) && saved.length) return saved.filter(p => Array.isArray(p.colors)).map((p, i) => ({ name: p.name || `Page ${i + 1}`, colors: p.colors.map(c => typeof c === 'string' ? { value: c, hidden: false } : { value: c.value, hidden: !!c.hidden }).filter(c => /^#[0-9a-f]{6}$/i.test(c.value)), hidden: !!p.hidden }));
+  } catch (e) {}
+  return DEFAULT_PALETTE_PAGES.map(p => ({ ...p, colors: p.colors.map(value => ({ value, hidden: false })), hidden: false }));
+})();
 
 (function initPaletteCarousel() {
   const track  = document.getElementById('palette-carousel-track');
   const dots   = document.getElementById('palette-dots');
+  const editor = document.getElementById('palette-editor-menu');
+  const editorPages = document.getElementById('palette-editor-pages');
   let currentPage = 0;
-  const total = PALETTE_PAGES.length;
+  let editPage = 0;
+  let swatchTarget = null;
+  let swatchDrag = null;
+  let suppressSwatchClick = false;
+  const visiblePages = () => PALETTE_PAGES.filter(p => !p.hidden);
+  const savePages = () => { try { localStorage.setItem('ug_palettePages', JSON.stringify(PALETTE_PAGES)); } catch (e) {} };
 
-  // Build pages
-  PALETTE_PAGES.forEach((colors, pi) => {
-    const page = document.createElement('div');
-    page.className = 'palette-page';
-    colors.forEach(c => {
-      const el = document.createElement('div');
-      el.className = 'pal-color';
-      el.style.background = c;
-      el.title = c;
-      el.addEventListener('click', () => { setColor(c); });
-      page.appendChild(el);
+  function closeSwatchActions() {
+    swatchTarget = null;
+    paletteSwatchActions.classList.remove('open');
+  }
+
+  function openSwatchActions(page, index, anchor) {
+    swatchTarget = { page, index };
+    const hideButton = paletteSwatchActions.querySelector('[data-action="hide"]');
+    paletteActionColor.value = page.colors[index]?.value || '#ffffff';
+    hideButton.textContent = page.colors[index]?.hidden ? 'Show swatch' : 'Hide swatch';
+    paletteSwatchActions.classList.add('open');
+    const rect = anchor.getBoundingClientRect();
+    const menuW = paletteSwatchActions.offsetWidth || 120;
+    const menuH = paletteSwatchActions.offsetHeight || 70;
+    const left = rect.right + 6 + menuW <= window.innerWidth - 8 ? rect.right + 6 : rect.left - menuW - 6;
+    const top = Math.max(8, Math.min(window.innerHeight - menuH - 8, rect.top));
+    paletteSwatchActions.style.left = Math.max(8, left) + 'px';
+    paletteSwatchActions.style.top = top + 'px';
+  }
+
+  function reorderSwatch(page, from, to) {
+    if (from === to || from < 0 || to < 0 || from >= page.colors.length || to >= page.colors.length) return;
+    const [color] = page.colors.splice(from, 1);
+    page.colors.splice(to, 0, color);
+    savePages();
+    closeSwatchActions();
+    renderPalette();
+    renderEditor();
+  }
+
+  function renderPalette() {
+    const pages = visiblePages();
+    currentPage = Math.max(0, Math.min(Math.max(0, pages.length - 1), currentPage));
+    track.innerHTML = ''; dots.innerHTML = '';
+    pages.forEach(pageData => {
+      const page = document.createElement('div'); page.className = 'palette-page';
+      pageData.colors.filter(c => !c.hidden).forEach(c => {
+        const value = c.value;
+        const el = document.createElement('div'); el.className = 'pal-color'; el.style.background = value; el.title = value;
+        el.addEventListener('click', () => setColor(value)); page.appendChild(el);
+      });
+      track.appendChild(page);
     });
-    track.appendChild(page);
-  });
-
-  // Build dots
-  for (let i = 0; i < total; i++) {
-    const dot = document.createElement('button');
-    dot.className = 'palette-dot' + (i === 0 ? ' active' : '');
-    dot.title = `Page ${i + 1}`;
-    dot.addEventListener('click', () => goTo(i));
-    dots.appendChild(dot);
+    pages.forEach((page, i) => {
+      const dot = document.createElement('button'); dot.className = 'palette-dot' + (i === currentPage ? ' active' : ''); dot.title = page.name;
+      dot.addEventListener('click', () => goTo(i)); dots.appendChild(dot);
+    });
+    goTo(currentPage);
   }
 
   function goTo(idx) {
-    currentPage = Math.max(0, Math.min(total - 1, idx));
+    currentPage = Math.max(0, Math.min(Math.max(0, visiblePages().length - 1), idx));
     track.style.transform = `translateX(${-currentPage * 100}%)`;
     dots.querySelectorAll('.palette-dot').forEach((d, i) => {
       d.classList.toggle('active', i === currentPage);
     });
   }
+
+  function renderEditor() {
+    editorPages.innerHTML = '';
+    PALETTE_PAGES.forEach((page, pi) => {
+      const row = document.createElement('div'); row.className = 'palette-editor-page' + (pi === editPage ? ' selected' : '');
+      const select = document.createElement('button'); select.className = 'palette-editor-page-name'; select.textContent = page.name || `Page ${pi + 1}`; select.title = 'Edit this page';
+      select.addEventListener('click', () => { closeSwatchActions(); editPage = pi; renderEditor(); });
+      const eye = document.createElement('button'); eye.className = 'palette-editor-page-btn' + (page.hidden ? ' hidden' : ''); eye.title = page.hidden ? 'Show page' : 'Hide page'; eye.innerHTML = page.hidden ? '○' : '●';
+      eye.addEventListener('click', () => { closeSwatchActions(); page.hidden = !page.hidden; savePages(); renderPalette(); renderEditor(); });
+      const remove = document.createElement('button'); remove.className = 'palette-editor-page-btn'; remove.title = 'Remove page'; remove.textContent = '×';
+      remove.addEventListener('click', () => { if (PALETTE_PAGES.length <= 1) return; closeSwatchActions(); PALETTE_PAGES.splice(pi, 1); editPage = Math.min(editPage, PALETTE_PAGES.length - 1); savePages(); renderPalette(); renderEditor(); });
+      row.append(select, eye, remove); editorPages.appendChild(row);
+      const colors = document.createElement('div'); colors.className = 'palette-editor-colors';
+      page.colors.forEach((color, ci) => {
+        const value = color.value;
+        const selected = String(state.color || '').toLowerCase() === value.toLowerCase();
+        const item = document.createElement('div'); item.className = 'palette-editor-color' + (color.hidden ? ' hidden' : '') + (selected ? ' selected' : ''); item.style.background = value; item.title = color.hidden ? `Show ${value}` : `Use ${value}`;
+        item.addEventListener('click', e => {
+          e.stopPropagation();
+          if (suppressSwatchClick) { suppressSwatchClick = false; return; }
+          if (selected) openSwatchActions(page, ci, item);
+          else { closeSwatchActions(); setColor(value); renderEditor(); }
+        });
+        item.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); openSwatchActions(page, ci, item); });
+        item.addEventListener('pointerdown', e => {
+          if (e.button !== 0) return;
+          swatchDrag = { item, page, from: ci, x: e.clientX, y: e.clientY, moved: false, pointerId: e.pointerId };
+          item.setPointerCapture?.(e.pointerId);
+        });
+        item.addEventListener('pointermove', e => {
+          if (!swatchDrag || swatchDrag.item !== item) return;
+          if (Math.hypot(e.clientX - swatchDrag.x, e.clientY - swatchDrag.y) > 6) {
+            swatchDrag.moved = true;
+            item.classList.add('dragging');
+          }
+        });
+        item.addEventListener('pointerup', e => {
+          if (!swatchDrag || swatchDrag.item !== item) return;
+          const drag = swatchDrag;
+          swatchDrag = null;
+          item.classList.remove('dragging');
+          item.releasePointerCapture?.(drag.pointerId);
+          if (!drag.moved) return;
+          suppressSwatchClick = true;
+          setTimeout(() => { suppressSwatchClick = false; }, 0);
+          const hit = document.elementFromPoint(e.clientX, e.clientY);
+          const target = hit?.closest?.('.palette-editor-color');
+          const to = target && target.parentElement === colors ? Array.from(colors.children).indexOf(target) : -1;
+          reorderSwatch(page, drag.from, to);
+        });
+        item.addEventListener('pointercancel', () => { if (swatchDrag?.item === item) { swatchDrag = null; item.classList.remove('dragging'); } });
+        colors.appendChild(item);
+      });
+      editorPages.appendChild(colors);
+    });
+  }
+
+  editor.addEventListener('click', e => e.stopPropagation());
+  editor.addEventListener('pointerdown', e => e.stopPropagation());
+  editor.addEventListener('contextmenu', e => e.stopPropagation());
+  paletteSwatchActions.addEventListener('click', e => {
+    e.stopPropagation();
+    const action = e.target.closest('button')?.dataset.action;
+    if (!action || !swatchTarget) return;
+    const { page, index } = swatchTarget;
+    if (!page.colors[index]) return closeSwatchActions();
+    if (action === 'change') return paletteActionColor.click();
+    if (action === 'hide') page.colors[index].hidden = !page.colors[index].hidden;
+    if (action === 'delete') page.colors.splice(index, 1);
+    savePages();
+    closeSwatchActions();
+    renderPalette();
+    renderEditor();
+  });
+  paletteActionColor.addEventListener('change', e => {
+    if (!swatchTarget || !swatchTarget.page.colors[swatchTarget.index]) return;
+    const swatch = swatchTarget.page.colors[swatchTarget.index];
+    const wasSelected = String(state.color || '').toLowerCase() === swatch.value.toLowerCase();
+    swatch.value = e.target.value;
+    if (wasSelected) setColor(e.target.value);
+    savePages();
+    renderPalette();
+    renderEditor();
+  });
+  paletteSwatchActions.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); });
+
+  paletteEditButton.addEventListener('click', e => {
+    e.stopPropagation(); editor.classList.toggle('open'); e.currentTarget.classList.toggle('active', editor.classList.contains('open')); if (!editor.classList.contains('open')) closeSwatchActions(); renderEditor(); requestAnimationFrame(positionPaletteEditor);
+  });
+  document.getElementById('palette-add-page').addEventListener('click', () => {
+    PALETTE_PAGES.push({ name: `Page ${PALETTE_PAGES.length + 1}`, colors: [], hidden: false }); editPage = PALETTE_PAGES.length - 1; savePages(); renderPalette(); renderEditor();
+  });
+  document.getElementById('palette-add-color').addEventListener('click', () => {
+    if (!PALETTE_PAGES[editPage]) return; PALETTE_PAGES[editPage].colors.push({ value: document.getElementById('palette-new-color').value, hidden: false }); savePages(); renderPalette(); renderEditor();
+  });
+
+  renderPalette();
 
   // ── Drag / swipe ──
   let dragStartX = 0, dragDeltaX = 0, isDragging = false;
@@ -8600,12 +8873,12 @@ const PALETTE_PAGES = [
 })();
 
 // Build float palette (kept for compatibility — hidden by CSS)
-PALETTE_PAGES[0].forEach(c => {
+(PALETTE_PAGES.find(p => !p.hidden) || PALETTE_PAGES[0]).colors.filter(c => !c.hidden).forEach(c => {
   const el = document.createElement('div');
   el.className = 'pal-color';
-  el.style.background = c;
-  el.title = c;
-  el.addEventListener('click', () => { setColor(c); });
+  el.style.background = c.value;
+  el.title = c.value;
+  el.addEventListener('click', () => { setColor(c.value); });
   document.getElementById('float-palette-grid').appendChild(el);
 });
 
@@ -8659,6 +8932,14 @@ function openPopout(popout, anchorBtn) {
 }
 
 // ── Brush preset popout (dynamic) ──────────────────────────────────────────
+function getThemePreviewColors() {
+  const styles = getComputedStyle(document.documentElement);
+  const bg = styles.getPropertyValue('--surface3').trim() || '#0c140e';
+  const raw = styles.getPropertyValue('--accent2').trim() || '#6eeea0';
+  if (raw.startsWith('#')) return { bg, rgb: hexToRgb(raw) };
+  const values = raw.match(/\d+/g) || [110, 238, 160];
+  return { bg, rgb: { r: +values[0], g: +values[1], b: +values[2] } };
+}
 function renderBrushPopout() {
   // Keep the sticky label, rebuild everything after it
   const label = document.getElementById('brush-popout-label');
@@ -8672,16 +8953,17 @@ function renderBrushPopout() {
 
     // Mini preview canvas
     const previewWrap = document.createElement('div');
-    previewWrap.style.cssText = 'width:30px; height:30px; border-radius:5px; background:#0c140e; border:1px solid var(--border2); flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center;';
+    previewWrap.style.cssText = 'width:30px; height:30px; border-radius:5px; background:var(--surface3); border:1px solid var(--border2); flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center;';
     const pc = document.createElement('canvas');
     pc.width = 30; pc.height = 30;
     // Draw a mini stamp
     try {
-      const {r,g,b} = hexToRgb(state.color || '#3ecf6e');
+      const { bg, rgb } = getThemePreviewColors();
+      const {r,g,b} = rgb;
       const sz = Math.min(11, preset.size * 0.4);
       const stamp = buildStamp({ ...BRUSH_DEFAULTS, ...preset, angle: 0, ratio: 100 }, sz, {r,g,b}, Math.min(1, preset.flow / 100));
       const pctx = pc.getContext('2d');
-      pctx.fillStyle = '#0c140e';
+      pctx.fillStyle = bg;
       pctx.fillRect(0, 0, 30, 30);
       pctx.drawImage(stamp, 15 - stamp.width / 2, 15 - stamp.height / 2);
     } catch(e) {}
@@ -11852,6 +12134,7 @@ function toast(msg) {
       const alpha = cur.startsWith('rgba') ? getAlpha(cur) : 1;
       const [r,g,b] = hexToRgbArr(hex);
       PANEL_VARS.forEach(k => root.style.setProperty(k, alpha < 1 ? `rgba(${r},${g},${b},${alpha})` : hex));
+      window.dispatchEvent(new Event('ug-theme-changed'));
       return;
     }
     root.style.setProperty(key, hex);
@@ -11860,6 +12143,7 @@ function toast(msg) {
       root.style.setProperty('--surface',  `rgba(${r+4},${g+8},${b+2},0.55)`);
       root.style.setProperty('--surface2', `rgba(${r+10},${g+18},${b+6},0.60)`);
       root.style.setProperty('--surface3', `rgba(${r+16},${g+28},${b+10},0.65)`);
+      root.style.setProperty('--toast-bg', `rgba(${r},${g},${b},0.92)`);
     }
     if (key === '--accent') {
       const [r,g,b] = hexToRgbArr(hex);
@@ -11877,6 +12161,7 @@ function toast(msg) {
       root.style.setProperty('--text2', mixHex(hex, bgHex, 0.45));
       root.style.setProperty('--text3', mixHex(hex, bgHex, 0.75));
     }
+    window.dispatchEvent(new Event('ug-theme-changed'));
   }
 
   // ── setAlpha: update the alpha of an rgba var, keep rgb ──
@@ -11885,9 +12170,11 @@ function toast(msg) {
     const [r,g,b] = hexToRgbArr(varToHex(rk));
     if (key === '--panels') {
       PANEL_VARS.forEach(k => root.style.setProperty(k, `rgba(${r},${g},${b},${alpha})`));
+      window.dispatchEvent(new Event('ug-theme-changed'));
       return;
     }
     root.style.setProperty(key, `rgba(${r},${g},${b},${alpha})`);
+    window.dispatchEvent(new Event('ug-theme-changed'));
   }
 
   // ── DEFAULTS — must match :root CSS vars ──
@@ -11916,7 +12203,7 @@ function toast(msg) {
     },
     {
       name: 'Acro', dot: '#323232',
-      vars: { '--bg':'#000000','--canvas-bg':'#323232','--accent':'#ffffff','--accent2':'#c8c8c8','--text':'#ffffff','--text2':'#c8c8c8','--text3':'#646464',	'--topbar-bg':'rgba(0,0,0,0.50)', '--panel-bg':'rgba(0,0,0,0.80)', '--panel-bg-soft':'rgba(0,0,0,0.80)', '--glass-bg':'rgba(0,0,0,0.80)','--statusbar-bg':'rgba(0,0,0,0.80)','--toast-bg':'rgba((0,0,0,0.80)','--surface':'rgba(0,0,0,0.80)','--surface2':'rgba(0,0,0,0.80)','--surface3':'rgba(0,0,0,0.80)'}
+      vars: { '--bg':'#000000','--canvas-bg':'#323232','--accent':'#ffffff','--accent2':'#c8c8c8','--text':'#ffffff','--text2':'#c8c8c8','--text3':'#646464',	'--topbar-bg':'rgba(0,0,0,0.50)', '--panel-bg':'rgba(0,0,0,0.80)', '--panel-bg-soft':'rgba(0,0,0,0.80)', '--glass-bg':'rgba(0,0,0,0.80)','--statusbar-bg':'rgba(0,0,0,0.80)','--toast-bg':'rgba(0,0,0,0.80)','--surface':'rgba(0,0,0,0.80)','--surface2':'rgba(0,0,0,0.80)','--surface3':'rgba(0,0,0,0.80)'}
     },
     {
       name: 'Mocha', dot: '#3a3227',
@@ -11965,6 +12252,7 @@ function toast(msg) {
       Object.entries(preset.vars).forEach(([k,v]) => applyColor(k, v));
     }
     syncSwatches();
+    window.dispatchEvent(new Event('ug-theme-changed'));
   }
 
   // ── resetToDefault ──
@@ -11975,6 +12263,7 @@ function toast(msg) {
       .forEach(v => root.style.removeProperty(v));
     Object.entries(DEFAULTS).forEach(([k,v]) => applyColor(k, v));
     syncSwatches();
+    window.dispatchEvent(new Event('ug-theme-changed'));
   }
 
   // ── Build preset buttons ──
@@ -12966,11 +13255,12 @@ function toast(msg) {
   function drawMiniStroke(canvas, brush) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, 36, 36);
-    ctx.fillStyle = '#0c140e';
+    const { bg, rgb } = getThemePreviewColors();
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, 36, 36);
-    // Draw a simple dot in the active color
+    // Draw a simple dot in the theme accent color
     const size = Math.min(14, brush.size * 0.5);
-    const {r,g,b} = hexToRgb(state.color || '#3ecf6e');
+    const {r,g,b} = rgb;
     const miniStamp = buildStamp(
       { ...BRUSH_DEFAULTS, ...brush, angle: 0, ratio: 100 },
       size, {r,g,b}, Math.min(1, brush.flow / 100)
@@ -12986,14 +13276,14 @@ function toast(msg) {
     previewCanvas.width  = pw;
     previewCanvas.height = ph;
     previewCtx.clearRect(0, 0, pw, ph);
-    previewCtx.fillStyle = '#0c140e';
+    const themePreview = getThemePreviewColors();
+    previewCtx.fillStyle = themePreview.bg;
     previewCtx.fillRect(0, 0, pw, ph);
 
     if (!editBrush) return;
 
     const b = editBrush;
-    const col = state.color || '#3ecf6e';
-    const {r,g,b: bv} = hexToRgb(col);
+    const {r,g,b: bv} = themePreview.rgb;
     const rgb = {r, g, b: bv};
     const size = Math.min(b.size, ph / 2.5);
     const flow = b.flow / 100;
@@ -13237,6 +13527,17 @@ function toast(msg) {
     if (!pngs.length) throw new Error('No embedded PNG brush tip found');
     return pngs.slice(0, 16).map((p, i) => ({ ...BRUSH_DEFAULTS, name: pngs.length === 1 ? base : `${base} ${i + 1}`, type: 'round', tipData: p.data, tipWidth: p.width, tipHeight: p.height, tipId: tipId() }));
   }
+  function encodeUgb(brushes) {
+    const payload = new TextEncoder().encode(JSON.stringify({ format: 'urban-glass-brush', version: 1, brushes }));
+    const file = new Uint8Array(8 + payload.length); file.set([85, 71, 66, 82, 1, 0, 0, 0]); file.set(payload, 8); return file;
+  }
+  function parseUgb(buffer) {
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 8 || String.fromCharCode(...bytes.subarray(0, 4)) !== 'UGBR' || bytes[4] !== 1) throw new Error('Invalid Urban Glass brush file');
+    const parsed = JSON.parse(new TextDecoder().decode(bytes.slice(8))), brushes = Array.isArray(parsed) ? parsed : parsed.brushes;
+    if (!Array.isArray(brushes) || !brushes.length) throw new Error('No brushes found');
+    return brushes;
+  }
   function prepareImportedBrush(brush) {
     const out = { ...BRUSH_DEFAULTS, ...brush };
     if (out.tipData && !out.tipId) out.tipId = tipId();
@@ -13413,11 +13714,10 @@ function toast(msg) {
   document.getElementById('bsp-export-btn').addEventListener('click', () => {
     saveEditorToBrush();
     window.brushPresets[editingIdx] = editBrush;
-    const json = JSON.stringify(window.brushPresets, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+    const blob = new Blob([encodeUgb(window.brushPresets)], { type: 'application/octet-stream' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = 'UrbanGlass_Brushes.json';
+    a.href = url; a.download = 'UrbanGlass_Brushes.ugb';
     a.click();
     URL.revokeObjectURL(url);
     toast('Brushes exported');
@@ -13432,9 +13732,7 @@ function toast(msg) {
     reader.onload = async evt => {
       try {
         const ext = file.name.toLowerCase().split('.').pop();
-        const parsed = ext === 'json'
-          ? JSON.parse(evt.target.result)
-          : ext === 'abr' ? parseAbr(evt.target.result, file.name) : parseSut(evt.target.result, file.name);
+        const parsed = ext === 'ugb' ? parseUgb(evt.target.result) : ext === 'abr' ? parseAbr(evt.target.result, file.name) : parseSut(evt.target.result, file.name);
         if (!Array.isArray(parsed) || !parsed.length) throw new Error('Invalid brush file');
         window.brushPresets = parsed.map(prepareImportedBrush);
         await Promise.all(window.brushPresets.filter(b => b.tipData).map(hydrateBrushTip));
@@ -13450,12 +13748,15 @@ function toast(msg) {
         toast('Import failed: ' + err.message);
       }
     };
-    if (file.name.toLowerCase().endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(file);
     importInput.value = '';
   });
 
   // ── Initial sync ──────────────────────────────────────────
   // Apply active brush to state on load
+  window.addEventListener('ug-theme-changed', () => {
+    renderPresetList(); renderPreview(); renderBrushPopout();
+  });
   window.addEventListener('ug-brush-tip-ready', () => {
     if (editBrush?.tipData) { stampCache.clear(); maskStampCache.clear(); renderPreview(); }
   });
