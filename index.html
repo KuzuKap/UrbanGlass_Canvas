@@ -4958,7 +4958,7 @@ const DEFAULT_PRESETS = [
     type: 'csp_flat', tipShape: 'flat',
     size: 16, hardness: 98, spacing: 3, opacity: 100, flow: 100,
     sizePressure: true, sizeMin: 5, pressureCurve: 1,
-    ratio: 25, angle: 0, followPath: true, edgeRoughness: 0,
+    ratio: 25, angle: 0, followPath: false, edgeRoughness: 0,
   },
   {
     ...BRUSH_DEFAULTS, name: 'Real Pencil',
@@ -6227,7 +6227,7 @@ function stampDabs(brush, ctx, x, y, size, rgb, pathAngle, orientation = null) {
     }
     // Angle
     let dAngle;
-    dAngle = (orientation?.angle ?? (brush.followPath ? pathAngle : brush.angle)) +
+    dAngle = (orientation?.angle ?? (brush.type !== 'csp_flat' && brush.followPath ? pathAngle : brush.angle)) +
       (orientation?.twist || 0) + (Math.random() - 0.5) * (brush.angleJitter * 2);
     placeOneDab(brush, ctx, sx, sy, size, rgb, dAngle);
   }
