@@ -1,7 +1,8 @@
 // Instructions:
 
   // 1. For Android: Download the latest APK release w/ Wacom SDK/API for proper Barrel Rotation and Pen Button Support!
-    // For Everyone else: Go to https://kuzukap.github.io/UrbanGlass_Canvas/ to access the PWA 
+  
+   // For Everyone else: Go to https://kuzukap.github.io/UrbanGlass_Canvas/ to access the PWA 
 
 
   // 2. To download the Application and use without the browser UI (Now works locally and offline after you open it once while online!):
