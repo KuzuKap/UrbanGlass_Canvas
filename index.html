@@ -2242,6 +2242,8 @@
   }
   .pen-btn-select:focus { border-color: var(--accent); }
   .pen-btn-select:hover { border-color: var(--border2); background: var(--surface3); }
+  .native-only-disabled { opacity: 0.42; pointer-events: none; }
+  .native-only-note { color: var(--text3); font-size: 11px; margin: 0 0 var(--sp-3); }
   /* Active indicator badge shown when a button override is active */
   #pen-btn-toast {
     position: fixed;
@@ -3400,12 +3402,12 @@
     </div>
   </div>
 
-  <div class="prefs-row">
-    <div class="prefs-row-info">
-      <div class="prefs-row-title">Barrel Rotation</div>
-      <div class="prefs-row-sub">Rotate the pen to rotate the brush</div>
-    </div>
-    <div class="pref-toggle-wrap" id="pref-barrel-rotation-enabled" role="switch" aria-checked="false">
+    <div class="prefs-row" id="pref-row-barrel-rotation">
+      <div class="prefs-row-info">
+        <div class="prefs-row-title">Barrel Rotation</div>
+        <div class="prefs-row-sub">Rotate the pen to rotate the brush · native pen input only</div>
+      </div>
+    <div class="pref-toggle-wrap" id="pref-barrel-rotation-enabled" data-native-only="true" role="switch" aria-checked="false">
       <div class="pref-toggle-track"></div>
       <div class="pref-toggle-knob"></div>
     </div>
@@ -6622,6 +6624,9 @@ function overlayToCanvas(ox, oy) {
 //  touch, and regular mouse. Pressure is normalised to 0..1.
 // ────────────────────────────────────────
 
+// The Android wrapper adds this marker to its WebView user agent.
+const isAndroidNative = navigator.userAgent.includes('UrbanGlassAndroid');
+
 // Smoothed pressure state to avoid jumpy transitions
 const pressureState = {
   smoothed: 1,   // exponentially smoothed value used for rendering
@@ -6693,19 +6698,51 @@ function getPressure(e) {
   return 1;
 }
 
+// Native hosts can inject pen orientation while the browser supplies position/pressure.
+const nativePenSamples = new Map();
+let nativePenButtonsHandler = null;
+function clearNativePen(pointerId = 0) {
+  const id = Number.isFinite(Number(pointerId)) ? Number(pointerId) : 0;
+  nativePenSamples.delete(id);
+  if (id !== 0) nativePenSamples.delete(0);
+}
+window.ugNativePen = {
+  setOrientation({ pointerId = 0, rotation, rotationRadians, angle, tiltX, tiltY } = {}) {
+    const id = Number.isFinite(Number(pointerId)) ? Number(pointerId) : 0;
+    nativePenSamples.set(id, {
+      rotation: Number.isFinite(Number(rotationRadians)) ? Number(rotationRadians) * 180 / Math.PI
+        : (Number.isFinite(Number(rotation)) ? Number(rotation) : null),
+      angle: Number.isFinite(Number(angle)) ? Number(angle) : null,
+      tiltX: Number.isFinite(Number(tiltX)) ? Number(tiltX) : null,
+      tiltY: Number.isFinite(Number(tiltY)) ? Number(tiltY) : null,
+    });
+  },
+  setButtons(payload = {}) { nativePenButtonsHandler?.(payload); },
+  clear: clearNativePen,
+};
+
 function getPenOrientation(e) {
   if (e.pointerType !== 'pen') return null;
-  const tiltX = Number.isFinite(e.tiltX) ? e.tiltX : 0;
-  const tiltY = Number.isFinite(e.tiltY) ? e.tiltY : 0;
+  const native = nativePenSamples.get(e.pointerId) || nativePenSamples.get(0);
+  const tiltX = native?.tiltX ?? (Number.isFinite(e.tiltX) ? e.tiltX : 0);
+  const tiltY = native?.tiltY ?? (Number.isFinite(e.tiltY) ? e.tiltY : 0);
   const azimuth = Number.isFinite(e.azimuthAngle) ? e.azimuthAngle * 180 / Math.PI : null;
-  const twist = Number.isFinite(e.twist) ? e.twist : (Number.isFinite(e.tangentialPressure) ? e.tangentialPressure * 180 : 0);
+  const twist = native?.rotation ?? (Number.isFinite(e.twist) ? e.twist : (Number.isFinite(e.tangentialPressure) ? e.tangentialPressure * 180 : 0));
+  const angle = native?.angle ?? (tiltX || tiltY ? Math.atan2(tiltY, tiltX) * 180 / Math.PI : azimuth);
   return {
-    angle: pressureSettings.tiltEnabled && (tiltX || tiltY || (azimuth !== null && e.altitudeAngle < Math.PI / 2))
-      ? (tiltX || tiltY ? Math.atan2(tiltY, tiltX) * 180 / Math.PI : azimuth) - (state.canvasRotation || 0)
+    angle: pressureSettings.tiltEnabled && (native?.angle !== null && native?.angle !== undefined || tiltX || tiltY || (azimuth !== null && e.altitudeAngle < Math.PI / 2))
+      ? angle - (state.canvasRotation || 0)
       : null,
     twist: pressureSettings.barrelRotationEnabled ? twist : 0,
   };
 }
+
+document.addEventListener('pointerup', e => {
+  if (e.pointerType === 'pen') clearNativePen(e.pointerId);
+}, { capture: true, passive: true });
+document.addEventListener('pointercancel', e => {
+  if (e.pointerType === 'pen') clearNativePen(e.pointerId);
+}, { capture: true, passive: true });
 
 // Blur any focused input when clicking outside text fields so shortcuts always work.
 // IMPORTANT: we must NOT blur when the user taps a button that will immediately
@@ -7012,6 +7049,11 @@ document.addEventListener('click', e => {
   function bindToggle(id, getter, setter, onToggle) {
     const el = document.getElementById(id);
     if (!el) return;
+    const nativeOnlyDisabled = el.dataset.nativeOnly === 'true' && !isAndroidNative;
+    if (nativeOnlyDisabled) {
+      el.classList.add('native-only-disabled');
+      el.setAttribute('aria-disabled', 'true');
+    }
 
     function refresh() {
       const val = getter();
@@ -7027,12 +7069,14 @@ document.addEventListener('click', e => {
     }
 
     el.addEventListener('click', () => {
+      if (nativeOnlyDisabled) return;
       setter(!getter());
       refresh();
       if (onToggle) onToggle(getter());
     });
     // Also allow keyboard activation (Space/Enter) for accessibility
     el.addEventListener('keydown', e => {
+      if (nativeOnlyDisabled) return;
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
         setter(!getter());
@@ -7076,6 +7120,10 @@ document.addEventListener('click', e => {
     () => pressureSettings.barrelRotationEnabled,
     v  => { pressureSettings.barrelRotationEnabled = v; }
   );
+  if (!isAndroidNative) {
+    pressureSettings.barrelRotationEnabled = false;
+    document.getElementById('pref-row-barrel-rotation')?.classList.add('native-only-disabled');
+  }
 
   // ── STROKE: Smooth strokes ──
   bindToggle('pref-smooth-strokes',
@@ -7226,6 +7274,7 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
   const overlay = document.getElementById('brush-cursor-overlay');
   const ctx     = overlay.getContext('2d');
   let cursorX = -9999, cursorY = -9999;
+  let cursorAngle = null;
   let visible = false;
 
   // Track whether the most recent pointer is a pen — so we can hide
@@ -7266,7 +7315,7 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
     // Shape: circle for round tips, square for square eraser,
     // ellipse for flat/turnip/marker brush tips (respects ratio + angle).
     const ratio = (brush.ratio || 100) / 100;
-    const angle = (brush.angle || 0) * Math.PI / 180;
+    const angle = (cursorAngle ?? brush.angle ?? 0) * Math.PI / 180;
     const bType = brush.type || 'round';
     const eType = state.eraserType || 'soft';
     const useEllipse = !isErase && ratio < 0.98 && (
@@ -7395,6 +7444,9 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
 
     if (!isBrushTool()) { visible = false; drawCursor(); return; }
 
+    const brush = getActiveBrush();
+    const orientation = e.pointerType === 'pen' ? getPenOrientation(e) : null;
+    cursorAngle = (orientation?.angle ?? brush.angle ?? 0) + (orientation?.twist || 0);
     const wr = overlay.getBoundingClientRect();
     cursorX = e.clientX - wr.left;
     cursorY = e.clientY - wr.top;
@@ -7407,6 +7459,7 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
   // For a mouse, it means the cursor left the wrap area.
   wrap.addEventListener('pointerleave', e => {
     lastPointerType = e.pointerType;
+    cursorAngle = null;
     visible = false;
     drawCursor();
   });
@@ -7424,6 +7477,9 @@ window.addEventListener('resize', () => { if (canvasPrefs.showGrid) updateGridOv
     lastPointerType = e.pointerType;
     if (e.pointerType === 'touch') return;
     if (!isBrushTool()) return;
+    const brush = getActiveBrush();
+    const orientation = e.pointerType === 'pen' ? getPenOrientation(e) : null;
+    cursorAngle = (orientation?.angle ?? brush.angle ?? 0) + (orientation?.twist || 0);
     const wr = overlay.getBoundingClientRect();
     cursorX = e.clientX - wr.left;
     cursorY = e.clientY - wr.top;
@@ -11078,13 +11134,18 @@ function mergeLayerDown(idx) {
   // ── Build pen shortcuts section (moved from static HTML, same content) ────
   function buildPenSection() {
     const sec = document.createElement('div');
-    sec.className = 'pen-shortcuts-section';
-    sec.innerHTML = `
-      <div style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3);margin-bottom:var(--sp-2);">Pen Button Shortcuts</div>
-      <div class="pen-shortcuts-intro">
-        Hold a barrel button to temporarily switch tools — releasing restores your previous tool. Works while hovering or drawing. Compatible with Wacom Pro Pen 3, Apple Pencil Pro, and other Pointer Events styluses. Android (Wacom Movink) is fully supported via e.buttons tracking.
-      </div>
-
+    sec.className = 'pen-shortcuts-section' + (isAndroidNative ? '' : ' native-only-disabled');
+    const webNote = isAndroidNative ? '' : '<div class="native-only-note">Not available in the web version of the application.</div>';
+    const button1Label = isAndroidNative ? 'Button 1' : 'Closest to tip';
+    const button2Label = 'Button 2';
+    const button3Label = isAndroidNative ? 'Button 3' : 'Third button';
+    const button1Name = isAndroidNative ? '<div class="pen-btn-sub">BUTTON_STYLUS_PRIMARY</div>' : '';
+    const button2Name = isAndroidNative ? '<div class="pen-btn-sub">BUTTON_STYLUS_SECONDARY</div>' : '';
+    const button3Name = isAndroidNative ? '<div class="pen-btn-sub">BUTTON_TERTIARY</div>' : '';
+    const button1Options = isAndroidNative
+      ? '<option value="toggle" selected>Eraser ↔ Brush</option>'
+      : '<option value="eraser" selected>Eraser</option><option value="eyedrop">Eyedropper</option><option value="select">Select</option><option value="fill">Paint Bucket</option><option value="move">Move</option><option value="none">No Action</option>';
+    const apple = isAndroidNative ? '' : `
       <div class="pen-shortcuts-device" style="margin-top:var(--sp-3);">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
         Apple Pencil Pro
@@ -11092,36 +11153,42 @@ function mergeLayerDown(idx) {
       <div class="pen-btn-row">
         <div class="pen-btn-info"><div class="pen-btn-label">Squeeze</div></div>
         <select class="pen-btn-select" id="pen-apple-btn1" data-pen-device="apple" data-pen-button="1">
-          <option value="eraser" selected>Eraser</option><option value="eyedrop">Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+          <option value="eraser" selected>Eraser</option><option value="eyedrop">Eyedropper</option><option value="select">Select</option><option value="fill">Paint Bucket</option><option value="move">Move</option><option value="none">No Action</option>
         </select>
       </div>
       <div class="pen-btn-row">
         <div class="pen-btn-info"><div class="pen-btn-label">Double-tap (flat side)</div></div>
         <select class="pen-btn-select" id="pen-apple-btn2" data-pen-device="apple" data-pen-button="2">
-          <option value="eraser">Eraser</option><option value="eyedrop" selected>Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+          <option value="eraser">Eraser</option><option value="eyedrop" selected>Eyedropper</option><option value="select">Select</option><option value="fill">Paint Bucket</option><option value="move">Move</option><option value="none">No Action</option>
         </select>
+      </div>`;
+    sec.innerHTML = `
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--text3);margin-bottom:var(--sp-2);">Pen Button Shortcuts</div>
+      <div class="pen-shortcuts-intro">
+        Hold a pen button to temporarily switch tools — releasing restores your previous tool.
       </div>
-
+      ${webNote}
+      ${apple}
       <div class="pen-shortcuts-device" style="margin-top:var(--sp-4);">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 C10 2 8 3 8 6 L8 18 C8 21 10 22 12 22 C14 22 16 21 16 18 L16 6 C16 3 14 2 12 2Z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
-        Wacom Pro Pen 3
+        Wacom Art Pen 2
       </div>
       <div class="pen-btn-row">
-        <div class="pen-btn-info"><div class="pen-btn-label">Top button</div></div>
+        <div class="pen-btn-info"><div class="pen-btn-label">${button1Label}</div>${button1Name}</div>
         <select class="pen-btn-select" id="pen-wacom-top" data-pen-device="wacom" data-pen-button="1">
-          <option value="eraser" selected>Eraser</option><option value="eyedrop">Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+          ${button1Options}
         </select>
       </div>
       <div class="pen-btn-row">
-        <div class="pen-btn-info"><div class="pen-btn-label">Middle button</div></div>
+        <div class="pen-btn-info"><div class="pen-btn-label">${button2Label}</div>${button2Name}</div>
         <select class="pen-btn-select" id="pen-wacom-middle" data-pen-device="wacom" data-pen-button="2">
-          <option value="eraser">Eraser</option><option value="eyedrop" selected>Eyedropper</option><option value="select">Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+          <option value="eraser">Eraser</option><option value="eyedrop" selected>Eyedropper</option><option value="select">Select</option><option value="fill">Paint Bucket</option><option value="move">Move</option><option value="none">No Action</option>
         </select>
       </div>
       <div class="pen-btn-row" style="border-bottom:none;">
-        <div class="pen-btn-info"><div class="pen-btn-label">Bottom button</div></div>
+        <div class="pen-btn-info"><div class="pen-btn-label">${button3Label}</div>${button3Name}</div>
         <select class="pen-btn-select" id="pen-wacom-bottom" data-pen-device="wacom" data-pen-button="5">
-          <option value="eraser">Eraser</option><option value="eyedrop">Eyedropper</option><option value="select" selected>Select</option><option value="fill">Fill</option><option value="move">Move</option><option value="none">No Action</option>
+          <option value="eraser">Eraser</option><option value="eyedrop">Eyedropper</option><option value="select" selected>Select</option><option value="fill">Paint Bucket</option><option value="move">Move</option><option value="none">No Action</option>
         </select>
       </div>
     `;
@@ -11894,7 +11961,7 @@ document.addEventListener('keydown', e => {
 
   // ── Configuration ─────────────────────────────────────────────────────────
   const CFG_DEFAULTS = {
-    btn1: 'eraser',   // top barrel (e.button=1)    → Eraser
+    btn1: 'toggle',   // BUTTON_STYLUS_PRIMARY       → Brush / Eraser toggle
     btn2: 'eyedrop',  // middle barrel (e.button=2) → Eyedropper
     btn5: 'select',   // bottom barrel (e.button=5) → Select
   };
@@ -11910,6 +11977,7 @@ document.addEventListener('keydown', e => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); } catch(e) {}
   }
   let cfg = loadCfg();
+  if (isAndroidNative && cfg.btn1 !== 'toggle') { cfg.btn1 = 'toggle'; saveCfg(cfg); }
 
   // ── State — barrel Set is the only truth ──────────────────────────────────
   // Keys are e.button values (1, 2, 5). Updated ONLY from barrel events.
@@ -11918,12 +11986,34 @@ document.addEventListener('keydown', e => {
   let originalTool   = null;
   let currentOverride = null;
   window._penBtnActive = false;
+  let primaryButtonDown = false;
+
+  function togglePrimaryTool() {
+    currentOverride = null;
+    originalTool = null;
+    window._penBtnActive = false;
+    const next = state.tool === 'eraser' ? 'brush' : 'eraser';
+    activateTool(next);
+    if (next === 'eraser') showToast('eraser'); else hideToast();
+  }
+
+  nativePenButtonsHandler = ({ buttons = 0 } = {}) => {
+    const nativeMap = [[32, 1], [64, 2], [4, 5]]; // BUTTON_STYLUS_PRIMARY, BUTTON_STYLUS_SECONDARY, BUTTON_TERTIARY
+    const next = new Set(nativeMap.filter(([mask]) => (Number(buttons) & mask) !== 0).map(([, button]) => button));
+    const primaryDown = next.has(1);
+    if (primaryDown && !primaryButtonDown) togglePrimaryTool();
+    primaryButtonDown = primaryDown;
+    next.delete(1);
+    heldBarrels.forEach(button => { if (!next.has(button)) heldBarrels.delete(button); });
+    next.forEach(button => heldBarrels.add(button));
+    applyState();
+  };
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   const penToast = document.getElementById('pen-btn-toast');
   const TOOL_LABELS = {
     eraser: '✕ Eraser', eyedrop: '✦ Eyedropper',
-    select: '⬡ Select', fill: '◈ Fill', move: '✥ Move',
+    select: '⬡ Select', fill: '◈ Paint Bucket', move: '✥ Move',
   };
   function showToast(tool) {
     if (!penToast || !TOOL_LABELS[tool]) return;
@@ -11978,7 +12068,9 @@ document.addEventListener('keydown', e => {
   // reach the canvas draw handler or the select handler (which would capture
   // the pointer and freeze the cursor).
   document.addEventListener('pointerdown', function(e) {
+    if (!isAndroidNative) return;
     if (e.pointerType !== 'pen') return;
+    if (e.button === 1) { e.stopImmediatePropagation(); return; }
     if (e.button === 0) return; // tip contact — ignore for barrel tracking
     // Barrel button pressed. Record it and activate the mapped tool.
     heldBarrels.add(e.button);
@@ -11991,7 +12083,9 @@ document.addEventListener('keydown', e => {
 
   // ── Barrel pointerup ───────────────────────────────────────────────────────
   document.addEventListener('pointerup', function(e) {
+    if (!isAndroidNative) return;
     if (e.pointerType !== 'pen') return;
+    if (e.button === 1) return;
     if (e.button === 0) return; // tip lift — ignore
     heldBarrels.delete(e.button);
     applyState();
@@ -11999,12 +12093,14 @@ document.addEventListener('keydown', e => {
 
   // ── Pen leaves digitizer entirely ─────────────────────────────────────────
   document.addEventListener('pointerout', function(e) {
+    if (!isAndroidNative) return;
     if (e.pointerType !== 'pen') return;
     if (e.relatedTarget !== null) return; // moved to child, not out of range
     if (heldBarrels.size > 0) { heldBarrels.clear(); applyState(); }
   }, { capture: true, passive: true });
 
   document.addEventListener('pointercancel', function(e) {
+    if (!isAndroidNative) return;
     if (e.pointerType !== 'pen') return;
     if (heldBarrels.size > 0) { heldBarrels.clear(); applyState(); }
   }, { capture: true, passive: true });
@@ -12030,6 +12126,7 @@ document.addEventListener('keydown', e => {
     shortcutsOverlay.addEventListener('change', function(e) {
       const sel = e.target;
       if (!sel.classList.contains('pen-btn-select')) return;
+      if (!isAndroidNative) return;
       const cfgKey = SELECT_MAP[sel.id];
       if (cfgKey) {
         cfg[cfgKey] = sel.value;
