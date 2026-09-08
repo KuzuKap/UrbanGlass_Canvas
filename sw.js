@@ -1,18 +1,22 @@
 // UrbanGlass Canvas — Service Worker v2.0
 // Strategy:
-//   App shell (index.html, manifest, icons) → cache-first, pre-cached on install
+//   Page navigations                        → network-first, offline shell fallback
+//   Manifest, icons, and local assets       → cache-first, pre-cached on install
 //   Google Fonts CSS + font files          → cache-first (stale-while-revalidate)
 //   Everything else                        → cache-first, falling back to network
 
-const CACHE_VERSION = 'urbanglass-v2';
+const CACHE_VERSION = 'urbanglass-v30-firefox-raw-pen';
 const FONT_CACHE    = 'urbanglass-fonts-v2';
 const GHPATH        = '/UrbanGlass_Canvas';
 
 // All files that must be cached at install time for the app to work offline.
-// index.html contains ALL JS/CSS inline, so this is the complete shell.
+// The drawing core is inline; professional vector/comics tools are a lazy module.
 const PRECACHE_URLS = [
   `${GHPATH}/`,
   `${GHPATH}/index.html`,
+  `${GHPATH}/vector-engine.js`,
+  `${GHPATH}/professional-foundation.js`,
+  `${GHPATH}/comic-foundation.js`,
   `${GHPATH}/manifest.json`,
   `${GHPATH}/icon-192.png`,
   `${GHPATH}/icon-512.png`,
@@ -92,10 +96,31 @@ self.addEventListener('fetch', event => {
     return; // let the browser handle it natively
   }
 
-  // ── App shell & same-origin assets: cache-first ─────────────────────────
-  // Since index.html is self-contained (all JS/CSS inline), a cached hit
-  // means the app loads fully even with no network connection.
+  // ── App shell & same-origin assets ──────────────────────────────────────
+  // index.html is self-contained (all JS/CSS inline), so one cached shell is
+  // enough for offline startup while online navigations still receive fixes.
   if (url.origin === self.location.origin) {
+    // Navigations are network-first so a published drawing-engine fix is seen
+    // immediately. Fall back to the cached shell when the user is offline.
+    if (event.request.mode === 'navigate') {
+      event.respondWith(
+        fetch(event.request)
+          .then(response => {
+            if (response && response.status === 200) {
+              caches.open(CACHE_VERSION).then(cache => cache.put(event.request, response.clone()));
+            }
+            return response;
+          })
+          .catch(async () =>
+            (await caches.match(event.request)) ||
+            (await caches.match(`${GHPATH}/index.html`)) ||
+            (await caches.match(`${GHPATH}/`)) ||
+            new Response('UrbanGlass Canvas is unavailable offline.', { status: 503 })
+          )
+      );
+      return;
+    }
+
     event.respondWith(
       caches.match(event.request).then(cached => {
         if (cached) return cached;

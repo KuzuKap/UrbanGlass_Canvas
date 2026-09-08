@@ -7746,7 +7746,24 @@ canvasContainer.addEventListener('pointerdown', e => {
   }
 });
 
-canvasContainer.addEventListener('pointermove', e => {
+const isFirefoxPointerEngine = /(?:Firefox|FxiOS)\//.test(navigator.userAgent);
+const useFirefoxRawPenInput = isFirefoxPointerEngine && window.isSecureContext && 'onpointerrawupdate' in window;
+let firefoxRawPenTime = -Infinity;
+let firefoxRawPenId = null;
+
+function handleCanvasPointerMove(e, rawInput = false) {
+  // Firefox can delay pointermove enough to turn curves into visible straight
+  // chords. Its raw event arrives earlier and more often; ignore the later
+  // pointermove for the same pen so samples are not painted twice.
+  if (rawInput && !state.drawing) return;
+  if (rawInput) {
+    firefoxRawPenTime = performance.now();
+    firefoxRawPenId = e.pointerId;
+  } else if (useFirefoxRawPenInput && e.pointerType === 'pen' &&
+             firefoxRawPenId === e.pointerId && performance.now() - firefoxRawPenTime < 40) {
+    return;
+  }
+
   const {x, y} = clientToCanvas(e.clientX, e.clientY);
   if (e.pointerType === 'pen') lastPenCanvasPoint = { x, y };
   const statPos = document.getElementById('stat-pos');
@@ -7822,9 +7839,20 @@ canvasContainer.addEventListener('pointermove', e => {
       }
     } else if (state.tool === 'eraser') drawErase(cx, cy, sizeScale, opacityScale);
   }
-});
+}
+
+canvasContainer.addEventListener('pointermove', e => handleCanvasPointerMove(e));
+if (useFirefoxRawPenInput) {
+  canvasContainer.addEventListener('pointerrawupdate', e => {
+    if (e.pointerType === 'pen') handleCanvasPointerMove(e, true);
+  }, { passive: true });
+}
 
 canvasContainer.addEventListener('pointerup', e => {
+  if (e.pointerType === 'pen' && firefoxRawPenId === e.pointerId) {
+    firefoxRawPenId = null;
+    firefoxRawPenTime = -Infinity;
+  }
   if (state.drawing && state.tool !== 'move') {
     if (state.tool === 'brush') {
       captureBrushHistoryBefore();
@@ -7851,7 +7879,11 @@ canvasContainer.addEventListener('pointerup', e => {
   stabilizer.orientation = null;
 });
 
-canvasContainer.addEventListener('pointercancel', () => {
+canvasContainer.addEventListener('pointercancel', e => {
+  if (e.pointerType === 'pen' && firefoxRawPenId === e.pointerId) {
+    firefoxRawPenId = null;
+    firefoxRawPenTime = -Infinity;
+  }
   if (state.drawing && state.tool !== 'move') {
     if (state.tool === 'brush') { captureBrushHistoryBefore(); wetCommit(); }
     if (state.tool === 'eraser') _wetInvalidateSnapshot();
@@ -15917,9 +15949,9 @@ function toast(msg) {
 
 })(); // end Liquify Engine
 </script>
-<script src="./vector-engine.js?v=1.8.11"></script>
-<script src="./professional-foundation.js?v=1.8.11"></script>
-<script src="./comic-foundation.js?v=1.8.11"></script>
+<script src="./vector-engine.js?v=1.8.12"></script>
+<script src="./professional-foundation.js?v=1.8.12"></script>
+<script src="./comic-foundation.js?v=1.8.12"></script>
 
 <script>
 // ═══════════════════════════════════════════════════════════
