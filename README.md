@@ -16,6 +16,4 @@
 
     // MacOS via Safari: Click File  (Or click the "Share" button in the Safari toolbar)  >>>  Add to Dock  >>>  Add  >>>  Profit.
     
-  // **Firefox may not work properly right now.**
-
 // 3. Enjoy and have fun!
